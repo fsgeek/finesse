@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package finesse;
+
+/* note that these definitions are based upon the existing FUSE definitions */
+
+message FinesseFuseAttribute {
+	uint64        ino = 1;
+	uint64        size = 2;
+	uint64        blocks = 3;
+	uint64        atime = 4;
+	uint64        mtime = 5;
+	uint64        ctime = 6;
+	uint32        atimensec = 7;
+	uint32        mtimensec = 8;
+	uint32        ctimensec = 9;
+	uint32        mode = 10;
+	uint32        nlink = 11;
+	uint32        uid = 12;
+	uint32        gid = 13;
+	uint32        rdev = 14;
+	uint32        blksize = 15;
+}
+
+message FinesseFuseEntryOut {
+	uint64        nodeid = 1; 
+	uint64        generation = 2;
+	uint64        entry_valid = 3; 
+	uint64        attr_valid = 4;
+	uint32        entry_valid_nsec = 5;
+	uint32        attr_valid_nsec = 6;
+	FinesseFuseAttribute attr = 7;
+}
+
+message FinesseFuseDirent {
+	uint64        ino = 1;
+	uint64        off = 2;
+	uint32        namelen = 3;
+	uint32        type = 4;
+	string        name = 5;
+}
+
+message FinesseFuseDirentPlus {
+	FinesseFuseEntryOut entry_out = 1;
+	FinesseFuseDirent   dirent = 2;
+}
+
+/* this is the layout of the directory map in shared memory */
+message FinesseDirMap {
+	repeated FinesseFuseDirentPlus dirmap = 1;	
+}
+
+
+message FinesseMessageHeader {
+	string ProtocolName = 1;
+	uint64 MessageId = 3;
+	enum Operation {
+		TEST = 0;
+		NAME_MAP = 51;
+		NAME_MAP_RELEASE = 52;
+
+		DIR_MAP = 61;
+		DIR_MAP_RELEASE = 62;
+
+		UNLINK = 71;
+
+		PATH_SEARCH = 101;
+	}
+	Operation Op = 4;
+}
+
+
+message FinesseRequest {
+	FinesseMessageHeader Header = 1;
+	bytes  ClientUuid = 2;
+	message NameMap {
+		string Name = 1;
+	}
+
+	message NameMapRelease {
+		bytes Key = 1;
+	}
+
+	message DirMap {
+		oneof KeyType {
+			string Name = 1;
+			bytes Key = 2;
+		}
+	}
+
+	message DirMapRelease {
+		bytes Key = 1;
+	}
+
+	message Unlink {
+		string Name = 1;
+	}
+
+	message PathSearch {
+		bool MemorMap = 1;
+		repeated string files = 2;
+		repeated string paths = 3;
+	}
+
+	oneof Request {
+		NameMap 		NameMapReq = 3;
+		NameMapRelease  NameMapReleaseReq = 4;
+		DirMap 			DirMapReq = 5;
+		DirMapRelease 	DirMapReleaseReq = 6;
+		Unlink 			UnlinkReq = 7;
+		PathSearch 		PathSearchReq = 8;
+	}
+}
+
+message FinesseResponse {
+	FinesseMessageHeader Header = 1;
+	sint64 Status = 2;
+
+	message NameMap {
+		bytes Key = 1;
+	}
+
+	message DirMap {
+		string Name = 1;
+	}
+
+	message PathSearch {
+		string Name = 1;
+	}
+
+	oneof Response {
+		NameMap 	NameMapRsp = 3;
+		DirMap 		DirMapRsp = 4;
+		PathSearch 	PathSearchRsp = 5;
+	}
+}
