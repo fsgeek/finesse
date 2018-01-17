@@ -92,7 +92,7 @@ thread_dep = dependency('threads')
 #
 # Read build files from sub-directories
 #
-subdirs = [ 'lib', 'include', 'example', 'doc', 'test' ]
+subdirs = [ 'finesse', 'lib', 'include', 'example', 'doc', 'test' ]
 if not platform.endswith('bsd')
   subdirs += 'util'
 endif
