@@ -238,6 +238,7 @@ static void destroy_req(fuse_req_t req)
     free(req);
 }
 
+// TODO: figure out why I can't use the version in libfuse itself.  Frustrating!
 void fuse_chan_put(struct fuse_chan *ch)
 {
     if (ch == NULL)

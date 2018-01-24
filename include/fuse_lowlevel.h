@@ -1974,37 +1974,6 @@ void fuse_session_process_buf(struct fuse_session *se,
  */
 int fuse_session_receive_buf(struct fuse_session *se, struct fuse_buf *buf);
 
-/* BEGIN FINESSE CODE */
-
-struct fuse_session *finesse_session_new(struct fuse_args *args,
-										 const struct fuse_lowlevel_ops *op,
-										 size_t op_size, void *userdata);
-
-#define fuse_session_new(a, o, s, u) finesse_session_new(a, o, s, u)
-
-#undef fuse_session_loop_mt
-int finesse_session_loop_mt_31(struct fuse_session *se, int clone_fd);
-#if FUSE_USE_VERSION < 32
-#define fuse_session_loop_mt(se, clone_fd) finesse_session_loop_mt_31(se, clone_fd)
-#else
-int finesse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config *config);
-#define fuse_session_loop_mt(se, config) finesse_session_loop_mt_32(se, config)
-#endif
-
-void finesse_session_destroy(struct fuse_session *se);
-
-int finesse_session_loop(struct fuse_session *se);
-
-/* TODO: map fuse_session_destry.  For now we call explicitly */
-
-/**
- * Set the provider for the given request.
- */
-void finesse_set_provider(fuse_req_t req, int finesse);
-int finesse_get_provider(fuse_req_t req);
-
-/* END FINESSE CODE */
-
 #ifdef __cplusplus
 }
 #endif
