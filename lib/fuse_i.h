@@ -11,7 +11,8 @@
 
 struct mount_opts;
 
-struct fuse_req {
+struct fuse_req
+{
 	struct fuse_session *se;
 	uint64_t unique;
 	int ctr;
@@ -20,11 +21,21 @@ struct fuse_req {
 	struct fuse_chan *ch;
 	int interrupted;
 	unsigned int ioctl_64bit : 1;
+	/* BEGIN FINESSE CHANGE */
+	unsigned int finesse : 1;		 // finesse allocated
+	unsigned int finesse_notify : 1; // notify finesse
+	void *finesse_req;
+	void *finesse_rsp;
+	int opcode;
+	struct fuse_req *original_fuse_req;
+	/* END FINESSE CHANGE */
 	union {
-		struct {
+		struct
+		{
 			uint64_t unique;
 		} i;
-		struct {
+		struct
+		{
 			fuse_interrupt_func_t func;
 			void *data;
 		} ni;
@@ -33,15 +44,17 @@ struct fuse_req {
 	struct fuse_req *prev;
 };
 
-struct fuse_notify_req {
+struct fuse_notify_req
+{
 	uint64_t unique;
 	void (*reply)(struct fuse_notify_req *, fuse_req_t, fuse_ino_t,
-		      const void *, const struct fuse_buf *);
+				  const void *, const struct fuse_buf *);
 	struct fuse_notify_req *next;
 	struct fuse_notify_req *prev;
 };
 
-struct fuse_session {
+struct fuse_session
+{
 	char *mountpoint;
 	volatile int exited;
 	int fd;
@@ -64,9 +77,14 @@ struct fuse_session {
 	struct fuse_notify_req notify_list;
 	size_t bufsize;
 	int error;
+	/* BEGIN FINESSE CHANGE */
+	const char *message_queue_name;
+	int message_queue_descriptor;
+	/* END FINESSE CHANGE */
 };
 
-struct fuse_chan {
+struct fuse_chan
+{
 	pthread_mutex_t lock;
 	int ctr;
 	int fd;
@@ -79,7 +97,8 @@ struct fuse_chan {
  * macro.
  *
  */
-struct fuse_module {
+struct fuse_module
+{
 	char *name;
 	fuse_module_factory_t factory;
 	struct fuse_module *next;
@@ -114,7 +133,7 @@ void fuse_kern_unmount(const char *mountpoint, int fd);
 int fuse_kern_mount(const char *mountpoint, struct mount_opts *mo);
 
 int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
-			       int count);
+							   int count);
 void fuse_free_req(fuse_req_t req);
 
 void cuse_lowlevel_init(fuse_req_t req, fuse_ino_t nodeide, const void *inarg);
@@ -122,12 +141,11 @@ void cuse_lowlevel_init(fuse_req_t req, fuse_ino_t nodeide, const void *inarg);
 int fuse_start_thread(pthread_t *thread_id, void *(*func)(void *), void *arg);
 
 int fuse_session_receive_buf_int(struct fuse_session *se, struct fuse_buf *buf,
-				 struct fuse_chan *ch);
+								 struct fuse_chan *ch);
 void fuse_session_process_buf_int(struct fuse_session *se,
-				  const struct fuse_buf *buf, struct fuse_chan *ch);
+								  const struct fuse_buf *buf, struct fuse_chan *ch);
 
 struct fuse *fuse_new_31(struct fuse_args *args, const struct fuse_operations *op,
-		      size_t op_size, void *private_data);
+						 size_t op_size, void *private_data);
 int fuse_loop_mt_32(struct fuse *f, struct fuse_loop_config *config);
 int fuse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config *config);
-

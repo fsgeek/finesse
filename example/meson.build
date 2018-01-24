@@ -21,7 +21,7 @@ threaded_examples = [ 'notify_inval_inode',
 foreach ex : examples
     executable(ex, ex + '.c',
                include_directories: include_dirs,
-               link_with: [ libfuse ],
+               link_with: [ libfuse, libfinesse ],
                install: false)
 endforeach
 
@@ -29,7 +29,7 @@ endforeach
 foreach ex : threaded_examples
     executable(ex, ex + '.c',
                include_directories: include_dirs,
-               link_with: [ libfuse ],
+               link_with: [ libfuse, libfinesse ],
                dependencies: thread_dep,
                install: false)
 endforeach

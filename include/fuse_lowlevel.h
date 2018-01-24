@@ -56,7 +56,8 @@ typedef struct fuse_req *fuse_req_t;
 struct fuse_session;
 
 /** Directory entry parameters supplied to fuse_reply_entry() */
-struct fuse_entry_param {
+struct fuse_entry_param
+{
 	/** Unique inode number
 	 *
 	 * In lookup, zero means negative entry (from version 2.5)
@@ -111,7 +112,8 @@ struct fuse_entry_param {
  * PID or user namespace but then accessed from outside the namespace,
  * there is no valid uid/pid/gid that could be reported.
  */
-struct fuse_ctx {
+struct fuse_ctx
+{
 	/** User ID of the calling process */
 	uid_t uid;
 
@@ -125,21 +127,22 @@ struct fuse_ctx {
 	mode_t umask;
 };
 
-struct fuse_forget_data {
+struct fuse_forget_data
+{
 	fuse_ino_t ino;
 	uint64_t nlookup;
 };
 
 /* 'to_set' flags in setattr */
-#define FUSE_SET_ATTR_MODE	(1 << 0)
-#define FUSE_SET_ATTR_UID	(1 << 1)
-#define FUSE_SET_ATTR_GID	(1 << 2)
-#define FUSE_SET_ATTR_SIZE	(1 << 3)
-#define FUSE_SET_ATTR_ATIME	(1 << 4)
-#define FUSE_SET_ATTR_MTIME	(1 << 5)
-#define FUSE_SET_ATTR_ATIME_NOW	(1 << 7)
-#define FUSE_SET_ATTR_MTIME_NOW	(1 << 8)
-#define FUSE_SET_ATTR_CTIME	(1 << 10)
+#define FUSE_SET_ATTR_MODE (1 << 0)
+#define FUSE_SET_ATTR_UID (1 << 1)
+#define FUSE_SET_ATTR_GID (1 << 2)
+#define FUSE_SET_ATTR_SIZE (1 << 3)
+#define FUSE_SET_ATTR_ATIME (1 << 4)
+#define FUSE_SET_ATTR_MTIME (1 << 5)
+#define FUSE_SET_ATTR_ATIME_NOW (1 << 7)
+#define FUSE_SET_ATTR_MTIME_NOW (1 << 8)
+#define FUSE_SET_ATTR_CTIME (1 << 10)
 
 /* ----------------------------------------------------------- *
  * Request methods and replies				       *
@@ -172,7 +175,8 @@ struct fuse_forget_data {
  * fuse_reply_open() return -ENOENT means, that the release method for
  * this file will not be called.
  */
-struct fuse_lowlevel_ops {
+struct fuse_lowlevel_ops
+{
 	/**
 	 * Initialize filesystem
 	 *
@@ -189,7 +193,7 @@ struct fuse_lowlevel_ops {
 	 *
 	 * @param userdata the user data passed to fuse_session_new()
 	 */
-	void (*init) (void *userdata, struct fuse_conn_info *conn);
+	void (*init)(void *userdata, struct fuse_conn_info *conn);
 
 	/**
 	 * Clean up filesystem.
@@ -202,7 +206,7 @@ struct fuse_lowlevel_ops {
 	 *
 	 * @param userdata the user data passed to fuse_session_new()
 	 */
-	void (*destroy) (void *userdata);
+	void (*destroy)(void *userdata);
 
 	/**
 	 * Look up a directory entry by name and get its attributes.
@@ -215,7 +219,7 @@ struct fuse_lowlevel_ops {
 	 * @param parent inode number of the parent directory
 	 * @param name the name to look up
 	 */
-	void (*lookup) (fuse_req_t req, fuse_ino_t parent, const char *name);
+	void (*lookup)(fuse_req_t req, fuse_ino_t parent, const char *name);
 
 	/**
 	 * Forget about an inode
@@ -253,7 +257,7 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param nlookup the number of lookups to forget
 	 */
-	void (*forget) (fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);
+	void (*forget)(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);
 
 	/**
 	 * Get file attributes.
@@ -274,8 +278,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi for future use, currently always NULL
 	 */
-	void (*getattr) (fuse_req_t req, fuse_ino_t ino,
-			 struct fuse_file_info *fi);
+	void (*getattr)(fuse_req_t req, fuse_ino_t ino,
+					struct fuse_file_info *fi);
 
 	/**
 	 * Set file attributes
@@ -305,8 +309,8 @@ struct fuse_lowlevel_ops {
 	 * @param to_set bit mask of attributes which should be set
 	 * @param fi file information, or NULL
 	 */
-	void (*setattr) (fuse_req_t req, fuse_ino_t ino, struct stat *attr,
-			 int to_set, struct fuse_file_info *fi);
+	void (*setattr)(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
+					int to_set, struct fuse_file_info *fi);
 
 	/**
 	 * Read symbolic link
@@ -318,7 +322,7 @@ struct fuse_lowlevel_ops {
 	 * @param req request handle
 	 * @param ino the inode number
 	 */
-	void (*readlink) (fuse_req_t req, fuse_ino_t ino);
+	void (*readlink)(fuse_req_t req, fuse_ino_t ino);
 
 	/**
 	 * Create file node
@@ -336,8 +340,8 @@ struct fuse_lowlevel_ops {
 	 * @param mode file type and mode with which to create the new file
 	 * @param rdev the device number (only valid if created file is a device)
 	 */
-	void (*mknod) (fuse_req_t req, fuse_ino_t parent, const char *name,
-		       mode_t mode, dev_t rdev);
+	void (*mknod)(fuse_req_t req, fuse_ino_t parent, const char *name,
+				  mode_t mode, dev_t rdev);
 
 	/**
 	 * Create a directory
@@ -351,8 +355,8 @@ struct fuse_lowlevel_ops {
 	 * @param name to create
 	 * @param mode with which to create the new file
 	 */
-	void (*mkdir) (fuse_req_t req, fuse_ino_t parent, const char *name,
-		       mode_t mode);
+	void (*mkdir)(fuse_req_t req, fuse_ino_t parent, const char *name,
+				  mode_t mode);
 
 	/**
 	 * Remove a file
@@ -369,7 +373,7 @@ struct fuse_lowlevel_ops {
 	 * @param parent inode number of the parent directory
 	 * @param name to remove
 	 */
-	void (*unlink) (fuse_req_t req, fuse_ino_t parent, const char *name);
+	void (*unlink)(fuse_req_t req, fuse_ino_t parent, const char *name);
 
 	/**
 	 * Remove a directory
@@ -386,7 +390,7 @@ struct fuse_lowlevel_ops {
 	 * @param parent inode number of the parent directory
 	 * @param name to remove
 	 */
-	void (*rmdir) (fuse_req_t req, fuse_ino_t parent, const char *name);
+	void (*rmdir)(fuse_req_t req, fuse_ino_t parent, const char *name);
 
 	/**
 	 * Create a symbolic link
@@ -400,8 +404,8 @@ struct fuse_lowlevel_ops {
 	 * @param parent inode number of the parent directory
 	 * @param name to create
 	 */
-	void (*symlink) (fuse_req_t req, const char *link, fuse_ino_t parent,
-			 const char *name);
+	void (*symlink)(fuse_req_t req, const char *link, fuse_ino_t parent,
+					const char *name);
 
 	/** Rename a file
 	 *
@@ -432,9 +436,9 @@ struct fuse_lowlevel_ops {
 	 * @param newparent inode number of the new parent directory
 	 * @param newname new name
 	 */
-	void (*rename) (fuse_req_t req, fuse_ino_t parent, const char *name,
-			fuse_ino_t newparent, const char *newname,
-			unsigned int flags);
+	void (*rename)(fuse_req_t req, fuse_ino_t parent, const char *name,
+				   fuse_ino_t newparent, const char *newname,
+				   unsigned int flags);
 
 	/**
 	 * Create a hard link
@@ -448,8 +452,8 @@ struct fuse_lowlevel_ops {
 	 * @param newparent inode number of the new parent directory
 	 * @param newname new name to create
 	 */
-	void (*link) (fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
-		      const char *newname);
+	void (*link)(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
+				 const char *newname);
 
 	/**
 	 * Open a file
@@ -507,8 +511,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi file information
 	 */
-	void (*open) (fuse_req_t req, fuse_ino_t ino,
-		      struct fuse_file_info *fi);
+	void (*open)(fuse_req_t req, fuse_ino_t ino,
+				 struct fuse_file_info *fi);
 
 	/**
 	 * Read data
@@ -535,8 +539,8 @@ struct fuse_lowlevel_ops {
 	 * @param off offset to read from
 	 * @param fi file information
 	 */
-	void (*read) (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-		      struct fuse_file_info *fi);
+	void (*read)(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+				 struct fuse_file_info *fi);
 
 	/**
 	 * Write data
@@ -564,8 +568,8 @@ struct fuse_lowlevel_ops {
 	 * @param off offset to write to
 	 * @param fi file information
 	 */
-	void (*write) (fuse_req_t req, fuse_ino_t ino, const char *buf,
-		       size_t size, off_t off, struct fuse_file_info *fi);
+	void (*write)(fuse_req_t req, fuse_ino_t ino, const char *buf,
+				  size_t size, off_t off, struct fuse_file_info *fi);
 
 	/**
 	 * Flush method
@@ -601,8 +605,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi file information
 	 */
-	void (*flush) (fuse_req_t req, fuse_ino_t ino,
-		       struct fuse_file_info *fi);
+	void (*flush)(fuse_req_t req, fuse_ino_t ino,
+				  struct fuse_file_info *fi);
 
 	/**
 	 * Release an open file
@@ -628,8 +632,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi file information
 	 */
-	void (*release) (fuse_req_t req, fuse_ino_t ino,
-			 struct fuse_file_info *fi);
+	void (*release)(fuse_req_t req, fuse_ino_t ino,
+					struct fuse_file_info *fi);
 
 	/**
 	 * Synchronize file contents
@@ -650,8 +654,8 @@ struct fuse_lowlevel_ops {
 	 * @param datasync flag indicating if only data should be flushed
 	 * @param fi file information
 	 */
-	void (*fsync) (fuse_req_t req, fuse_ino_t ino, int datasync,
-		       struct fuse_file_info *fi);
+	void (*fsync)(fuse_req_t req, fuse_ino_t ino, int datasync,
+				  struct fuse_file_info *fi);
 
 	/**
 	 * Open a directory
@@ -674,8 +678,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi file information
 	 */
-	void (*opendir) (fuse_req_t req, fuse_ino_t ino,
-			 struct fuse_file_info *fi);
+	void (*opendir)(fuse_req_t req, fuse_ino_t ino,
+					struct fuse_file_info *fi);
 
 	/**
 	 * Read directory
@@ -704,8 +708,8 @@ struct fuse_lowlevel_ops {
 	 * @param off offset to continue reading the directory stream
 	 * @param fi file information
 	 */
-	void (*readdir) (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-			 struct fuse_file_info *fi);
+	void (*readdir)(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+					struct fuse_file_info *fi);
 
 	/**
 	 * Release an open directory
@@ -723,8 +727,8 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param fi file information
 	 */
-	void (*releasedir) (fuse_req_t req, fuse_ino_t ino,
-			    struct fuse_file_info *fi);
+	void (*releasedir)(fuse_req_t req, fuse_ino_t ino,
+					   struct fuse_file_info *fi);
 
 	/**
 	 * Synchronize directory contents
@@ -748,8 +752,8 @@ struct fuse_lowlevel_ops {
 	 * @param datasync flag indicating if only data should be flushed
 	 * @param fi file information
 	 */
-	void (*fsyncdir) (fuse_req_t req, fuse_ino_t ino, int datasync,
-			  struct fuse_file_info *fi);
+	void (*fsyncdir)(fuse_req_t req, fuse_ino_t ino, int datasync,
+					 struct fuse_file_info *fi);
 
 	/**
 	 * Get file system statistics
@@ -761,7 +765,7 @@ struct fuse_lowlevel_ops {
 	 * @param req request handle
 	 * @param ino the inode number, zero means "undefined"
 	 */
-	void (*statfs) (fuse_req_t req, fuse_ino_t ino);
+	void (*statfs)(fuse_req_t req, fuse_ino_t ino);
 
 	/**
 	 * Set an extended attribute
@@ -774,8 +778,8 @@ struct fuse_lowlevel_ops {
 	 * Valid replies:
 	 *   fuse_reply_err
 	 */
-	void (*setxattr) (fuse_req_t req, fuse_ino_t ino, const char *name,
-			  const char *value, size_t size, int flags);
+	void (*setxattr)(fuse_req_t req, fuse_ino_t ino, const char *name,
+					 const char *value, size_t size, int flags);
 
 	/**
 	 * Get an extended attribute
@@ -805,8 +809,8 @@ struct fuse_lowlevel_ops {
 	 * @param name of the extended attribute
 	 * @param size maximum size of the value to send
 	 */
-	void (*getxattr) (fuse_req_t req, fuse_ino_t ino, const char *name,
-			  size_t size);
+	void (*getxattr)(fuse_req_t req, fuse_ino_t ino, const char *name,
+					 size_t size);
 
 	/**
 	 * List extended attribute names
@@ -836,7 +840,7 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param size maximum size of the list to send
 	 */
-	void (*listxattr) (fuse_req_t req, fuse_ino_t ino, size_t size);
+	void (*listxattr)(fuse_req_t req, fuse_ino_t ino, size_t size);
 
 	/**
 	 * Remove an extended attribute
@@ -853,7 +857,7 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param name of the extended attribute
 	 */
-	void (*removexattr) (fuse_req_t req, fuse_ino_t ino, const char *name);
+	void (*removexattr)(fuse_req_t req, fuse_ino_t ino, const char *name);
 
 	/**
 	 * Check file access permissions
@@ -875,7 +879,7 @@ struct fuse_lowlevel_ops {
 	 * @param ino the inode number
 	 * @param mask requested access mode
 	 */
-	void (*access) (fuse_req_t req, fuse_ino_t ino, int mask);
+	void (*access)(fuse_req_t req, fuse_ino_t ino, int mask);
 
 	/**
 	 * Create and open a file
@@ -904,8 +908,8 @@ struct fuse_lowlevel_ops {
 	 * @param mode file type and mode with which to create the new file
 	 * @param fi file information
 	 */
-	void (*create) (fuse_req_t req, fuse_ino_t parent, const char *name,
-			mode_t mode, struct fuse_file_info *fi);
+	void (*create)(fuse_req_t req, fuse_ino_t parent, const char *name,
+				   mode_t mode, struct fuse_file_info *fi);
 
 	/**
 	 * Test for a POSIX file lock
@@ -919,8 +923,8 @@ struct fuse_lowlevel_ops {
 	 * @param fi file information
 	 * @param lock the region/type to test
 	 */
-	void (*getlk) (fuse_req_t req, fuse_ino_t ino,
-		       struct fuse_file_info *fi, struct flock *lock);
+	void (*getlk)(fuse_req_t req, fuse_ino_t ino,
+				  struct fuse_file_info *fi, struct flock *lock);
 
 	/**
 	 * Acquire, modify or release a POSIX file lock
@@ -944,9 +948,9 @@ struct fuse_lowlevel_ops {
 	 * @param lock the region/type to set
 	 * @param sleep locking operation may sleep
 	 */
-	void (*setlk) (fuse_req_t req, fuse_ino_t ino,
-		       struct fuse_file_info *fi,
-		       struct flock *lock, int sleep);
+	void (*setlk)(fuse_req_t req, fuse_ino_t ino,
+				  struct fuse_file_info *fi,
+				  struct flock *lock, int sleep);
 
 	/**
 	 * Map block index within file to block index within device
@@ -968,8 +972,8 @@ struct fuse_lowlevel_ops {
 	 * @param blocksize unit of block index
 	 * @param idx block index within file
 	 */
-	void (*bmap) (fuse_req_t req, fuse_ino_t ino, size_t blocksize,
-		      uint64_t idx);
+	void (*bmap)(fuse_req_t req, fuse_ino_t ino, size_t blocksize,
+				 uint64_t idx);
 
 	/**
 	 * Ioctl
@@ -996,9 +1000,9 @@ struct fuse_lowlevel_ops {
 	 * @param in_bufsz number of fetched bytes
 	 * @param out_bufsz maximum size of output data
 	 */
-	void (*ioctl) (fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
-		       struct fuse_file_info *fi, unsigned flags,
-		       const void *in_buf, size_t in_bufsz, size_t out_bufsz);
+	void (*ioctl)(fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
+				  struct fuse_file_info *fi, unsigned flags,
+				  const void *in_buf, size_t in_bufsz, size_t out_bufsz);
 
 	/**
 	 * Poll for IO readiness
@@ -1029,8 +1033,8 @@ struct fuse_lowlevel_ops {
 	 * @param fi file information
 	 * @param ph poll handle to be used for notification
 	 */
-	void (*poll) (fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-		      struct fuse_pollhandle *ph);
+	void (*poll)(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
+				 struct fuse_pollhandle *ph);
 
 	/**
 	 * Write data made available in a buffer
@@ -1059,9 +1063,9 @@ struct fuse_lowlevel_ops {
 	 * @param off offset to write to
 	 * @param fi file information
 	 */
-	void (*write_buf) (fuse_req_t req, fuse_ino_t ino,
-			   struct fuse_bufvec *bufv, off_t off,
-			   struct fuse_file_info *fi);
+	void (*write_buf)(fuse_req_t req, fuse_ino_t ino,
+					  struct fuse_bufvec *bufv, off_t off,
+					  struct fuse_file_info *fi);
 
 	/**
 	 * Callback function for the retrieve request
@@ -1075,8 +1079,8 @@ struct fuse_lowlevel_ops {
 	 * @param offset the offset supplied to fuse_lowlevel_notify_retrieve()
 	 * @param bufv the buffer containing the returned data
 	 */
-	void (*retrieve_reply) (fuse_req_t req, void *cookie, fuse_ino_t ino,
-				off_t offset, struct fuse_bufvec *bufv);
+	void (*retrieve_reply)(fuse_req_t req, void *cookie, fuse_ino_t ino,
+						   off_t offset, struct fuse_bufvec *bufv);
 
 	/**
 	 * Forget about multiple inodes
@@ -1089,8 +1093,8 @@ struct fuse_lowlevel_ops {
 	 *
 	 * @param req request handle
 	 */
-	void (*forget_multi) (fuse_req_t req, size_t count,
-			      struct fuse_forget_data *forgets);
+	void (*forget_multi)(fuse_req_t req, size_t count,
+						 struct fuse_forget_data *forgets);
 
 	/**
 	 * Acquire, modify or release a BSD file lock
@@ -1107,8 +1111,8 @@ struct fuse_lowlevel_ops {
 	 * @param fi file information
 	 * @param op the locking operation, see flock(2)
 	 */
-	void (*flock) (fuse_req_t req, fuse_ino_t ino,
-		       struct fuse_file_info *fi, int op);
+	void (*flock)(fuse_req_t req, fuse_ino_t ino,
+				  struct fuse_file_info *fi, int op);
 
 	/**
 	 * Allocate requested space. If this function returns success then
@@ -1130,8 +1134,8 @@ struct fuse_lowlevel_ops {
 	 * @param mode determines the operation to be performed on the given range,
 	 *             see fallocate(2)
 	 */
-	void (*fallocate) (fuse_req_t req, fuse_ino_t ino, int mode,
-		       off_t offset, off_t length, struct fuse_file_info *fi);
+	void (*fallocate)(fuse_req_t req, fuse_ino_t ino, int mode,
+					  off_t offset, off_t length, struct fuse_file_info *fi);
 
 	/**
 	 * Read directory with attributes
@@ -1158,8 +1162,8 @@ struct fuse_lowlevel_ops {
 	 * @param off offset to continue reading the directory stream
 	 * @param fi file information
 	 */
-	void (*readdirplus) (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-			 struct fuse_file_info *fi);
+	void (*readdirplus)(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+						struct fuse_file_info *fi);
 };
 
 /**
@@ -1230,7 +1234,7 @@ int fuse_reply_entry(fuse_req_t req, const struct fuse_entry_param *e);
  * @return zero for success, -errno for failure to send reply
  */
 int fuse_reply_create(fuse_req_t req, const struct fuse_entry_param *e,
-		      const struct fuse_file_info *fi);
+					  const struct fuse_file_info *fi);
 
 /**
  * Reply with attributes
@@ -1244,7 +1248,7 @@ int fuse_reply_create(fuse_req_t req, const struct fuse_entry_param *e,
  * @return zero for success, -errno for failure to send reply
  */
 int fuse_reply_attr(fuse_req_t req, const struct stat *attr,
-		    double attr_timeout);
+					double attr_timeout);
 
 /**
  * Reply with the contents of a symbolic link
@@ -1342,7 +1346,7 @@ int fuse_reply_buf(fuse_req_t req, const char *buf, size_t size);
  * @return zero for success, -errno for failure to send reply
  */
 int fuse_reply_data(fuse_req_t req, struct fuse_bufvec *bufv,
-		    enum fuse_buf_copy_flags flags);
+					enum fuse_buf_copy_flags flags);
 
 /**
  * Reply with data vector
@@ -1437,8 +1441,8 @@ int fuse_reply_bmap(fuse_req_t req, uint64_t idx);
  * @return the space needed for the entry
  */
 size_t fuse_add_direntry(fuse_req_t req, char *buf, size_t bufsize,
-			 const char *name, const struct stat *stbuf,
-			 off_t off);
+						 const char *name, const struct stat *stbuf,
+						 off_t off);
 
 /**
  * Add a directory entry to the buffer with the attributes
@@ -1454,8 +1458,8 @@ size_t fuse_add_direntry(fuse_req_t req, char *buf, size_t bufsize,
  * @return the space needed for the entry
  */
 size_t fuse_add_direntry_plus(fuse_req_t req, char *buf, size_t bufsize,
-			      const char *name,
-			      const struct fuse_entry_param *e, off_t off);
+							  const char *name,
+							  const struct fuse_entry_param *e, off_t off);
 
 /**
  * Reply to ask for data fetch and output buffer preparation.  ioctl
@@ -1473,8 +1477,8 @@ size_t fuse_add_direntry_plus(fuse_req_t req, char *buf, size_t bufsize,
  * @return zero for success, -errno for failure to send reply
  */
 int fuse_reply_ioctl_retry(fuse_req_t req,
-			   const struct iovec *in_iov, size_t in_count,
-			   const struct iovec *out_iov, size_t out_count);
+						   const struct iovec *in_iov, size_t in_count,
+						   const struct iovec *out_iov, size_t out_count);
 
 /**
  * Reply to finish ioctl
@@ -1501,7 +1505,7 @@ int fuse_reply_ioctl(fuse_req_t req, int result, const void *buf, size_t size);
  * @param count the size of vector
  */
 int fuse_reply_ioctl_iov(fuse_req_t req, int result, const struct iovec *iov,
-			 int count);
+						 int count);
 
 /**
  * Reply with poll result event mask
@@ -1539,7 +1543,7 @@ int fuse_lowlevel_notify_poll(struct fuse_pollhandle *ph);
  * @return zero for success, -errno for failure
  */
 int fuse_lowlevel_notify_inval_inode(struct fuse_session *se, fuse_ino_t ino,
-				     off_t off, off_t len);
+									 off_t off, off_t len);
 
 /**
  * Notify to invalidate parent attributes and the dentry matching
@@ -1560,7 +1564,7 @@ int fuse_lowlevel_notify_inval_inode(struct fuse_session *se, fuse_ino_t ino,
  * @return zero for success, -errno for failure
  */
 int fuse_lowlevel_notify_inval_entry(struct fuse_session *se, fuse_ino_t parent,
-				     const char *name, size_t namelen);
+									 const char *name, size_t namelen);
 
 /**
  * This function behaves like fuse_lowlevel_notify_inval_entry() with
@@ -1587,8 +1591,8 @@ int fuse_lowlevel_notify_inval_entry(struct fuse_session *se, fuse_ino_t parent,
  * @return zero for success, -errno for failure
  */
 int fuse_lowlevel_notify_delete(struct fuse_session *se,
-				fuse_ino_t parent, fuse_ino_t child,
-				const char *name, size_t namelen);
+								fuse_ino_t parent, fuse_ino_t child,
+								const char *name, size_t namelen);
 
 /**
  * Store data to the kernel buffers
@@ -1616,8 +1620,8 @@ int fuse_lowlevel_notify_delete(struct fuse_session *se,
  * @return zero for success, -errno for failure
  */
 int fuse_lowlevel_notify_store(struct fuse_session *se, fuse_ino_t ino,
-			       off_t offset, struct fuse_bufvec *bufv,
-			       enum fuse_buf_copy_flags flags);
+							   off_t offset, struct fuse_bufvec *bufv,
+							   enum fuse_buf_copy_flags flags);
 /**
  * Retrieve data from the kernel buffers
  *
@@ -1648,8 +1652,7 @@ int fuse_lowlevel_notify_store(struct fuse_session *se, fuse_ino_t ino,
  * @return zero for success, -errno for failure
  */
 int fuse_lowlevel_notify_retrieve(struct fuse_session *se, fuse_ino_t ino,
-				  size_t size, off_t offset, void *cookie);
-
+								  size_t size, off_t offset, void *cookie);
 
 /* ----------------------------------------------------------- *
  * Utility functions					       *
@@ -1715,7 +1718,7 @@ typedef void (*fuse_interrupt_func_t)(fuse_req_t req, void *data);
  * @param data user data passed to the callback function
  */
 void fuse_req_interrupt_func(fuse_req_t req, fuse_interrupt_func_t func,
-			     void *data);
+							 void *data);
 
 /**
  * Check if a request has already been interrupted
@@ -1724,7 +1727,6 @@ void fuse_req_interrupt_func(fuse_req_t req, fuse_interrupt_func_t func,
  * @return 1 if the request has been interrupted, 0 otherwise
  */
 int fuse_req_interrupted(fuse_req_t req);
-
 
 /* ----------------------------------------------------------- *
  * Inquiry functions                                           *
@@ -1751,7 +1753,8 @@ void fuse_cmdline_help(void);
  * Filesystem setup & teardown                                 *
  * ----------------------------------------------------------- */
 
-struct fuse_cmdline_opts {
+struct fuse_cmdline_opts
+{
 	int singlethread;
 	int foreground;
 	int debug;
@@ -1782,7 +1785,7 @@ struct fuse_cmdline_opts {
  * @return 0 on success, -1 on failure
  */
 int fuse_parse_cmdline(struct fuse_args *args,
-		       struct fuse_cmdline_opts *opts);
+					   struct fuse_cmdline_opts *opts);
 
 /**
  * Create a low level session.
@@ -1813,8 +1816,8 @@ int fuse_parse_cmdline(struct fuse_args *args,
  * @return the fuse session on success, NULL on failure
  **/
 struct fuse_session *fuse_session_new(struct fuse_args *args,
-				      const struct fuse_lowlevel_ops *op,
-				      size_t op_size, void *userdata);
+									  const struct fuse_lowlevel_ops *op,
+									  size_t op_size, void *userdata);
 
 /**
  * Mount a FUSE file system.
@@ -1956,7 +1959,7 @@ int fuse_session_fd(struct fuse_session *se);
  * @param buf the fuse_buf containing the request
  */
 void fuse_session_process_buf(struct fuse_session *se,
-			      const struct fuse_buf *buf);
+							  const struct fuse_buf *buf);
 
 /**
  * Read a raw request from the kernel into the supplied buffer.
@@ -1970,6 +1973,37 @@ void fuse_session_process_buf(struct fuse_session *se,
  * @return the actual size of the raw request, or -errno on error
  */
 int fuse_session_receive_buf(struct fuse_session *se, struct fuse_buf *buf);
+
+/* BEGIN FINESSE CODE */
+
+struct fuse_session *finesse_session_new(struct fuse_args *args,
+										 const struct fuse_lowlevel_ops *op,
+										 size_t op_size, void *userdata);
+
+#define fuse_session_new(a, o, s, u) finesse_session_new(a, o, s, u)
+
+#undef fuse_session_loop_mt
+int finesse_session_loop_mt_31(struct fuse_session *se, int clone_fd);
+#if FUSE_USE_VERSION < 32
+#define fuse_session_loop_mt(se, clone_fd) finesse_session_loop_mt_31(se, clone_fd)
+#else
+int finesse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config *config);
+#define fuse_session_loop_mt(se, config) finesse_session_loop_mt_32(se, config)
+#endif
+
+void finesse_session_destroy(struct fuse_session *se);
+
+int finesse_session_loop(struct fuse_session *se);
+
+/* TODO: map fuse_session_destry.  For now we call explicitly */
+
+/**
+ * Set the provider for the given request.
+ */
+void finesse_set_provider(fuse_req_t req, int finesse);
+int finesse_get_provider(fuse_req_t req);
+
+/* END FINESSE CODE */
 
 #ifdef __cplusplus
 }

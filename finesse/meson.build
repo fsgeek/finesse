@@ -24,6 +24,9 @@ generated = gen.process('finesse.proto')
 libfinesse_sources = ['dirmap.c',
                       'fdmgr.c',
                       'finesse.c',
+                      'finesse-fuse.c',
+                      'finesse-lookup.c',
+                      # 'finesse-search.c',
                       'init.c',
                       'mqcomm.c',
                       'name_map.c',
@@ -49,12 +52,13 @@ endif
 
 librt = cc.find_library('rt')
 libuuid = cc.find_library('uuid')
+libfuse = cc.find_library('libfuse')
 
 libfinesse = library('finesse', libfinesse_sources, 
                 version: meson.project_version(),
                 soversion: '3', 
                 include_directories: include_dirs,
-                dependencies: [deps, librt, libuuid, protoc_c_lib], 
+                dependencies: [deps, librt, libuuid, protoc_c_lib, libfuse], 
                 install: true,
                 c_args: [ '-DFUSE_USE_VERSION=32', protoc_c_cflags])
 
