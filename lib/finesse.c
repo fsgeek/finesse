@@ -13,9 +13,10 @@
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
 #include "finesse_msg.h"
-#include "finesse_fuse.h"
+#include "finesse-fuse.h"
 #include "finesse-lookup.h"
 #include "finesse-list.h"
+#include "finesse.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -238,6 +239,7 @@ static void destroy_req(fuse_req_t req)
     free(req);
 }
 
+#if 0
 // TODO: figure out why I can't use the version in libfuse itself.  Frustrating!
 void fuse_chan_put(struct fuse_chan *ch)
 {
@@ -255,6 +257,7 @@ void fuse_chan_put(struct fuse_chan *ch)
     else
         pthread_mutex_unlock(&ch->lock);
 }
+#endif // 0
 
 static void finesse_free_req(fuse_req_t req)
 {
@@ -277,8 +280,8 @@ static const struct fuse_lowlevel_ops *finesse_original_ops;
 
 static int finesse_mt = 1;
 
-static void finesse_init(void *userdata, struct fuse_conn_info *conn);
-static void finesse_init(void *userdata, struct fuse_conn_info *conn)
+static void finesse_fuse_init(void *userdata, struct fuse_conn_info *conn);
+static void finesse_fuse_init(void *userdata, struct fuse_conn_info *conn)
 {
     return finesse_original_ops->init(userdata, conn);
 }
@@ -344,8 +347,8 @@ static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, 
     return finesse_original_ops->create(req, parent, name, mode, fi);
 }
 
-static void finesse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
-static void finesse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void finesse_fuse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
+static void finesse_fuse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_set_provider(req, 0);
     return finesse_original_ops->open(req, ino, fi);
@@ -390,7 +393,7 @@ static void finesse_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 }
 
 static struct fuse_lowlevel_ops finesse_ops = {
-    .init = finesse_init,
+    .init = finesse_fuse_init,
     .lookup = finesse_lookup,
     .forget = finesse_forget,
     .getattr = finesse_getattr,
@@ -401,7 +404,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .readdirplus = finesse_readdirplus,
     .releasedir = finesse_releasedir,
     .create = finesse_create,
-    .open = finesse_open,
+    .open = finesse_fuse_open,
     .release = finesse_release,
     .read = finesse_read,
     .write_buf = finesse_write_buf};
@@ -436,7 +439,6 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
 {
     (void)op;
     struct fuse_session *se;
-    struct mq_attr attr;
 
     //
     // Save the original ops
@@ -450,28 +452,10 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
         return se;
     }
 
-    //
-    // For now I'm hard coding these names.  They should be parameterizied
-    //
-    se->message_queue_name = "/finesse";
-
-    //
-    // Create it if it does not exist.  Permissive permissions
-    //
-    attr = (struct mq_attr){
-        .mq_flags = 0,
-        .mq_maxmsg = 10,
-        .mq_msgsize = 512,
-        .mq_curmsgs = 0,
-    };
-
-    se->message_queue_descriptor = mq_open(se->message_queue_name, O_RDONLY | O_CREAT, 0622, &attr);
-
-    if (se->message_queue_descriptor < 0)
+    if (0 > FinesseStartServerConnection(&se->server_handle))
     {
-        fprintf(stderr, "fuse (finesse): failed to create message queue: %s\n", strerror(errno));
-        fuse_session_destroy(se);
-        se = NULL;
+        fprintf(stderr, "fuse (finesse): failed to start Finesse Server connection\n");
+        se->server_handle = NULL;
     }
 
     return se;
@@ -525,7 +509,9 @@ static int finesse_send_response(uuid_t clientUuid, finesse_message_t *response)
 static void *finesse_mq_worker(void *arg)
 {
 #if 1
-    (void)arg;
+    struct fuse_session *se = (struct fuse_session *)arg;
+
+    (void)se;
 #else
     struct fuse_session *se = (struct fuse_session *)arg;
     struct mq_attr attr;
@@ -1023,7 +1009,7 @@ int finesse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config 
 
     status = 0;
 
-    while (se->message_queue_descriptor >= 0)
+    while (NULL != se->server_handle)
     {
         memset(&finesse_mq_thread_attr, 0, sizeof(finesse_mq_thread_attr));
         status = pthread_attr_init(&finesse_mq_thread_attr);
@@ -1083,11 +1069,10 @@ void finesse_session_destroy(struct fuse_session *se)
 {
     /* TODO: need to add the finesse specific logic here */
 
-    if (se->message_queue_descriptor)
+    if (NULL != se->server_handle)
     {
-        (void)mq_close(se->message_queue_descriptor);
-        (void)mq_unlink(se->message_queue_name);
-        pthread_attr_destroy(&finesse_mq_thread_attr);
+        FinesseStopServerConnection(se->server_handle);
+        se->server_handle = NULL;
     }
 
     fuse_session_destroy(se);

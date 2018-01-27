@@ -78,8 +78,7 @@ struct fuse_session
 	size_t bufsize;
 	int error;
 	/* BEGIN FINESSE CHANGE */
-	const char *message_queue_name;
-	int message_queue_descriptor;
+	void *server_handle;
 	/* END FINESSE CHANGE */
 };
 

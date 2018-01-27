@@ -24,7 +24,7 @@ generated = gen.process('finesse.proto')
 libfinesse_sources = ['dirmap.c',
                       'fdmgr.c',
                       'finesse.c',
-                      'finesse-fuse.c',
+                      # 'finesse-fuse.c',
                       'finesse-lookup.c',
                       # 'finesse-search.c',
                       'init.c',

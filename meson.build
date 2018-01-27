@@ -84,10 +84,13 @@ if not cc.compiles(code, args: [ '-O0', '-Werror=unused-result' ])
 endif
 
 # '.' will refer to current build directory, which contains config.h
-include_dirs = include_directories('include', 'lib', '.')
+include_dirs = include_directories('include', 'finesse', 'lib', '.')
 
 # Common dependencies
 thread_dep = dependency('threads') 
+
+libuuid = cc.find_library('uuid')
+
 
 #
 # Read build files from sub-directories

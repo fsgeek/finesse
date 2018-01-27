@@ -128,6 +128,14 @@ FUSE_3.0 {
 		fuse_apply_conn_info_opts;
 		fuse_parse_conn_info_opts;
 
+		finesse_set_provider;
+		finesse_get_provider;
+		finesse_session_loop_mt_31;
+		finesse_session_new;
+		finesse_session_destroy;
+		finesse_session_loop;
+
+
 	local:
 		*;
 };
