@@ -42,14 +42,13 @@ int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uint64
 int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, char *Path, int64_t Result);
 int FinesseGetDirMapResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
 
+int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, char *NameToUnlink, uint64_t *RequestId);
+int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result);
+int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
+
 void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);
 int finesse_open(const char *pathname, int flags, ...);
 int finesse_creat(const char *pathname, mode_t mode);
 int finesse_openat(int dirfd, const char *pathname, int flags, ...);
 int finesse_close(int fd);
-
-
-
-
-

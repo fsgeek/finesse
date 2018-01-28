@@ -56,15 +56,14 @@ message FinesseMessageHeader {
 	uint64 MessageId = 3;
 	enum Operation {
 		TEST = 0;
-		NAME_MAP = 51;
-		NAME_MAP_RELEASE = 52;
-
-		DIR_MAP = 61;
-		DIR_MAP_RELEASE = 62;
-
-		UNLINK = 71;
-
-		PATH_SEARCH = 101;
+		NAME_MAP = 11;
+		NAME_MAP_RELEASE = 12;
+		DIR_MAP = 21;
+		DIR_MAP_RELEASE = 22;
+		UNLINK = 31;
+		PATH_SEARCH = 41;
+		// This value should always be the highest possible op code
+		MAX_REQUEST = 42;
 	}
 	Operation Op = 4;
 }

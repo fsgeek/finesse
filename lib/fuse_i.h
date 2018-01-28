@@ -25,7 +25,7 @@ struct fuse_req
 	unsigned int finesse : 1;		 // finesse allocated
 	unsigned int finesse_notify : 1; // notify finesse
 	void *finesse_req;
-	void *finesse_rsp;
+	void *finesse_lookup_info;
 	int opcode;
 	struct fuse_req *original_fuse_req;
 	/* END FINESSE CHANGE */

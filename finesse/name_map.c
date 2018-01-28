@@ -21,7 +21,8 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         finesse_set_client_message_header(FinesseClientHandle, &header, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP);
 
         req.header = &header;
@@ -33,13 +34,15 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
 
         buffer_len = finesse__finesse_request__get_packed_size(&req);
 
-        if (buffer_len > FINESSE_MQ_MAX_MESSAGESIZE) {
+        if (buffer_len > FINESSE_MQ_MAX_MESSAGESIZE)
+        {
             status = -EINVAL;
             break;
         }
 
         buffer = malloc(buffer_len);
-        if (NULL == buffer) {
+        if (NULL == buffer)
+        {
             status = -ENOMEM;
             break;
         }
@@ -52,9 +55,9 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
         break;
     }
 
-
     // cleanup
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         free(buffer);
         buffer = NULL;
     }
@@ -73,25 +76,28 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, uuid
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         finesse_set_server_message_header(FinesseServerHandle, &header, RequestId, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP);
 
         rsp.header = &header;
         rsp.status = Result;
         rsp.response_case = FINESSE__FINESSE_RESPONSE__RESPONSE_NAME_MAP_RSP;
         rsp.namemaprsp = &name_map;
-        name_map.key.data = (uint8_t *) MapKey;
+        name_map.key.data = (uint8_t *)MapKey;
         name_map.key.len = sizeof(uuid_t);
 
         buffer_len = finesse__finesse_response__get_packed_size(&rsp);
 
-        if (buffer_len > finesse_get_max_message_size(FinesseServerHandle)) {
+        if (buffer_len > finesse_get_max_message_size(FinesseServerHandle))
+        {
             status = -EINVAL;
             break;
         }
 
         buffer = malloc(buffer_len);
-        if (NULL == buffer) {
+        if (NULL == buffer)
+        {
             status = -ENOMEM;
             break;
         }
@@ -104,16 +110,15 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, uuid
         break;
     }
 
-
     // cleanup
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         free(buffer);
         buffer = NULL;
     }
 
     return status;
 }
-
 
 int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, uuid_t *MapKey)
 {
@@ -122,16 +127,19 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint6
     size_t buffer_len = 0;
     int status;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         status = FinesseGetClientResponse(FinesseClientHandle, &buffer, &buffer_len);
 
-        if (0 != status) {
+        if (0 != status)
+        {
             break;
         }
 
         rsp = finesse__finesse_response__unpack(NULL, buffer_len, (const uint8_t *)buffer);
 
-        if (NULL == rsp) {
+        if (NULL == rsp)
+        {
             status = -EINVAL;
             break;
         }
@@ -144,7 +152,8 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint6
         break;
     }
 
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         FinesseFreeClientResponse(FinesseClientHandle, buffer);
         buffer = NULL;
     }
@@ -162,7 +171,8 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         finesse_set_client_message_header(FinesseClientHandle, &header, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP_RELEASE);
 
         req.header = &header;
@@ -175,13 +185,15 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
 
         buffer_len = finesse__finesse_request__get_packed_size(&req);
 
-        if (buffer_len > FINESSE_MQ_MAX_MESSAGESIZE) {
+        if (buffer_len > FINESSE_MQ_MAX_MESSAGESIZE)
+        {
             status = -EINVAL;
             break;
         }
 
         buffer = malloc(buffer_len);
-        if (NULL == buffer) {
+        if (NULL == buffer)
+        {
             status = -ENOMEM;
             break;
         }
@@ -194,9 +206,9 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
         break;
     }
 
-
     // cleanup
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         free(buffer);
         buffer = NULL;
     }
@@ -214,7 +226,8 @@ int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandl
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         finesse_set_server_message_header(FinesseServerHandle, &header, RequestId, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP_RELEASE);
 
         rsp.header = &header;
@@ -223,13 +236,15 @@ int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandl
 
         buffer_len = finesse__finesse_response__get_packed_size(&rsp);
 
-        if (buffer_len > finesse_get_max_message_size(FinesseServerHandle)) {
+        if (buffer_len > finesse_get_max_message_size(FinesseServerHandle))
+        {
             status = -EINVAL;
             break;
         }
 
         buffer = malloc(buffer_len);
-        if (NULL == buffer) {
+        if (NULL == buffer)
+        {
             status = -ENOMEM;
             break;
         }
@@ -242,9 +257,9 @@ int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandl
         break;
     }
 
-
     // cleanup
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         free(buffer);
         buffer = NULL;
     }
@@ -259,27 +274,31 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
     size_t buffer_len = 0;
     int status;
 
-    while (NULL == buffer) {
+    while (NULL == buffer)
+    {
         status = FinesseGetClientResponse(FinesseClientHandle, &buffer, &buffer_len);
 
-        if (0 != status) {
+        if (0 != status)
+        {
             break;
         }
 
         rsp = finesse__finesse_response__unpack(NULL, buffer_len, (const uint8_t *)buffer);
 
-        if (NULL == rsp) {
+        if (NULL == rsp)
+        {
             status = -EINVAL;
             break;
         }
 
         assert(rsp->header->messageid == RequestId);
 
-        status = (int) rsp->status;
+        status = (int)rsp->status;
         break;
     }
 
-    if (NULL != buffer) {
+    if (NULL != buffer)
+    {
         FinesseFreeClientResponse(FinesseClientHandle, buffer);
         buffer = NULL;
     }

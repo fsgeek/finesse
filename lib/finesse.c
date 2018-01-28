@@ -12,11 +12,11 @@
 #include "fuse_opt.h"
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
-#include "finesse_msg.h"
 #include "finesse-fuse.h"
 #include "finesse-lookup.h"
 #include "finesse-list.h"
 #include "finesse.h"
+#include "finesse.pb-c.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,156 +39,17 @@
 #define container_of(ptr, type, member) ((type *)(((char *)ptr) - offset_of(type, member)))
 #endif // container_of
 
-typedef struct finesse_client_mq_map
+typedef struct finesse_lookup_info
 {
-    struct finesse_client_mq_map *next;
-    struct finesse_client_mq_map *prev;
-    uuid_t uuid;
-    mqd_t mq_descriptor;
-} finesse_client_mq_map_t;
+    int status;
+    /* used so the caller can wait for completion */
+    pthread_mutex_t lock;
+    pthread_cond_t condition;
 
-/* protect the client lookup info */
-pthread_rwlock_t finesse_client_mq_map_lock = PTHREAD_RWLOCK_INITIALIZER;
-finesse_client_mq_map_t *finesse_client_mq_map_list;
-unsigned int finesse_client_mq_map_count = 0;
+    /* attributes */
+    struct fuse_attr attr;
 
-static mqd_t finesse_lookup_mq_for_client_locked(uuid_t clientUuid)
-{
-    finesse_client_mq_map_t *map;
-    mqd_t mq_descriptor = -ENOENT;
-
-    if (NULL == finesse_client_mq_map_list)
-    {
-        return -ENOENT;
-    }
-
-    map = finesse_client_mq_map_list;
-    do
-    {
-        if (0 == uuid_compare(clientUuid, map->uuid))
-        {
-            /* we found it */
-            mq_descriptor = map->mq_descriptor;
-            break;
-        }
-        map = map->next;
-    } while (map != finesse_client_mq_map_list);
-
-    return mq_descriptor;
-}
-
-static mqd_t finesse_lookup_mq_for_client(uuid_t clientUuid)
-{
-    mqd_t mq_descriptor = -ENOENT;
-
-    if (NULL == finesse_client_mq_map_list)
-    {
-        return -ENOENT;
-    }
-
-    pthread_rwlock_rdlock(&finesse_client_mq_map_lock);
-    mq_descriptor = finesse_lookup_mq_for_client_locked(clientUuid);
-    pthread_rwlock_unlock(&finesse_client_mq_map_lock);
-
-    return mq_descriptor;
-}
-
-static void remove_client_mq_map(finesse_client_mq_map_t *map)
-{
-    map->next->prev = map->prev;
-    map->prev->next = map->next;
-    map->next = map->prev = map;
-    if (0 > mq_close(map->mq_descriptor))
-    {
-        fprintf(stderr, "%d @ %s (%s) FAILED TO CLOSE descriptor %d (%s)\n",
-                __LINE__, __FILE__, __FUNCTION__, (int)map->mq_descriptor, strerror(errno));
-    }
-    else
-    {
-        fprintf(stderr, "%d @ %s (%s) closed descriptor %d\n",
-                __LINE__, __FILE__, __FUNCTION__, (int)map->mq_descriptor);
-    }
-    free(map);
-    finesse_client_mq_map_count--;
-}
-
-#if 0
-static int finesse_remove_mq_for_client_locked(uuid_t clientUuid)
-{
-	finesse_client_mq_map_t *map = NULL;
-	int status = ENOENT;
-
-	pthread_rwlock_wrlock(&finesse_client_mq_map_lock);
-
-	for (map = finesse_client_mq_map_list->next;
-	     map != finesse_client_mq_map_list;
-		 map = map->next) {
-
-		if (0 == memcmp(map->uuid, &clientUuid, sizeof(uuid_t))) {
-			remove_client_mq_map(map);
-			status = 0;
-			break;
-		}
-	}
-
-	pthread_rwlock_unlock(&finesse_client_mq_map_lock);
-	
-	return status;
-}
-#endif // 0
-
-static int finesse_insert_mq_for_client(uuid_t clientUuid, mqd_t mq_descriptor)
-{
-    finesse_client_mq_map_t *map = malloc(sizeof(finesse_client_mq_map_t));
-    int status = 0;
-
-    if (NULL == map)
-    {
-        return -ENOMEM;
-    }
-
-    map->next = map;
-    map->prev = map;
-    uuid_copy(map->uuid, clientUuid);
-    map->mq_descriptor = mq_descriptor;
-
-    pthread_rwlock_wrlock(&finesse_client_mq_map_lock);
-
-    if (NULL == finesse_client_mq_map_list)
-    {
-        finesse_client_mq_map_list = map;
-    }
-
-    //
-    // TODO: parameterize this and adjust it - there's a low limit to the
-    // number of message queues that are allowed to be opened.
-    //
-    if (finesse_client_mq_map_count > 5)
-    {
-        remove_client_mq_map(finesse_client_mq_map_list->prev); // prune the oldest one
-    }
-
-    while (finesse_client_mq_map_list != map)
-    {
-        if (finesse_lookup_mq_for_client_locked(clientUuid) >= 0)
-        {
-            /* already exists! */
-            status = -EEXIST;
-            break;
-        }
-
-        map->next = finesse_client_mq_map_list;
-        map->prev = finesse_client_mq_map_list->prev;
-        finesse_client_mq_map_list->prev->next = map;
-        finesse_client_mq_map_list->prev = map;
-        finesse_client_mq_map_list = map;
-        finesse_client_mq_map_count++;
-        break;
-    }
-    pthread_rwlock_unlock(&finesse_client_mq_map_lock);
-
-    return status;
-}
+} finesse_lookup_info_t;
 
 /* TODO: add remove! */
 
@@ -238,26 +99,6 @@ static void destroy_req(fuse_req_t req)
     pthread_mutex_destroy(&req->lock);
     free(req);
 }
-
-#if 0
-// TODO: figure out why I can't use the version in libfuse itself.  Frustrating!
-void fuse_chan_put(struct fuse_chan *ch)
-{
-    if (ch == NULL)
-        return;
-    pthread_mutex_lock(&ch->lock);
-    ch->ctr--;
-    if (!ch->ctr)
-    {
-        pthread_mutex_unlock(&ch->lock);
-        close(ch->fd);
-        pthread_mutex_destroy(&ch->lock);
-        free(ch);
-    }
-    else
-        pthread_mutex_unlock(&ch->lock);
-}
-#endif // 0
 
 static void finesse_free_req(fuse_req_t req)
 {
@@ -357,6 +198,14 @@ static void finesse_fuse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_i
 static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
+    finesse_object_t *finobj = finesse_object_lookup_by_ino(ino);
+
+    if (NULL != finobj)
+    {
+        /* basically, this is saying that this is no longer in use, so we remove the lookup reference */
+        finesse_object_release(finobj);
+    }
+
     finesse_set_provider(req, 0);
     req->finesse_notify = 1;
     return finesse_original_ops->release(req, ino, fi);
@@ -461,324 +310,279 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
     return se;
 }
 
-static int finesse_connect_to_client(uuid_t clientUuid)
+/////
+//
+// given a file and a list of paths, find the first occurrence of the file in the path
+//
+// TODO: this is currently hacked to work with passthrough
+//
+static char *find_file_in_path(struct fuse_session *session, char *file, char **paths, unsigned path_count)
 {
-    char name[64];
+    char *path_found = NULL;
+    unsigned path_index;
+    struct fuse_req *req = finesse_alloc_req(session);
+    size_t bufsize = 0;
+    char *scratch_buffer = NULL;
+    size_t mp_len = strlen(session->mountpoint);
+    size_t fn_len = strlen(file);
+    size_t out_buf_len;
+    int used_prefix;
+    finesse_lookup_info_t lookup_info;
 
-    /* TODO parameterize this name */
-    strncpy(name, "/finesse_", sizeof(name));
-    uuid_unparse_lower(clientUuid, &name[strlen(name)]);
-    return mq_open(name, O_WRONLY);
-}
+    memset(&lookup_info, 0, sizeof(lookup_info));
+    pthread_mutex_init(&lookup_info.lock, NULL);
+    pthread_cond_init(&lookup_info.condition, NULL);
 
-static int finesse_send_response(uuid_t clientUuid, finesse_message_t *response)
-{
-    mqd_t mq_descriptor = finesse_lookup_mq_for_client(clientUuid);
-    size_t bytes_to_send;
-
-    if (mq_descriptor == -ENOENT)
-    {
-        /* create it */
-        mq_descriptor = finesse_connect_to_client(clientUuid);
-
-        if (mq_descriptor >= 0)
-        {
-            fprintf(stderr, "%s @ %d (%s): open mq %d\n", __FILE__, __LINE__, __FUNCTION__, (int)mq_descriptor);
-            finesse_insert_mq_for_client(clientUuid, mq_descriptor);
-        }
-    }
-
-    if (mq_descriptor < 0)
+    if (NULL == req)
     {
         fprintf(stderr, "%s @ %d (%s): failed to connect to client %s\n", __FILE__, __LINE__, __FUNCTION__, strerror(errno));
-        return mq_descriptor;
+        return NULL;
     }
 
-    // don't send less than the smallest sized message
-    // TODO: should we adjust the receiver to allow no message data? Probably safer.
-    bytes_to_send = offsetof(finesse_message_t, Message) + response->MessageLength;
-
-    if (bytes_to_send < sizeof(finesse_message_t))
+    for (path_index = 0; path_index < path_count; path_index++)
     {
-        bytes_to_send = sizeof(finesse_message_t);
+        size_t path_len = strlen(paths[path_index]);
+        size_t name_len = mp_len + fn_len + path_len + (2 * sizeof(char));
+
+        if (name_len < bufsize)
+        {
+            while (name_len < bufsize)
+            {
+                if (NULL != scratch_buffer)
+                {
+                    free(scratch_buffer);
+                    scratch_buffer = NULL;
+                }
+                bufsize += 4096;
+            }
+            scratch_buffer = malloc(bufsize);
+            if (NULL == scratch_buffer)
+            {
+                return NULL;
+            }
+        }
+
+        if ((path_len < mp_len) || (0 != strncmp(paths[path_index], session->mountpoint, mp_len)))
+        {
+            snprintf(scratch_buffer, bufsize, "%s/%s/%s", session->mountpoint, paths[path_index], file);
+            used_prefix = 1;
+        }
+        else
+        {
+            snprintf(scratch_buffer, bufsize, "%s/%s", paths[path_index], file);
+            used_prefix = 0;
+        }
+        req->opcode = FUSE_LOOKUP + 128; // TODO: turn this into a define somewhere
+        memset(&lookup_info.attr, 0, sizeof(lookup_info.attr));
+        lookup_info.status = EINVAL;
+        req->finesse_lookup_info = &lookup_info;
+        finesse_original_ops->lookup(req, FUSE_ROOT_ID, scratch_buffer);
+        pthread_mutex_lock(&lookup_info.lock);
+        while (0 == lookup_info.attr.ino)
+        {
+            pthread_cond_wait(&lookup_info.condition, &lookup_info.lock);
+        }
+        pthread_mutex_unlock(&lookup_info.lock);
+
+        // if it failed, try the next path
+        if (0 != lookup_info.status)
+        {
+            continue;
+        }
+
+        /* is it a regular file? */
+        if (!S_ISREG(lookup_info.attr.mode))
+        {
+            // TODO: is this reasonable semantics, or should we
+            // allow non-files?  Maybe we should return a list of matches?  Bleh.
+            continue; // nope - so we don't accept it
+        }
+
+        /* this means we found it */
+        out_buf_len = strlen(scratch_buffer) + sizeof(char);
+        if (used_prefix)
+        {
+            out_buf_len -= mp_len;
+        }
+        path_found = (char *)malloc(out_buf_len);
+
+        if (NULL == path_found)
+        {
+            break; // can't do much here
+        }
+
+        if (used_prefix)
+        {
+            strcpy(path_found, &scratch_buffer[mp_len]);
+        }
+        else
+        {
+            strcpy(path_found, scratch_buffer);
+        }
+
+        // found it, so we are done.
+        break;
     }
 
-    return mq_send(mq_descriptor, (char *)response, bytes_to_send, 0);
+    if (NULL != scratch_buffer)
+    {
+        free(scratch_buffer);
+        scratch_buffer = NULL;
+    }
+
+    if (NULL != req)
+    {
+        finesse_free_req(req);
+        req = NULL;
+    }
+
+    return path_found;
+}
+
+static char *find_files_in_paths(struct fuse_session *session, char **file, unsigned file_count, char **paths, unsigned path_count)
+{
+    unsigned file_index;
+    char *found = NULL;
+
+    for (file_index = 0; (NULL == found) && (file_index < file_count); file_index++)
+    {
+        found = find_file_in_path(session, file[file_index], paths, path_count);
+    }
+
+    return found;
 }
 
 static void *finesse_mq_worker(void *arg)
 {
-#if 1
     struct fuse_session *se = (struct fuse_session *)arg;
+    void *request;
+    size_t request_length;
+    Finesse__FinesseRequest *finesse_req;
+    int status;
+    size_t mp_length = strlen(se->mountpoint);
 
-    (void)se;
-#else
-    struct fuse_session *se = (struct fuse_session *)arg;
-    struct mq_attr attr;
-    ssize_t bytes_received, bytes_to_send;
-    finesse_message_t *finesse_request, *finesse_response;
-    struct fuse_req *req;
-
-    if (NULL == se)
-    {
-        pthread_exit(NULL);
-    }
-
-    if (mq_getattr(se->message_queue_descriptor, &attr) < 0)
-    {
-        fprintf(stderr, "finesse (fuse): failed to get message queue attributes: %s\n", strerror(errno));
-        return NULL;
-    }
-
-    finesse_response = malloc(attr.mq_msgsize);
-    if (NULL == finesse_response)
-    {
-        fprintf(stderr, "finesse (fuse): failed to allocate response buffer: %s\n", strerror(errno));
-        return NULL;
-    }
-
-    finesse_request = malloc(attr.mq_msgsize);
-
-    while (NULL != finesse_request)
+    while ((0 < mp_length) && (NULL != se->server_handle))
     {
 
-        bytes_to_send = 0;
+        status = FinesseGetRequest(se->server_handle, &request, &request_length);
 
-        bytes_received = mq_receive(se->message_queue_descriptor, (char *)finesse_request, attr.mq_msgsize, NULL /* optional priority */);
-
-        if (bytes_received < 0)
+        if (0 > status)
         {
-            fprintf(stderr, "finesse (fuse): failed to read message from queue: %s\n", strerror(errno));
-            return NULL;
-        }
-
-        if (bytes_received < offsetof(finesse_message_t, Message))
-        {
-            // this message isn't even big enough for us to process
-            fprintf(stderr, "finesse (fuse): short message received from queue\n");
+            perror("FinesseGetRequest");
             break;
         }
 
-        /* now we have a message from the queue and need to process it */
-        if (0 != memcmp(FINESSE_MESSAGE_MAGIC, finesse_request->MagicNumber, FINESSE_MESSAGE_MAGIC_SIZE))
+        finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
+
+        switch (finesse_req->header->op)
         {
-            /* not a valid message */
-            fprintf(stderr, "finesse (fuse): invalid message received from queue\n");
+        default: // Unknown case
             break;
-        }
 
-        fprintf(stderr, "finesse (fuse): received message\n");
-
-        /* handle the request */
-        switch (finesse_request->MessageType)
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__TEST:
         {
-        default:
-        {
-            fprintf(stderr, "finesse (fuse): invalid message type received %d\n", (int)finesse_request->MessageType);
-            break;
-        }
-
-        case FINESSE_FUSE_OP_RESPONSE:
-        case FINESSE_NAME_MAP_RESPONSE:
-        case FINESSE_FUSE_NOTIFY:
-        {
-            fprintf(stderr, "finesse (fuse): not implemented type received %d\n", (int)finesse_request->MessageType);
-            break;
-        }
-
-        case FINESSE_NAME_MAP_REQUEST:
-        {
-            /* first, is the request here a match for this file system? */
-            size_t message_length = finesse_request->MessageLength + offsetof(finesse_message_t, Message);
-            size_t mp_length = strlen(se->mountpoint);
-
-            if ((bytes_received < message_length) ||
-                (0 != strncmp(finesse_request->Message, se->mountpoint, mp_length)))
+            status = FinesseSendTestResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, 0);
+            if (0 > status)
             {
-                /* this is not ours */
-                memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-                memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-                finesse_response->MessageType = FINESSE_NAME_MAP_RESPONSE;
-                finesse_response->MessageId = finesse_request->MessageId;
-                finesse_response->MessageLength = sizeof(finesse_name_map_response_t);
-                ((finesse_name_map_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
-                // bytes_to_send = offsetof(finesse_message_t, Message) + sizeof(finesse_name_map_response_t);
-                fprintf(stderr, "%s @ %d (%s): invalid request\n", __FILE__, __LINE__, __FUNCTION__);
+                perror("FinesseSendTestResponse");
+            }
+            break;
+        }
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP:
+        {
+            static uuid_t dummy_uuid;
+            struct fuse_req *fuse_request;
+
+            if (0 != strcmp(finesse_req->namemapreq->name, se->mountpoint))
+            {
+
+                status = FinesseSendNameMapResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &dummy_uuid, ENOTDIR);
                 break;
             }
 
-            /* so let's do a lookup */
-            /* map the name given */
-            fprintf(stderr, "finesse (fuse): map name request for %s\n", finesse_request->Message);
+            /* do a lookup */
+            fprintf(stderr, "finesse (fuse): map name request for %s\n", finesse_req->namemapreq->name);
             fprintf(stderr, "finesse (fuse): mount point is %s (len = %zu)\n", se->mountpoint, mp_length);
-            fprintf(stderr, "finesse (fuse): do lookup on %s\n", &finesse_request->Message[mp_length]);
-            req = finesse_alloc_req(se);
-            if (NULL == req)
+            fprintf(stderr, "finesse (fuse): do lookup on %s\n", &finesse_req->namemapreq->name[mp_length]);
+            fuse_request = finesse_alloc_req(se);
+            if (NULL == fuse_request)
             {
                 fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
+                status = FinesseSendNameMapResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &dummy_uuid, ENOMEM);
                 break;
             }
-            req->finesse_req = finesse_request;
-            req->finesse_rsp = finesse_response;
-            finesse_response = NULL; /* again, passing it to the lookup, consume it in the completion handler */
-            finesse_original_ops->lookup(req, FUSE_ROOT_ID, &finesse_request->Message[mp_length + 1]);
-            finesse_request = NULL; /* passing it to the lookup */
+            fuse_request->finesse_req = finesse_req;
+            finesse_original_ops->lookup(fuse_request, FUSE_ROOT_ID, &finesse_req->namemapreq->name[mp_length + 1]);
+            finesse_req = NULL;
             break;
         }
-
-        case FINESSE_MAP_RELEASE_REQUEST:
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP_RELEASE:
         {
-            size_t message_length = sizeof(finesse_map_release_request_t) + offsetof(finesse_message_t, Message);
-            finesse_map_release_request_t *mrreq = (finesse_map_release_request_t *)finesse_request->Message;
             finesse_object_t *object = NULL;
 
-            // format generic response info
-            memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-            memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-            finesse_response->MessageType = FINESSE_MAP_RELEASE_RESPONSE;
-            finesse_response->MessageId = finesse_request->MessageId;
-            finesse_response->MessageLength = sizeof(finesse_map_release_response_t);
-            bytes_to_send = offsetof(finesse_message_t, Message) + sizeof(finesse_map_release_response_t);
-
-            if ((message_length > bytes_received) ||                       // short message
-                (mrreq->Key.KeyLength > finesse_request->MessageLength) || // short message
-                (mrreq->Key.KeyLength != sizeof(uuid_t)))
-            { // invalid key length
-                ((finesse_map_release_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
-                fprintf(stderr, "%s @ %d (%s): invalid request\n", __FILE__, __LINE__, __FUNCTION__);
-                break;
-            }
-
-            // lookup
-            object = finesse_object_lookup_by_uuid((uuid_t *)mrreq->Key.Key);
+            object = finesse_object_lookup_by_uuid((uuid_t *)finesse_req->namemapreleasereq->key.data);
             if (NULL != object)
             {
                 finesse_object_release(object);
             }
-            ((finesse_map_release_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_SUCCESS;
+
+            status = FinesseSendNameMapReleaseResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, 0);
             break;
         }
-
-        case FINESSE_DIR_MAP_REQUEST:
-        {
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__DIR_MAP:
             break;
-        }
-
-        case FINESSE_FUSE_OP_REQUEST:
-        {
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__DIR_MAP_RELEASE:
             break;
-        }
-
-        case FINESSE_UNLINK_REQUEST:
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__UNLINK:
         {
-            size_t message_length = sizeof(finesse_map_release_request_t) + offsetof(finesse_message_t, Message);
-            finesse_unlink_request_t *ulreq = (finesse_unlink_request_t *)finesse_request->Message;
-            finesse_unlink_response_t *ulrsp = (finesse_unlink_response_t *)finesse_response->Message;
-
-            // format generic response info
-            memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-            memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-            finesse_response->MessageType = FINESSE_UNLINK_RESPONSE;
-            finesse_response->MessageId = finesse_request->MessageId;
-            finesse_response->MessageLength = sizeof(finesse_unlink_response_t);
-            bytes_to_send = offsetof(finesse_message_t, Message) + sizeof(finesse_unlink_response_t);
-
-            if (message_length > bytes_received)
-            { // invalid key length
-                ((finesse_unlink_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
-                fprintf(stderr, "%s @ %d (%s): invalid request\n", __FILE__, __LINE__, __FUNCTION__);
-                break;
-            }
-
-            //
-            // TODO: this is a sleazy hack - I'm using passthrough which is read-only, but I want to test
-            //       unlink which isn't supported.
-            ulrsp->Status = unlink(&ulreq->Name[strlen(se->mountpoint)]);
+            /* HACK */
+            /* since we're testing passthrough_ll and it doesn't support unlink, we do it here directly */
+            status = FinesseSendUnlinkResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, unlink(finesse_req->unlinkreq->name));
             // end gross hack
-
-            break;
         }
-
-        case FINESSE_PATH_SEARCH_REQUEST:
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH:
         {
-            // finesse_path_search_request_t *search_message = (finesse_path_search_request_t *)finesse_request->Message;
-            finesse_path_search_response_t *search_response = NULL;
-            ssize_t response_length = offsetof(finesse_message_t, Message) + sizeof(finesse_path_search_response_t);
+            char *path_found = find_files_in_paths(se,
+                                                   finesse_req->pathsearchreq->files,
+                                                   finesse_req->pathsearchreq->n_files,
+                                                   finesse_req->pathsearchreq->paths,
+                                                   finesse_req->pathsearchreq->n_paths);
 
-            memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-            memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-            finesse_response->MessageType = FINESSE_PATH_SEARCH_RESPONSE;
-            finesse_response->MessageId = finesse_request->MessageId;
-
-            if (response_length < finesse_request->MessageLength)
+            if (NULL == path_found)
             {
-                // we received a runt request
-                finesse_response->MessageLength = 0;
-                bytes_to_send = sizeof(finesse_message_t);
-                break;
+                status = ENOENT;
+            }
+            else
+            {
+                status = 0;
             }
 
-            // TODO: implement this functionality
+            status = FinesseSendPathSearchResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, path_found, status);
 
-            /* send response */
-            finesse_response->MessageLength = sizeof(finesse_path_search_response_t);
-            search_response = (finesse_path_search_response_t *)finesse_response->Message;
-            search_response->Status = ENOSYS; // TODO: rationalize these error codes
-            search_response->PathLength = 0;
-            search_response->Path[0] = '\0';
-            bytes_to_send = response_length;
+            if (NULL != path_found)
+            {
+                free(path_found);
+                path_found = NULL;
+            }
 
             break;
         }
 
-        case FINESSE_TEST:
+        } // end case
+
+        // cleanup:
+        if (NULL != finesse_req)
         {
-            memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-            memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-            finesse_response->MessageType = FINESSE_TEST_RESPONSE;
-            finesse_response->MessageId = finesse_request->MessageId;
-
-            //// test code
-            finesse_test_search();
-            /// end test code
-
-            /* send response */
-            finesse_response->MessageLength = 0;
-            finesse_response->Message[0] = '\0';
-            bytes_to_send = sizeof(finesse_message_t);
-
-            break;
-        }
+            finesse__finesse_request__free_unpacked(finesse_req, NULL);
+            finesse_req = NULL;
         }
 
-        if (NULL == finesse_request)
+        if (NULL != request)
         {
-            /* need a new one - must have consumed it */
-            finesse_request = (finesse_message_t *)malloc(attr.mq_msgsize);
-        }
-
-        if (NULL == finesse_response)
-        {
-            finesse_response = (finesse_message_t *)malloc(attr.mq_msgsize);
-            assert(0 == bytes_to_send);
-            bytes_to_send = 0;
-        }
-
-        if (0 < bytes_to_send)
-        {
-            uuid_t uuid;
-            fprintf(stderr, "finesse (fuse): sending response (size = %zu)\n", bytes_to_send);
-            memcpy(&uuid, &finesse_request->SenderUuid, sizeof(uuid_t));
-            finesse_send_response(uuid, finesse_response);
+            FinesseFreeRequest(se->server_handle, request);
+            request = NULL;
         }
     }
-
-    if (NULL != finesse_response)
-    {
-        free(finesse_response);
-        finesse_response = NULL;
-    }
-#endif // 0
 
     return NULL;
     (void)finesse_alloc_req(NULL);
@@ -834,6 +638,8 @@ static void *finesse_mq_worker(void *arg)
 
 void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count)
 {
+    (void)iov;
+
     if (0 != error)
     {
         // So far we don't care about the error outcomes
@@ -859,19 +665,20 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
         ino_t ino;
         struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
         finesse_object_t *nicobj;
+        uuid_t uuid;
+
+        uuid_generate_time_safe(uuid);
 
         assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
         ino = arg->nodeid;
-        // TODO: figure out how to insert this
-        nicobj = finesse_object_create(ino, NULL);
+        nicobj = finesse_object_create(ino, &uuid);
         assert(NULL != nicobj);
         finesse_object_release(nicobj);
         break;
     }
     case FUSE_RELEASE:
     {
-        // TODO
-        break;
+        // this is done in the pre-call release path
     }
     case FUSE_OPENDIR:
     {
@@ -890,11 +697,8 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
 int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req)
 {
     struct fuse_out_header out;
-    finesse_message_t *finesse_request = req->finesse_req;
-    finesse_message_t *finesse_response = req->finesse_rsp;
-    size_t bytes_to_send = 0;
-
-    (void)count;
+    Finesse__FinesseRequest *finesse_request = NULL;
+    struct fuse_entry_out *arg = NULL;
 
     if (error <= -1000 || error > 0)
     {
@@ -908,88 +712,81 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     iov[0].iov_base = &out;
     iov[0].iov_len = sizeof(struct fuse_out_header);
 
-    /* return fuse_send_msg(req->se, req->ch, iov, count); */
-
-    switch (finesse_request->MessageType)
+    if (count > 1)
     {
-    default:
-        // don't know what is being asked here, so abort
-        assert(0);
-        break;
+        arg = (struct fuse_entry_out *)iov[1].iov_base;
+    }
 
-    case FINESSE_NAME_MAP_REQUEST:
+    if ((req->opcode > 127) && (req->opcode < 1024))
     {
-        finesse_name_map_response_t *nmr;
-
-        assert(NULL != finesse_request);
-        assert(NULL != finesse_response);
-
-        /* let's set up the response here */
-        memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
-        memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
-        finesse_response->MessageType = FINESSE_NAME_MAP_RESPONSE;
-        finesse_response->MessageId = finesse_request->MessageId;
-        finesse_response->MessageLength = sizeof(finesse_name_map_response_t);
-        ((finesse_name_map_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
-
-        nmr = (finesse_name_map_response_t *)finesse_response->Message;
-
-        while (0 == error)
+        /* this is one of our "internal" operations */
+        switch (req->opcode)
         {
-            struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
-            finesse_object_t *nobj;
+        default:
+            // no idea what is being requested here
+            assert(0);
+            break;
+        case FUSE_LOOKUP + 128: // TODO - make this a manifest constant
+        {
+            finesse_lookup_info_t *lookup_info = (finesse_lookup_info_t *)req->finesse_lookup_info;
 
-            nobj = finesse_object_create((ino_t)arg->nodeid, NULL);
-
-            if (NULL == nobj)
+            // this is the "lookup for path search" code
+            free_req = 0; // do not free this request - it gets reused
+            lookup_info->status = error;
+            if (NULL != arg)
             {
-                error = ENOMEM;
-                break;
+                lookup_info->attr = arg->attr;
             }
-
-            nmr->Status = FINESSE_MAP_RESPONSE_SUCCESS;
-            nmr->Key.KeyLength = sizeof(uuid_t);
-            memcpy(nmr->Key.Key, &nobj->uuid, sizeof(uuid_t));
-            finesse_response->MessageLength = offsetof(finesse_name_map_response_t, Key.Key) + nmr->Key.KeyLength;
-            finesse_object_release(nobj);
+            else
+            {
+                assert(0 != error); // otherwise I have no idea what this means
+            }
+            // Expectation is that this will always be uncontended
+            pthread_mutex_lock(&lookup_info->lock);
+            pthread_cond_signal(&lookup_info->condition);
+            pthread_mutex_unlock(&lookup_info->lock);
+            /* request ownership is returned to the original thread */
+            req = NULL;
             break;
         }
 
-        if (0 != error)
+        } // end switch
+    }
+    else
+    {
+        switch (finesse_request->header->op)
         {
-            nmr->Status = FINESSE_MAP_RESPONSE_INVALID;
-            nmr->Key.KeyLength = 0;
+        default:
+            // don't know what is being asked here, so abort
+            assert(0);
+            break;
+
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP:
+        {
+            finesse_object_t *nobj = finesse_object_create((ino_t)arg->nodeid, NULL);
+
+            error = FinesseSendNameMapResponse(req->se->server_handle, (uuid_t *)finesse_request->clientuuid.data,
+                                               finesse_request->header->messageid, &nobj->uuid, 0);
+
+            finesse_object_release(nobj);
+        }
+        break;
+        }
+    }
+
+    // cleanup
+    if (NULL != req)
+    {
+        if (NULL != req->finesse_req)
+        {
+            FinesseFreeRequest(req->se->server_handle, req->finesse_req);
+            req->finesse_req = NULL;
         }
 
-        bytes_to_send = offsetof(finesse_message_t, Message);
-        bytes_to_send += finesse_response->MessageLength;
-    }
-    break;
-    }
-
-    if (0 < bytes_to_send)
-    {
-        uuid_t uuid;
-        fprintf(stderr, "finesse (fuse): sending response %zu (%d @ %s)\n", bytes_to_send, __LINE__, __FILE__);
-        memcpy(&uuid, &finesse_request->SenderUuid, sizeof(uuid_t));
-        finesse_send_response(uuid, finesse_response);
-    }
-
-    if (NULL != req->finesse_req)
-    {
-        free(req->finesse_req);
-        req->finesse_req = NULL;
-    }
-
-    if (NULL != req->finesse_rsp)
-    {
-        free(req->finesse_rsp);
-        req->finesse_rsp = NULL;
-    }
-
-    if (free_req)
-    {
-        finesse_free_req(req);
+        if (free_req)
+        {
+            finesse_free_req(req);
+        }
     }
 
     return 0;

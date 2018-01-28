@@ -226,6 +226,20 @@ int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
 	iov[0].iov_base = &out;
 	iov[0].iov_len = sizeof(struct fuse_out_header);
 
+	if ((req->finesse) || ((req->opcode > 127) && (req->opcode < 1024)))
+	{
+		assert(NULL == req->finesse_notify); // can't be both
+		return finesse_send_reply_iov(req, error, iov, count, 0);
+	}
+
+	if (req->finesse_notify)
+	{
+		/* a _notify_ means "tell us about this" but does not interfere
+		 * with the usual flow
+		 */
+		finesse_notify_reply_iov(req, error, iov, count);
+	}
+
 	return fuse_send_msg(req->se, req->ch, iov, count);
 }
 

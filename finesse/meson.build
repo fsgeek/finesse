@@ -33,6 +33,7 @@ libfinesse_sources = ['dirmap.c',
                       'openclose.c',
                       'pathsearch.c', 
                       'test.c',
+                      'unlink.c',
                       generated
                       ]
 
