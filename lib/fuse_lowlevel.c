@@ -208,6 +208,11 @@ static int fuse_send_msg(struct fuse_session *se, struct fuse_chan *ch,
 
 	return 0;
 }
+// BEGIN FINESSE
+// TODO: move this to a header file
+extern int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req);
+extern void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count);
+// END FINESSE
 
 int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
 							   int count)
@@ -226,9 +231,10 @@ int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
 	iov[0].iov_base = &out;
 	iov[0].iov_len = sizeof(struct fuse_out_header);
 
+// BEGIN FINESSE
 	if ((req->finesse) || ((req->opcode > 127) && (req->opcode < 1024)))
 	{
-		assert(NULL == req->finesse_notify); // can't be both
+		assert(0 == req->finesse_notify); // can't be both
 		return finesse_send_reply_iov(req, error, iov, count, 0);
 	}
 
@@ -239,6 +245,7 @@ int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
 		 */
 		finesse_notify_reply_iov(req, error, iov, count);
 	}
+// END FINESSE
 
 	return fuse_send_msg(req->se, req->ch, iov, count);
 }

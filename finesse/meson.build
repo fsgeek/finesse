@@ -63,3 +63,4 @@ libfinesse = library('finesse', libfinesse_sources,
                 install: true,
                 c_args: [ '-DFUSE_USE_VERSION=32', protoc_c_cflags])
 
+subdir('test')

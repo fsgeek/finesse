@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <uuid/uuid.h>
 #include <pthread.h>
-#include <munit/munit.h>
+#include "munit.h"
 #include <errno.h>
 
 #include "../finesse.pb-c.h"
@@ -172,7 +172,7 @@ test_message_name_map(
     munit_assert_not_null(client_handle);
 
     // Send a name map request
-    status = FinesseSendNameMapRequest(client_handle, "/test", &request_id);
+    status = FinesseSendNameMapRequest(client_handle, (char *)(uintptr_t)"/test", &request_id);
     munit_assert(0 == status);
 
     /// get the name map reqeust */
@@ -212,7 +212,7 @@ test_message_name_map(
     // Let's make sure that the error path works as expected
     //
     // Send a name map request
-    status = FinesseSendNameMapRequest(client_handle, "/nothere", &request_id);
+    status = FinesseSendNameMapRequest(client_handle, (char *)(uintptr_t)"/nothere", &request_id);
     munit_assert(0 == status);
 
     /// get the name map reqeust */
@@ -234,7 +234,7 @@ test_message_name_map(
 
 
     // Send a name map request
-    status = FinesseSendNameMapRequest(client_handle, "/test", &request_id);
+    status = FinesseSendNameMapRequest(client_handle, (char *)(uintptr_t)"/test", &request_id);
     munit_assert(0 == status);
 
     /// get the name map reqeust */
@@ -285,28 +285,28 @@ test_message_name_map(
 }
 
 static char *ld_library_path[] = {
-"/usr/lib/x86_64-linux-gnu/libfakeroot",
-"/usr/lib/i686-linux-gnu",
-"/lib/i386-linux-gnu",
-"/usr/lib/i686-linux-gnu",
-"/usr/lib/i386-linux-gnu/mesa",
-"/usr/local/lib",
-"/lib/x86_64-linux-gnu",
-"/usr/lib/x86_64-linux-gnu",
-"/usr/lib/x86_64-linux-gnu/mesa-egl",
-"/usr/lib/x86_64-linux-gnu/mesa",
-"/lib32",
-"/usr/lib32",
-"/libx32",
-"/usr/libx32",
+(char *)(uintptr_t)"/usr/lib/x86_64-linux-gnu/libfakeroot",
+(char *)(uintptr_t)"/usr/lib/i686-linux-gnu",
+(char *)(uintptr_t)"/lib/i386-linux-gnu",
+(char *)(uintptr_t)"/usr/lib/i686-linux-gnu",
+(char *)(uintptr_t)"/usr/lib/i386-linux-gnu/mesa",
+(char *)(uintptr_t)"/usr/local/lib",
+(char *)(uintptr_t)"/lib/x86_64-linux-gnu",
+(char *)(uintptr_t)"/usr/lib/x86_64-linux-gnu",
+(char *)(uintptr_t)"/usr/lib/x86_64-linux-gnu/mesa-egl",
+(char *)(uintptr_t)"/usr/lib/x86_64-linux-gnu/mesa",
+(char *)(uintptr_t)"/lib32",
+(char *)(uintptr_t)"/usr/lib32",
+(char *)(uintptr_t)"/libx32",
+(char *)(uintptr_t)"/usr/libx32",
 NULL,
 };
 
 static char *file_list[] = {
-"libc-2.23.so",
-"libc.a",
-"libc.so",
-"libc.so.6",
+(char *)(uintptr_t)"libc-2.23.so",
+(char *)(uintptr_t)"libc.a",
+(char *)(uintptr_t)"libc.so",
+(char *)(uintptr_t)"libc.so.6",
 NULL
 };
 
@@ -348,7 +348,7 @@ test_message_search_path(
     // TODO: make sure we get everything (done in the debugger, let's automate it)
 
     // Let's send a response
-    status = FinesseSendPathSearchResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, "/bin/bash", 0);
+    status = FinesseSendPathSearchResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, (char *)(uintptr_t)"/bin/bash", 0);
     munit_assert(0 == status);
 
     finesse__finesse_request__free_unpacked(finesse_req, NULL);
@@ -405,17 +405,17 @@ main(
     char **argv)
 {
     static MunitTest tests[] = {
-        TEST("/one", test_one, NULL),
-        TEST("/server/connect", test_server_connect, NULL),
-        TEST("/client/connect", test_client_connect, NULL),
-        TEST("/connect", test_full_connect, NULL),
-        TEST("/message/test", test_message_test, NULL), 
-        TEST("/message/name_map", test_message_name_map, NULL),
-        TEST("/message/search_path", test_message_search_path, NULL),
+        TEST((char *)(uintptr_t)"/one", test_one, NULL),
+        TEST((char *)(uintptr_t)"/server/connect", test_server_connect, NULL),
+        TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
+        TEST((char *)(uintptr_t)"/connect", test_full_connect, NULL),
+        TEST((char *)(uintptr_t)"/message/test", test_message_test, NULL), 
+        TEST((char *)(uintptr_t)"/message/name_map", test_message_name_map, NULL),
+        TEST((char *)(uintptr_t)"/message/search_path", test_message_search_path, NULL),
         TEST(NULL, NULL, NULL),
     };
     static const MunitSuite suite = {
-        .prefix = "/finesse",
+        .prefix = (char *)(uintptr_t)"/finesse",
         .tests = tests,
         .suites = NULL,
         .iterations = 1,
