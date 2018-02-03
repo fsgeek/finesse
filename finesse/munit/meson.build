@@ -1,1 +1,0 @@
-munit = shared_library('libmunit', munit.c)
