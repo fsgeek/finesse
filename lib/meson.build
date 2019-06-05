@@ -23,6 +23,9 @@ if libdl.found()
    deps += [ libdl ]
 endif
 
+deps += cc.find_library('rt')
+deps += cc.find_library('uuid')
+
 if host_machine.system().startswith('netbsd')
    deps += [ cc.find_library('perfuse'),
              cc.find_library('puffs') ]

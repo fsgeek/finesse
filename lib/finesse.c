@@ -321,8 +321,8 @@ static char *find_file_in_path(struct fuse_session *session, char *file, char **
     char *path_found = NULL;
     unsigned path_index;
     struct fuse_req *req = finesse_alloc_req(session);
-    size_t bufsize = 0;
-    char *scratch_buffer = NULL;
+    size_t bufsize = 512;
+    char *scratch_buffer;
     size_t mp_len = strlen(session->mountpoint);
     size_t fn_len = strlen(file);
     size_t out_buf_len;
@@ -339,6 +339,7 @@ static char *find_file_in_path(struct fuse_session *session, char *file, char **
         return NULL;
     }
 
+    scratch_buffer = malloc(bufsize); 
     for (path_index = 0; path_index < path_count; path_index++)
     {
         size_t path_len = strlen(paths[path_index]);
@@ -539,6 +540,7 @@ static void *finesse_mq_worker(void *arg)
             /* since we're testing passthrough_ll and it doesn't support unlink, we do it here directly */
             status = FinesseSendUnlinkResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, unlink(finesse_req->unlinkreq->name));
             // end gross hack
+            break;
         }
         case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH:
         {
@@ -798,7 +800,7 @@ static pthread_attr_t finesse_mq_thread_attr;
 pthread_t finesse_threads[FINESSE_MAX_THREADS];
 #undef fuse_session_loop_mt
 
-int finesse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config *config)
+int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *config)
 {
     int status;
 
@@ -852,7 +854,7 @@ int finesse_session_loop_mt_31(struct fuse_session *se, int clone_fd)
     struct fuse_loop_config config;
     config.clone_fd = clone_fd;
     config.max_idle_threads = 10;
-    return finesse_session_loop_mt_32(se, &config);
+    return finesse_session_loop_mt(se, &config);
 }
 
 int finesse_session_loop(struct fuse_session *se)

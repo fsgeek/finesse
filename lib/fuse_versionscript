@@ -130,7 +130,7 @@ FUSE_3.0 {
 
 		finesse_set_provider;
 		finesse_get_provider;
-		finesse_session_loop_mt_31;
+		finesse_session_loop_mt;
 		finesse_session_new;
 		finesse_session_destroy;
 		finesse_session_loop;
@@ -154,6 +154,7 @@ FUSE_3.2 {
 		fuse_session_loop_mt_31;
 		fuse_loop_mt;
 		fuse_loop_mt_31;
+		finesse_session_loop_mt_31;
 } FUSE_3.1;
 
 FUSE_3.3 {

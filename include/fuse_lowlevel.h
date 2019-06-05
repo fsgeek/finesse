@@ -2065,8 +2065,8 @@ int finesse_session_loop_mt_31(struct fuse_session *se, int clone_fd);
 #if FUSE_USE_VERSION < 32
 #define fuse_session_loop_mt(se, clone_fd) finesse_session_loop_mt_31(se, clone_fd)
 #else
-int finesse_session_loop_mt_32(struct fuse_session *se, struct fuse_loop_config *config);
-#define fuse_session_loop_mt(se, config) finesse_session_loop_mt_32(se, config)
+int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *config);
+#define fuse_session_loop_mt(se, config) finesse_session_loop_mt(se, config)
 #endif
 
 void finesse_session_destroy(struct fuse_session *se);
