@@ -7,6 +7,7 @@ import time
 from os.path import join as pjoin
 import sys
 import re
+import itertools
 
 basename = pjoin(os.path.dirname(__file__), '..')
 
@@ -43,20 +44,25 @@ def wait_for_mount(mount_process, mnt_dir,
         elapsed += 0.1
     pytest.fail("mountpoint failed to come up")
 
-def cleanup(mnt_dir):
+def cleanup(mount_process, mnt_dir):
     # Don't bother trying Valgrind if things already went wrong
 
-    if 'bsd' in sys.platform:
+    if 'bsd' in sys.platform or 'dragonfly' in sys.platform:
         cmd = [ 'umount', '-f', mnt_dir ]
     else:
         cmd = [pjoin(basename, 'util', 'fusermount3'),
                          '-z', '-u', mnt_dir]
     subprocess.call(cmd, stdout=subprocess.DEVNULL,
                     stderr=subprocess.STDOUT)
+    mount_process.terminate()
+    try:
+        mount_process.wait(1)
+    except subprocess.TimeoutExpired:
+        mount_process.kill()
 
 def umount(mount_process, mnt_dir):
 
-    if 'bsd' in sys.platform:
+    if 'bsd' in sys.platform or 'dragonfly' in sys.platform:
         cmdline = [ 'umount', mnt_dir ]
     else:
         # fusermount3 will be setuid root, so we can only trace it with
@@ -109,7 +115,7 @@ def fuse_test_marker():
 
     skip = lambda x: pytest.mark.skip(reason=x)
 
-    if 'bsd' in sys.platform:
+    if 'bsd' in sys.platform or 'dragonfly' in sys.platform:
         return pytest.mark.uses_fuse()
 
     with subprocess.Popen(['which', 'fusermount3'], stdout=subprocess.PIPE,
@@ -138,6 +144,12 @@ def fuse_test_marker():
 
     return pytest.mark.uses_fuse()
 
+def powerset(iterable):
+  s = list(iterable)
+  return itertools.chain.from_iterable(
+      itertools.combinations(s, r) for r in range(len(s)+1))
+
+
 # Use valgrind if requested
 if os.environ.get('TEST_WITH_VALGRIND', 'no').lower().strip() \
    not in ('no', 'false', '0'):
@@ -147,6 +159,8 @@ else:
 
 # Try to use local fusermount3
 os.environ['PATH'] = '%s:%s' % (pjoin(basename, 'util'), os.environ['PATH'])
+# Put example binaries on PATH
+os.environ['PATH'] = '%s:%s' % (pjoin(basename, 'example'), os.environ['PATH'])
 
 try:
     (fuse_proto, fuse_caps) = test_printcap()

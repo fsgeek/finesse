@@ -1,5 +1,5 @@
-project('libfuse3', 'c', version: '3.2.1',
-        meson_version: '>= 0.38',
+project('libfuse3', ['cpp', 'c'], version: '3.5.0',
+        meson_version: '>= 0.42',
         default_options: [ 'buildtype=debugoptimized' ])
 
 
@@ -20,7 +20,7 @@ cc = meson.get_compiler('c')
 
 # Default includes when checking for presence of functions and
 # struct members
-include_default = '
+include_default = '''
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -28,7 +28,7 @@ include_default = '
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-'
+'''
 args_default = [ '-D_GNU_SOURCE' ]
 
 cfg.set_quoted('PACKAGE_VERSION', meson.project_version())
@@ -36,7 +36,7 @@ cfg.set_quoted('PACKAGE_VERSION', meson.project_version())
 # Test for presence of some functions
 test_funcs = [ 'fork', 'fstatat', 'openat', 'readlinkat', 'pipe2',
                'splice', 'vmsplice', 'posix_fallocate', 'fdatasync',
-               'utimensat' ]
+               'utimensat', 'copy_file_range', 'fallocate' ]
 foreach func : test_funcs
     cfg.set('HAVE_' + func.to_upper(),
         cc.has_function(func, prefix: include_default, args: args_default))
@@ -63,9 +63,13 @@ configure_file(output: 'config.h',
 #
 # Compiler configuration
 #
-add_global_arguments('-D_REENTRANT', '-DHAVE_CONFIG_H', '-Wall', '-Wextra', '-Wno-sign-compare',
-                     '-Wstrict-prototypes', '-Wmissing-declarations', '-Wwrite-strings',
-                     '-fno-strict-aliasing', language: 'c')
+add_project_arguments('-D_REENTRANT', '-DHAVE_CONFIG_H', '-Wall', '-Wextra', '-Wno-sign-compare',
+                      '-Wstrict-prototypes', '-Wmissing-declarations', '-Wwrite-strings',
+                      '-fno-strict-aliasing', language: 'c')
+add_project_arguments('-D_REENTRANT', '-DHAVE_CONFIG_H', '-D_GNU_SOURCE',
+                     '-Wall', '-Wextra', '-Wno-sign-compare', '-std=c++11',
+                     '-Wmissing-declarations', '-Wwrite-strings',
+                     '-fno-strict-aliasing', language: 'cpp')
 
 # Some (stupid) GCC versions warn about unused return values even when they are
 # casted to void. This makes -Wunused-result pretty useless, since there is no
@@ -80,7 +84,7 @@ int main(void) {
 }'''
 if not cc.compiles(code, args: [ '-O0', '-Werror=unused-result' ])
      message('Compiler warns about unused result even when casting to void')
-     add_global_arguments('-Wno-unused-result', language: 'c')
+     add_project_arguments('-Wno-unused-result', language: 'c')
 endif
 
 # '.' will refer to current build directory, which contains config.h
@@ -95,10 +99,21 @@ libuuid = cc.find_library('uuid')
 #
 # Read build files from sub-directories
 #
+<<<<<<< HEAD
 subdirs = [ 'finesse', 'lib', 'include', 'example', 'doc', 'test' ]
 if not platform.endswith('bsd')
   subdirs += 'util'
+=======
+subdirs = [ 'lib', 'include', 'test' ]
+if get_option('utils') and not platform.endswith('bsd') and platform != 'dragonfly'
+  subdirs += [ 'util', 'doc' ]
+>>>>>>> f6691d0a20dc3c4434f48d885fa2b67d1ed7137a
 endif
+
+if get_option('examples')
+  subdirs += 'example'
+endif
+
 foreach n : subdirs
     subdir(n)
 endforeach

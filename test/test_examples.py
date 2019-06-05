@@ -8,10 +8,12 @@ if __name__ == '__main__':
 import subprocess
 import os
 import sys
+import py
 import pytest
 import stat
 import shutil
 import filecmp
+import tempfile
 import time
 import errno
 import sys
@@ -19,7 +21,7 @@ from tempfile import NamedTemporaryFile
 from contextlib import contextmanager
 from util import (wait_for_mount, umount, cleanup, base_cmdline,
                   safe_sleep, basename, fuse_test_marker, test_printcap,
-                  fuse_proto)
+                  fuse_proto, powerset)
 from os.path import join as pjoin
 
 pytestmark = fuse_test_marker()
@@ -33,20 +35,50 @@ def name_generator(__ctr=[0]):
     __ctr[0] += 1
     return 'testfile_%d' % __ctr[0]
 
-options = [ [] ]
+options = []
 if sys.platform == 'linux':
-    options.append(['-o', 'clone_fd'])
-@pytest.mark.parametrize("options", options)
-@pytest.mark.parametrize("name", ('hello', 'hello_ll'))
-def test_hello(tmpdir, name, options):
-    mnt_dir = str(tmpdir)
-    cmdline = base_cmdline + \
-              [ pjoin(basename, 'example', name),
-                '-f', mnt_dir ] + options
+    options.append('clone_fd')
+
+def invoke_directly(mnt_dir, name, options):
+    cmdline = base_cmdline + [ pjoin(basename, 'example', name),
+                               '-f', mnt_dir, '-o', ','.join(options) ]
     if name == 'hello_ll':
         # supports single-threading only
         cmdline.append('-s')
-    mount_process = subprocess.Popen(cmdline)
+
+    return cmdline
+
+def invoke_mount_fuse(mnt_dir, name, options):
+    return base_cmdline + [ pjoin(basename, 'util', 'mount.fuse3'),
+                            name, mnt_dir, '-o', ','.join(options) ]
+
+def invoke_mount_fuse_drop_privileges(mnt_dir, name, options):
+    if os.getuid() != 0:
+        pytest.skip('drop_privileges requires root, skipping.')
+
+    return invoke_mount_fuse(mnt_dir, name, options + ('drop_privileges',))
+
+class raii_tmpdir:
+    def __init__(self):
+        self.d = tempfile.mkdtemp()
+
+    def __str__(self):
+        return str(self.d)
+
+    def mkdir(self, path):
+        return py.path.local(str(self.d)).mkdir(path)
+
+@pytest.fixture
+def short_tmpdir():
+    return raii_tmpdir()
+
+@pytest.mark.parametrize("cmdline_builder", (invoke_directly, invoke_mount_fuse,
+                                             invoke_mount_fuse_drop_privileges))
+@pytest.mark.parametrize("options", powerset(options))
+@pytest.mark.parametrize("name", ('hello', 'hello_ll'))
+def test_hello(tmpdir, name, options, cmdline_builder):
+    mnt_dir = str(tmpdir)
+    mount_process = subprocess.Popen(cmdline_builder(mnt_dir, name, options))
     try:
         wait_for_mount(mount_process, mnt_dir)
         assert os.listdir(mnt_dir) == [ 'hello' ]
@@ -60,33 +92,36 @@ def test_hello(tmpdir, name, options):
             open(filename + 'does-not-exist', 'r+')
         assert exc_info.value.errno == errno.ENOENT
     except:
-        cleanup(mnt_dir)
+        cleanup(mount_process, mnt_dir)
         raise
     else:
         umount(mount_process, mnt_dir)
 
-
 @pytest.mark.parametrize("writeback", (False, True))
+@pytest.mark.parametrize("name", ('passthrough', 'passthrough_fh', 'passthrough_ll'))
 @pytest.mark.parametrize("debug", (False, True))
-def test_passthrough_ll(tmpdir, writeback, debug, capfd):
-    
-    progname = pjoin(basename, 'example', 'passthrough_ll')
-    if not os.path.exists(progname):
-        pytest.skip('%s not built' % os.path.basename(progname))
-    
+def test_passthrough(short_tmpdir, name, debug, capfd, writeback):
     # Avoid false positives from libfuse debug messages
     if debug:
         capfd.register_output(r'^   unique: [0-9]+, error: -[0-9]+ .+$',
                               count=0)
 
-    mnt_dir = str(tmpdir.mkdir('mnt'))
-    src_dir = str(tmpdir.mkdir('src'))
+    # test_syscalls prints "No error" under FreeBSD
+    capfd.register_output(r"^ \d\d \[[^\]]+ message: 'No error: 0'\]",
+                          count=0)
 
-    cmdline = base_cmdline + [ progname, '-f', mnt_dir ]
+    mnt_dir = str(short_tmpdir.mkdir('mnt'))
+    src_dir = str(short_tmpdir.mkdir('src'))
+
+    cmdline = base_cmdline + \
+              [ pjoin(basename, 'example', name),
+                '-f', mnt_dir ]
     if debug:
         cmdline.append('-d')
 
     if writeback:
+        if name != 'passthrough_ll':
+            pytest.skip('example does not support writeback caching')
         cmdline.append('-o')
         cmdline.append('writeback')
         
@@ -97,46 +132,7 @@ def test_passthrough_ll(tmpdir, writeback, debug, capfd):
 
         tst_statvfs(work_dir)
         tst_readdir(src_dir, work_dir)
-        tst_open_read(src_dir, work_dir)
-        tst_open_write(src_dir, work_dir)
-        tst_create(work_dir)
-        tst_passthrough(src_dir, work_dir)
-        tst_append(src_dir, work_dir)
-        tst_seek(src_dir, work_dir)
-    except:
-        cleanup(mnt_dir)
-        raise
-    else:
-        umount(mount_process, mnt_dir)
-
-@pytest.mark.parametrize("name", ('passthrough', 'passthrough_fh'))
-@pytest.mark.parametrize("debug", (False, True))
-def test_passthrough(tmpdir, name, debug, capfd):
-    
-    # Avoid false positives from libfuse debug messages
-    if debug:
-        capfd.register_output(r'^   unique: [0-9]+, error: -[0-9]+ .+$',
-                              count=0)
-
-    # test_syscalls prints "No error" under FreeBSD
-    capfd.register_output(r"^ \d\d \[[^\]]+ message: 'No error: 0'\]",
-                          count=0)
-
-    mnt_dir = str(tmpdir.mkdir('mnt'))
-    src_dir = str(tmpdir.mkdir('src'))
-
-    cmdline = base_cmdline + \
-              [ pjoin(basename, 'example', name),
-                '-f', mnt_dir ]
-    if debug:
-        cmdline.append('-d')
-    mount_process = subprocess.Popen(cmdline)
-    try:
-        wait_for_mount(mount_process, mnt_dir)
-        work_dir = mnt_dir + src_dir
-
-        tst_statvfs(work_dir)
-        tst_readdir(src_dir, work_dir)
+        tst_readdir_big(src_dir, work_dir)
         tst_open_read(src_dir, work_dir)
         tst_open_write(src_dir, work_dir)
         tst_create(work_dir)
@@ -157,15 +153,75 @@ def test_passthrough(tmpdir, name, debug, capfd):
         tst_truncate_path(work_dir)
         tst_truncate_fd(work_dir)
         tst_open_unlink(work_dir)
-        
-        subprocess.check_call([ os.path.join(basename, 'test', 'test_syscalls'),
-                                work_dir, ':' + src_dir ])
+
+        syscall_test_cmd = [ os.path.join(basename, 'test', 'test_syscalls'),
+                             work_dir, ':' + src_dir ]
+        if writeback:
+            # When writeback caching is enabled, kernel has to open files for
+            # reading even when userspace opens with O_WDONLY. This fails if the
+            # filesystem process doesn't have special permission.
+            syscall_test_cmd.append('-53')
+        subprocess.check_call(syscall_test_cmd)
     except:
-        cleanup(mnt_dir)
+        cleanup(mount_process, mnt_dir)
         raise
     else:
         umount(mount_process, mnt_dir)
 
+@pytest.mark.parametrize("cache", (False, True))
+def test_passthrough_hp(short_tmpdir, cache):
+    mnt_dir = str(short_tmpdir.mkdir('mnt'))
+    src_dir = str(short_tmpdir.mkdir('src'))
+
+    cmdline = base_cmdline + \
+              [ pjoin(basename, 'example', 'passthrough_hp'),
+                src_dir, mnt_dir ]
+
+    if not cache:
+        cmdline.append('--nocache')
+        
+    mount_process = subprocess.Popen(cmdline)
+    try:
+        wait_for_mount(mount_process, mnt_dir)
+
+        tst_statvfs(mnt_dir)
+        tst_readdir(src_dir, mnt_dir)
+        tst_readdir_big(src_dir, mnt_dir)
+        tst_open_read(src_dir, mnt_dir)
+        tst_open_write(src_dir, mnt_dir)
+        tst_create(mnt_dir)
+        tst_passthrough(src_dir, mnt_dir)
+        tst_append(src_dir, mnt_dir)
+        tst_seek(src_dir, mnt_dir)
+        tst_mkdir(mnt_dir)
+        tst_rmdir(src_dir, mnt_dir)
+        tst_unlink(src_dir, mnt_dir)
+        tst_symlink(mnt_dir)
+        if os.getuid() == 0:
+            tst_chown(mnt_dir)
+
+        # Underlying fs may not have full nanosecond resolution
+        tst_utimens(mnt_dir, ns_tol=1000)
+
+        tst_link(mnt_dir)
+        tst_truncate_path(mnt_dir)
+        tst_truncate_fd(mnt_dir)
+        tst_open_unlink(mnt_dir)
+
+        # test_syscalls assumes that changes in source directory
+        # will be reflected immediately in mountpoint, so we
+        # can't use it.
+        if not cache:
+            syscall_test_cmd = [ os.path.join(basename, 'test', 'test_syscalls'),
+                             mnt_dir, ':' + src_dir ]
+            subprocess.check_call(syscall_test_cmd)
+    except:
+        cleanup(mount_process, mnt_dir)
+        raise
+    else:
+        umount(mount_process, mnt_dir)
+
+        
 @pytest.mark.skipif(fuse_proto < (7,11),
                     reason='not supported by running kernel')
 def test_ioctl(tmpdir):
@@ -191,7 +247,7 @@ def test_ioctl(tmpdir):
         with open(testfile, 'rb') as fh:
             assert fh.read()== b'foo'
     except:
-        cleanup(mnt_dir)
+        cleanup(mount_process, mnt_dir)
         raise
     else:
         umount(mount_process, mnt_dir)
@@ -207,7 +263,7 @@ def test_poll(tmpdir):
                   [ pjoin(basename, 'example', 'poll_client') ]
         subprocess.check_call(cmdline, cwd=mnt_dir)
     except:
-        cleanup(mnt_dir)
+        cleanup(mount_process, mnt_dir)
         raise
     else:
         umount(mount_process, mnt_dir)
@@ -231,7 +287,7 @@ def test_null(tmpdir):
         with open(mnt_file, 'wb') as fh:
             fh.write(b'whatever')
     except:
-        cleanup(mnt_file)
+        cleanup(mount_process, mnt_file)
         raise
     else:
         umount(mount_process, mnt_file)
@@ -267,7 +323,7 @@ def test_notify_inval_entry(tmpdir, notify):
         with pytest.raises(FileNotFoundError):
             os.stat(fname)
     except:
-        cleanup(mnt_dir)
+        cleanup(mount_process, mnt_dir)
         raise
     else:
         umount(mount_process, mnt_dir)
@@ -455,7 +511,7 @@ def tst_open_unlink(mnt_dir):
         os.unlink(fullname)
         with pytest.raises(OSError) as exc_info:
             os.stat(fullname)
-            assert exc_info.value.errno == errno.ENOENT
+        assert exc_info.value.errno == errno.ENOENT
         assert name not in os.listdir(mnt_dir)
         fh.write(data2)
         fh.seek(0)
@@ -529,6 +585,31 @@ def tst_readdir(src_dir, mnt_dir):
     os.rmdir(subdir)
     os.rmdir(src_newdir)
 
+def tst_readdir_big(src_dir, mnt_dir):
+
+    # Add enough entries so that readdir needs to be called
+    # multiple times.
+    fnames = []
+    for i in range(500):
+        fname  = ('A rather long filename to make sure that we '
+                  'fill up the buffer - ' * 3) + str(i)
+        with open(pjoin(src_dir, fname), 'w') as fh:
+            fh.write('File %d' % i)
+        fnames.append(fname)
+
+    listdir_is = sorted(os.listdir(mnt_dir))
+    listdir_should = sorted(os.listdir(src_dir))
+    assert listdir_is == listdir_should
+
+    for fname in fnames:
+        stat_src = os.stat(pjoin(src_dir, fname))
+        stat_mnt = os.stat(pjoin(mnt_dir, fname))
+        assert stat_src.st_ino == stat_mnt.st_ino
+        assert stat_src.st_mtime == stat_mnt.st_mtime
+        assert stat_src.st_ctime == stat_mnt.st_ctime
+        assert stat_src.st_size == stat_mnt.st_size
+        os.unlink(pjoin(src_dir, fname))
+    
 def tst_truncate_path(mnt_dir):
     assert len(TEST_DATA) > 1024
 
@@ -593,8 +674,8 @@ def tst_utimens(mnt_dir, ns_tol=0):
 
     fstat = os.lstat(filename)
 
-    assert abs(fstat.st_atime - atime) < 1e-3
-    assert abs(fstat.st_mtime - mtime) < 1e-3
+    assert abs(fstat.st_atime - atime) < 1
+    assert abs(fstat.st_mtime - mtime) < 1
     if sys.version_info >= (3,3):
         assert abs(fstat.st_atime_ns - atime_ns) <= ns_tol
         assert abs(fstat.st_mtime_ns - mtime_ns) <= ns_tol

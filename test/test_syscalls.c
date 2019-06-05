@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -8,26 +11,34 @@
 #include <utime.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/un.h>
+
+#ifndef ALLPERMS
+# define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)/* 07777 */
+#endif
 
 
 static char testfile[1024];
 static char testfile2[1024];
 static char testdir[1024];
 static char testdir2[1024];
-static char subfile[1024];
+static char testsock[1024];
+static char subfile[1280];
 
 static char testfile_r[1024];
 static char testfile2_r[1024];
 static char testdir_r[1024];
 static char testdir2_r[1024];
-static char subfile_r[1024];
+static char subfile_r[1280];
 
 static char testname[256];
 static char testdata[] = "abcdefghijklmnopqrstuvwxyz";
 static char testdata2[] = "1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./";
 static const char *testdir_files[] = { "f1", "f2", NULL};
+static long seekdir_offsets[4];
 static char zerodata[4096];
 static int testdatalen = sizeof(testdata) - 1;
 static int testdata2len = sizeof(testdata2) - 1;
@@ -59,6 +70,11 @@ static void test_error(const char *func, const char *msg, ...)
 	fprintf(stderr, "\n");
 }
 
+static int is_dot_or_dotdot(const char *name) {
+    return name[0] == '.' &&
+           (name[1] == '\0' || (name[1] == '.' && name[2] == '\0'));
+}
+
 static void success(void)
 {
 	fprintf(stderr, "%s OK\n", testname);
@@ -86,6 +102,8 @@ static void __start_test(const char *fmt, ...)
 
 #define PERROR(msg) test_perror(__FUNCTION__, msg)
 #define ERROR(msg, args...) test_error(__FUNCTION__, msg, ##args)
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 static int check_size(const char *path, int len)
 {
@@ -157,8 +175,9 @@ static int check_mode(const char *path, mode_t mode)
 		PERROR("lstat");
 		return -1;
 	}
-	if ((stbuf.st_mode & 07777) != mode) {
-		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & 07777, mode);
+	if ((stbuf.st_mode & ALLPERMS) != mode) {
+		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
+		      mode);
 		return -1;
 	}
 	return 0;
@@ -172,8 +191,9 @@ static int fcheck_mode(int fd, mode_t mode)
 		PERROR("fstat");
 		return -1;
 	}
-	if ((stbuf.st_mode & 07777) != mode) {
-		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & 07777, mode);
+	if ((stbuf.st_mode & ALLPERMS) != mode) {
+		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
+		      mode);
 		return -1;
 	}
 	return 0;
@@ -369,10 +389,6 @@ static int check_dir_contents(const char *path, const char **contents)
 		found[i] = 0;
 		cont[i] = contents[i];
 	}
-	found[i] = 0;
-	cont[i++] = ".";
-	found[i] = 0;
-	cont[i++] = "..";
 	cont[i] = NULL;
 
 	dp = opendir(path);
@@ -393,6 +409,8 @@ static int check_dir_contents(const char *path, const char **contents)
 			}
 			break;
 		}
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
 		for (i = 0; cont[i] != NULL; i++) {
 			assert(i < MAX_ENTRIES);
 			if (strcmp(cont[i], de->d_name) == 0) {
@@ -485,7 +503,7 @@ static int cleanup_dir(const char *path, const char **dir_files, int quiet)
 
 	for (i = 0; dir_files[i]; i++) {
 		int res;
-		char fpath[1024];
+		char fpath[1280];
 		sprintf(fpath, "%s/%s", path, dir_files[i]);
 		res = unlink(fpath);
 		if (res == -1 && !quiet) {
@@ -518,7 +536,7 @@ static int create_dir(const char *path, const char **dir_files)
 		return -1;
 
 	for (i = 0; dir_files[i]; i++) {
-		char fpath[1024];
+		char fpath[1280];
 		sprintf(fpath, "%s/%s", path, dir_files[i]);
 		res = create_file(fpath, "", 0);
 		if (res == -1) {
@@ -650,6 +668,158 @@ static int test_ftruncate(int len, int mode)
 	success();
 	return 0;
 }
+
+static int test_seekdir(void)
+{
+	int i;
+	int res;
+	DIR *dp;
+	struct dirent *de;
+
+	start_test("seekdir");
+	res = create_dir(testdir, testdir_files);
+	if (res == -1)
+		return res;
+
+	dp = opendir(testdir);
+	if (dp == NULL) {
+		PERROR("opendir");
+		return -1;
+	}
+
+	/* Remember dir offsets */
+	for (i = 0; i < ARRAY_SIZE(seekdir_offsets); i++) {
+		seekdir_offsets[i] = telldir(dp);
+		errno = 0;
+		de = readdir(dp);
+		if (de == NULL) {
+			if (errno) {
+				PERROR("readdir");
+				goto fail;
+			}
+			break;
+		}
+	}
+
+	/* Walk until the end of directory */
+	while (de)
+		de = readdir(dp);
+
+	/* Start from the last valid dir offset and seek backwards */
+	for (i--; i >= 0; i--) {
+		seekdir(dp, seekdir_offsets[i]);
+		de = readdir(dp);
+		if (de == NULL) {
+			ERROR("Unexpected end of directory after seekdir()");
+			goto fail;
+		}
+	}
+
+	closedir(dp);
+	res = cleanup_dir(testdir, testdir_files, 0);
+	if (!res)
+		success();
+	return res;
+fail:
+	closedir(dp);
+	cleanup_dir(testdir, testdir_files, 1);
+	return -1;
+}
+
+#ifdef HAVE_COPY_FILE_RANGE
+static int test_copy_file_range(void)
+{
+	const char *data = testdata;
+	int datalen = testdatalen;
+	int err = 0;
+	int res;
+	int fd_in, fd_out;
+	off_t pos_in = 0, pos_out = 0;
+
+	start_test("copy_file_range");
+	unlink(testfile);
+	fd_in = open(testfile, O_CREAT | O_RDWR, 0644);
+	if (fd_in == -1) {
+		PERROR("creat");
+		return -1;
+	}
+	res = write(fd_in, data, datalen);
+	if (res == -1) {
+		PERROR("write");
+		close(fd_in);
+		return -1;
+	}
+	if (res != datalen) {
+		ERROR("write is short: %u instead of %u", res, datalen);
+		close(fd_in);
+		return -1;
+	}
+
+	unlink(testfile2);
+	fd_out = creat(testfile2, 0644);
+	if (fd_out == -1) {
+		PERROR("creat");
+		close(fd_in);
+		return -1;
+	}
+	res = copy_file_range(fd_in, &pos_in, fd_out, &pos_out, datalen, 0);
+	if (res == -1) {
+		PERROR("copy_file_range");
+		close(fd_in);
+		close(fd_out);
+		return -1;
+	}
+	if (res != datalen) {
+		ERROR("copy is short: %u instead of %u", res, datalen);
+		close(fd_in);
+		close(fd_out);
+		return -1;
+	}
+
+	res = close(fd_in);
+	if (res == -1) {
+		PERROR("close");
+		return -1;
+	}
+	res = close(fd_out);
+	if (res == -1) {
+		PERROR("close");
+		return -1;
+	}
+
+	err = check_data(testfile2, data, 0, datalen);
+
+	res = unlink(testfile);
+	if (res == -1) {
+		PERROR("unlink");
+		return -1;
+	}
+	res = check_nonexist(testfile);
+	if (res == -1)
+		return -1;
+	if (err)
+		return -1;
+
+	res = unlink(testfile2);
+	if (res == -1) {
+		PERROR("unlink");
+		return -1;
+	}
+	res = check_nonexist(testfile2);
+	if (res == -1)
+		return -1;
+	if (err)
+		return -1;
+
+	success();
+	return 0;
+}
+#else
+static int test_copy_file_range(void)
+{
+	return 0;
+}
+#endif
 
 static int test_utime(void)
 {
@@ -882,7 +1052,7 @@ static int do_test_open(int exist, int flags, const char *flags_str, int mode)
 		err += check_mode(testfile, mode);
 	err += check_nlink(testfile, 1);
 	err += check_size(testfile, currlen);
-	if (exist && !(flags & O_TRUNC) && (mode & 0400))
+	if (exist && !(flags & O_TRUNC) && (mode & S_IRUSR))
 		err += check_data(testfile, testdata2, 0, testdata2len);
 
 	res = write(fd, data, datalen);
@@ -899,7 +1069,7 @@ static int do_test_open(int exist, int flags, const char *flags_str, int mode)
 
 			err += check_size(testfile, currlen);
 
-			if (mode & 0400) {
+			if (mode & S_IRUSR) {
 				err += check_data(testfile, data, 0, datalen);
 				if (exist && !(flags & O_TRUNC) &&
 				    testdata2len > datalen)
@@ -1282,6 +1452,221 @@ static int test_rename_dir(void)
 	return 0;
 }
 
+static int test_rename_dir_loop(void)
+{
+#define PATH(p)		(snprintf(path, sizeof path, "%s/%s", testdir, p), path)
+#define PATH2(p)	(snprintf(path2, sizeof path2, "%s/%s", testdir, p), path2)
+
+	char path[1280], path2[1280];
+	int err = 0;
+	int res;
+
+	start_test("rename dir loop");
+
+	res = create_dir(testdir, testdir_files);
+	if (res == -1)
+		return -1;
+
+	res = mkdir(PATH("a"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	res = rename(PATH("a"), PATH2("a"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	errno = 0;
+	res = rename(PATH("a"), PATH2("a/b"));
+	if (res == 0 || errno != EINVAL) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = mkdir(PATH("a/b"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	res = mkdir(PATH("a/b/c"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	errno = 0;
+	res = rename(PATH("a"), PATH2("a/b/c"));
+	if (res == 0 || errno != EINVAL) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	errno = 0;
+	res = rename(PATH("a"), PATH2("a/b/c/a"));
+	if (res == 0 || errno != EINVAL) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	errno = 0;
+	res = rename(PATH("a/b/c"), PATH2("a"));
+	if (res == 0 || errno != ENOTEMPTY) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = open(PATH("a/foo"), O_CREAT, 0644);
+	if (res == -1) {
+		PERROR("open");
+		goto fail;
+	}
+	close(res);
+
+	res = rename(PATH("a/foo"), PATH2("a/bar"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/bar"), PATH2("a/foo"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/foo"), PATH2("a/b/bar"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/b/bar"), PATH2("a/foo"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/foo"), PATH2("a/b/c/bar"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/b/c/bar"), PATH2("a/foo"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = open(PATH("a/bar"), O_CREAT, 0644);
+	if (res == -1) {
+		PERROR("open");
+		goto fail;
+	}
+	close(res);
+
+	res = rename(PATH("a/foo"), PATH2("a/bar"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	unlink(PATH("a/bar"));
+
+	res = rename(PATH("a/b"), PATH2("a/d"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/d"), PATH2("a/b"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = mkdir(PATH("a/d"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	res = rename(PATH("a/b"), PATH2("a/d"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = rename(PATH("a/d"), PATH2("a/b"));
+	if (res == -1) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	res = mkdir(PATH("a/d"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	res = mkdir(PATH("a/d/e"), 0755);
+	if (res == -1) {
+		PERROR("mkdir");
+		goto fail;
+	}
+
+	errno = 0;
+	res = rename(PATH("a/b"), PATH2("a/d"));
+	if (res == 0 || errno != ENOTEMPTY) {
+		PERROR("rename");
+		goto fail;
+	}
+
+	rmdir(PATH("a/d/e"));
+	rmdir(PATH("a/d"));
+
+ 	rmdir(PATH("a/b/c"));
+	rmdir(PATH("a/b"));
+	rmdir(PATH("a"));
+
+	err += cleanup_dir(testdir, testdir_files, 0);
+	res = rmdir(testdir);
+	if (res == -1) {
+		PERROR("rmdir");
+		goto fail;
+	}
+	res = check_nonexist(testdir);
+	if (res == -1)
+		return -1;
+	if (err)
+		return -1;
+
+	success();
+	return 0;
+
+fail:
+	unlink(PATH("a/bar"));
+
+	rmdir(PATH("a/d/e"));
+	rmdir(PATH("a/d"));
+ 
+ 	rmdir(PATH("a/b/c"));
+	rmdir(PATH("a/b"));
+	rmdir(PATH("a"));
+
+	cleanup_dir(testdir, testdir_files, 1);
+	rmdir(testdir);
+
+	return -1;
+
+#undef PATH2
+#undef PATH
+}
+
 #ifndef __FreeBSD__
 static int test_mkfifo(void)
 {
@@ -1343,6 +1728,53 @@ static int test_mkdir(void)
 		return -1;
 	}
 	res = check_nonexist(testdir);
+	if (res == -1)
+		return -1;
+	if (err)
+		return -1;
+
+	success();
+	return 0;
+}
+
+static int test_socket(void)
+{
+	struct sockaddr_un su;
+	int fd;
+	int res;
+	int err = 0;
+
+	start_test("socket");
+	if (strlen(testsock) + 1 > sizeof(su.sun_path)) {
+		fprintf(stderr, "Need to shorten mount point by %lu chars\n",
+			strlen(testsock) + 1 - sizeof(su.sun_path));
+		return -1;
+	}
+	unlink(testsock);
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		PERROR("socket");
+		return -1;
+	}
+	su.sun_family = AF_UNIX;
+	strncpy(su.sun_path, testsock, sizeof(su.sun_path));
+	res = bind(fd, (struct sockaddr*)&su, sizeof(su));
+	if (res == -1) {
+		PERROR("bind");
+		return -1;
+	}
+
+	res = check_type(testsock, S_IFSOCK);
+	if (res == -1)
+		return -1;
+	err += check_nlink(testsock, 1);
+	close(fd);
+	res = unlink(testsock);
+	if (res == -1) {
+		PERROR("unlink");
+		return -1;
+	}
+	res = check_nonexist(testsock);
 	if (res == -1)
 		return -1;
 	if (err)
@@ -1440,6 +1872,7 @@ int main(int argc, char *argv[])
 	sprintf(testdir, "%s/testdir", basepath);
 	sprintf(testdir2, "%s/testdir2", basepath);
 	sprintf(subfile, "%s/subfile", testdir2);
+	sprintf(testsock, "%s/testsock", basepath);
 
 	sprintf(testfile_r, "%s/testfile", realpath);
 	sprintf(testfile2_r, "%s/testfile2", realpath);
@@ -1461,6 +1894,9 @@ int main(int argc, char *argv[])
 	err += test_mkdir();
 	err += test_rename_file();
 	err += test_rename_dir();
+	err += test_rename_dir_loop();
+	err += test_seekdir();
+	err += test_socket();
 	err += test_utime();
 	err += test_truncate(0);
 	err += test_truncate(testdatalen / 2);
@@ -1515,9 +1951,11 @@ int main(int argc, char *argv[])
 	err += test_create_ro_dir(O_CREAT | O_EXCL);
 	err += test_create_ro_dir(O_CREAT | O_WRONLY);
 	err += test_create_ro_dir(O_CREAT | O_TRUNC);
+	err += test_copy_file_range();
 
 	unlink(testfile);
 	unlink(testfile2);
+	unlink(testsock);
 	rmdir(testdir);
 	rmdir(testdir2);
 

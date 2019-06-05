@@ -1,4 +1,117 @@
-* Support `mount -o nofail`
+Unreleased Changes
+==================
+
+* Added a new example (passthrough_hp). The functionality is similar
+  to passthrough_ll, but the implementation focuses on performance and
+  correctness rather than simplicity.
+
+libfuse 3.5.0 (2019-04-16)
+==========================
+
+* Changed ioctl commands to "unsigned int" in order to support commands
+  which do not fit into a signed int. Commands issued by applications
+  are still truncated to 32 bits.
+* Added SMB2 to whitelist (so users can now mount FUSE filesystems
+  on mountpoints within SMB 2.0 filesystems).
+* Added a new `cache_readdir` flag to `fuse_file_info` to enable
+  caching of readdir results. Supported by kernels 4.20 and newer.
+* Add support and documentation for FUSE_CAP_NO_OPENDIR_SUPPORT.
+
+libfuse 3.4.2 (2019-03-09)
+==========================
+
+* Fixed a memory leak in `examples/passthrough_ll.c`.
+* Added OpenAFS to whitelist (so users can now mount FUSE filesystems
+  on mountpoints within OpenAFS filesystems).
+* Added HFS+ to whitelist (so users can now mount FUSE filesystems
+  on mountpoints within HFS+ filesystems).
+* Documentation improvements.
+
+libfuse 3.4.1 (2018-12-22)
+==========================
+
+* The `examples/passthrough_ll.c` example filesystem has been
+  significantly extended.
+* Support for `copy_file_range` has been added.
+* Build system updates for non-Linux systems.
+
+libfuse 3.4.0
+=============
+
+* Add `copy_file_range()` to support efficient copying of data from one file to
+  an other.
+
+libfuse 3.3.0 (2018-11-06)
+==========================
+
+* The `auto_unmount` mode now works correctly in combination with
+  autofs.
+
+* The FUSE_CAP_READDIRPLUS_AUTO capability is no longer enabled by
+  default unless the file system defines both a readdir() and a
+  readdirplus() handler.
+
+* The description of the FUSE_CAP_READDIRPLUS_AUTO flag has been
+  improved.
+
+* Allow open `/dev/fuse` file descriptors to be passed via mountpoints of the
+  special format `/dev/fd/%u`. This allows mounting to be handled by the parent
+  so the FUSE filesystem process can run fully unprivileged.
+
+* Add a `drop_privileges` option to mount.fuse3 which causes it to open
+  `/dev/fuse` and mount the file system itself, then run the FUSE file
+  filesystem fully unprivileged and unable to re-acquire privilege via setuid,
+  fscaps, etc.
+
+* Documented under which conditions the `fuse_lowlevel_notify_*`
+  functions may block.
+
+libfuse 3.2.6 (2018-08-31)
+==========================
+
+* The fuse_main() function now returns more fine-grained error codes.
+* FUSE filesystems may now be mounted on mountpoint within
+  bcachefs, aufs and FAT filesystems.
+* libfuse may now be used as a Meson subproject.
+* Fix a few low-impact memory leaks.
+* The `fuse.conf` file is no longer looked for in `/etc`, but in the
+  *sysconfdir* directory (which can be set with `meson configure`). By
+  default, the location is thus `/usr/local/etc/fuse.conf`.
+
+libfuse 3.2.5 (2018-07-24)
+==========================
+
+* SECURITY UPDATE: In previous versions of libfuse it was possible to
+  for unprivileged users to specify the `allow_other` option even when
+  this was forbidden in `/etc/fuse.conf`.  The vulnerability is
+  present only on systems where SELinux is active (including in
+  permissive mode).
+* The fusermount binary has been hardened in several ways to reduce
+  potential attack surface. Most importantly, mountpoints and mount
+  options must now match a hard-coded whitelist. It is expected that
+  this whitelist covers all regular use-cases.
+* Added a test of `seekdir` to test_syscalls.
+* Fixed `readdir` bug when non-zero offsets are given to filler and the
+  filesystem client, after reading a whole directory, re-reads it from a
+  non-zero offset e. g. by calling `seekdir` followed by `readdir`.
+
+libfuse 3.2.4 (2018-07-11)
+==========================
+
+* Fixed `rename` deadlock on FreeBSD.
+
+libfuse 3.2.3 (2018-05-11)
+==========================
+
+* Fixed a number of compiler warnings.  
+
+libfuse 3.2.2 (2018-03-31)
+==========================
+
+* Added example fuse.conf file.
+* Added "support" for -o nofail mount option (the option is accepted
+  and ignored).
+* Various small bugfixes.  
 
 libfuse 3.2.1 (2017-11-14)
 ==========================

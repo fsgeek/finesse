@@ -76,9 +76,6 @@ struct fuse_entry_param
 	 * it must assign a new, previously unused generation number
 	 * to the inode at the same time.
 	 *
-	 * The generation must be non-zero, otherwise FUSE will treat
-	 * it as an error.
-	 *
 	 */
 	uint64_t generation;
 
@@ -500,8 +497,8 @@ struct fuse_lowlevel_ops
 	 * If this request is answered with an error code of ENOSYS
 	 * and FUSE_CAP_NO_OPEN_SUPPORT is set in
 	 * `fuse_conn_info.capable`, this is treated as success and
-	 * future calls to open will also succeed without being send
-	 * to the filesystem process.
+	 * future calls to open and release will also succeed without being
+	 * sent to the filesystem process.
 	 *
 	 * Valid replies:
 	 *   fuse_reply_open
@@ -587,8 +584,10 @@ struct fuse_lowlevel_ops
 	 *
 	 * NOTE: the name of the method is misleading, since (unlike
 	 * fsync) the filesystem is not forced to flush pending writes.
-	 * One reason to flush data, is if the filesystem wants to return
-	 * write errors.
+	 * One reason to flush data is if the filesystem wants to return
+	 * write errors during close.  However, such use is non-portable
+	 * because POSIX does not require [close] to wait for delayed I/O to
+	 * complete.
 	 *
 	 * If the filesystem supports file locking operations (setlk,
 	 * getlk) it should remove all locks belonging to 'fi->owner'.
@@ -604,6 +603,8 @@ struct fuse_lowlevel_ops
 	 * @param req request handle
 	 * @param ino the inode number
 	 * @param fi file information
+	 *
+	 * [close]: http://pubs.opengroup.org/onlinepubs/9699919799/functions/close.html
 	 */
 	void (*flush)(fuse_req_t req, fuse_ino_t ino,
 				  struct fuse_file_info *fi);
@@ -615,7 +616,8 @@ struct fuse_lowlevel_ops
 	 * file: all file descriptors are closed and all memory mappings
 	 * are unmapped.
 	 *
-	 * For every open call there will be exactly one release call.
+	 * For every open call there will be exactly one release call (unless
+	 * the filesystem is force-unmounted).
 	 *
 	 * The filesystem may reply with an error, but error values are
 	 * not returned to close() or munmap() which triggered the
@@ -664,11 +666,12 @@ struct fuse_lowlevel_ops
 	 * etc) in fi->fh, and use this in other all other directory
 	 * stream operations (readdir, releasedir, fsyncdir).
 	 *
-	 * Filesystem may also implement stateless directory I/O and not
-	 * store anything in fi->fh, though that makes it impossible to
-	 * implement standard conforming directory stream operations in
-	 * case the contents of the directory can change between opendir
-	 * and releasedir.
+	 * If this request is answered with an error code of ENOSYS and
+	 * FUSE_CAP_NO_OPENDIR_SUPPORT is set in `fuse_conn_info.capable`,
+	 * this is treated as success and future calls to opendir and
+	 * releasedir will also succeed without being sent to the filesystem
+	 * process. In addition, the kernel will cache readdir results
+	 * as if opendir returned FOPEN_KEEP_CACHE | FOPEN_CACHE_DIR.
 	 *
 	 * Valid replies:
 	 *   fuse_reply_open
@@ -694,8 +697,24 @@ struct fuse_lowlevel_ops
 	 * Returning a directory entry from readdir() does not affect
 	 * its lookup count.
 	 *
+         * If off_t is non-zero, then it will correspond to one of the off_t
+	 * values that was previously returned by readdir() for the same
+	 * directory handle. In this case, readdir() should skip over entries
+	 * coming before the position defined by the off_t value. If entries
+	 * are added or removed while the directory handle is open, they filesystem
+	 * may still include the entries that have been removed, and may not
+	 * report the entries that have been created. However, addition or
+	 * removal of entries must never cause readdir() to skip over unrelated
+	 * entries or to report them more than once. This means
+	 * that off_t can not be a simple index that enumerates the entries
+	 * that have been returned but must contain sufficient information to
+	 * uniquely determine the next directory entry to return even when the
+	 * set of entries is changing.
+	 *
 	 * The function does not have to report the '.' and '..'
-	 * entries, but is allowed to do so.
+	 * entries, but is allowed to do so. Note that, if readdir does
+	 * not return '.' or '..', they will not be implicitly returned,
+	 * and this behavior is observable by the caller.
 	 *
 	 * Valid replies:
 	 *   fuse_reply_buf
@@ -715,7 +734,7 @@ struct fuse_lowlevel_ops
 	 * Release an open directory
 	 *
 	 * For every opendir call there will be exactly one releasedir
-	 * call.
+	 * call (unless the filesystem is force-unmounted).
 	 *
 	 * fi->fh will contain the value set by the opendir method, or
 	 * will be undefined if the opendir method didn't set any value.
@@ -862,9 +881,9 @@ struct fuse_lowlevel_ops
 	/**
 	 * Check file access permissions
 	 *
-	 * This will be called for the access() system call.  If the
-	 * 'default_permissions' mount option is given, this method is not
-	 * called.
+	 * This will be called for the access() and chdir() system
+	 * calls.  If the 'default_permissions' mount option is given,
+	 * this method is not called.
 	 *
 	 * This method is not called under Linux kernel versions 2.4.x
 	 *
@@ -999,10 +1018,13 @@ struct fuse_lowlevel_ops
 	 * @param in_buf data fetched from the caller
 	 * @param in_bufsz number of fetched bytes
 	 * @param out_bufsz maximum size of output data
+	 *
+	 * Note : the unsigned long request submitted by the application
+	 * is truncated to 32 bits.
 	 */
-	void (*ioctl)(fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
-				  struct fuse_file_info *fi, unsigned flags,
-				  const void *in_buf, size_t in_bufsz, size_t out_bufsz);
+	void (*ioctl) (fuse_req_t req, fuse_ino_t ino, unsigned int cmd,
+		       void *arg, struct fuse_file_info *fi, unsigned flags,
+		       const void *in_buf, size_t in_bufsz, size_t out_bufsz);
 
 	/**
 	 * Poll for IO readiness
@@ -1162,8 +1184,44 @@ struct fuse_lowlevel_ops
 	 * @param off offset to continue reading the directory stream
 	 * @param fi file information
 	 */
-	void (*readdirplus)(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-						struct fuse_file_info *fi);
+	void (*readdirplus) (fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
+			 struct fuse_file_info *fi);
+
+	/**
+	 * Copy a range of data from one file to another
+	 *
+	 * Performs an optimized copy between two file descriptors without the
+	 * additional cost of transferring data through the FUSE kernel module
+	 * to user space (glibc) and then back into the FUSE filesystem again.
+	 *
+	 * In case this method is not implemented, glibc falls back to reading
+	 * data from the source and writing to the destination. Effectively
+	 * doing an inefficient copy of the data.
+	 *
+	 * If this request is answered with an error code of ENOSYS, this is
+	 * treated as a permanent failure with error code EOPNOTSUPP, i.e. all
+	 * future copy_file_range() requests will fail with EOPNOTSUPP without
+	 * being send to the filesystem process.
+	 *
+	 * Valid replies:
+	 *   fuse_reply_write
+	 *   fuse_reply_err
+	 *
+	 * @param req request handle
+	 * @param ino_in the inode number or the source file
+	 * @param off_in starting point from were the data should be read
+	 * @param fi_in file information of the source file
+	 * @param ino_out the inode number or the destination file
+	 * @param off_out starting point where the data should be written
+	 * @param fi_out file information of the destination file
+	 * @param len maximum size of the data to copy
+	 * @param flags passed along with the copy_file_range() syscall
+	 */
+	void (*copy_file_range) (fuse_req_t req, fuse_ino_t ino_in,
+				 off_t off_in, struct fuse_file_info *fi_in,
+				 fuse_ino_t ino_out, off_t off_out,
+				 struct fuse_file_info *fi_out, size_t len,
+				 int flags);
 };
 
 /**
@@ -1535,6 +1593,15 @@ int fuse_lowlevel_notify_poll(struct fuse_pollhandle *ph);
  * this (or a newer) version, the function will return -ENOSYS and do
  * nothing.
  *
+ * If the filesystem has writeback caching enabled, invalidating an
+ * inode will first trigger a writeback of all dirty pages. The call
+ * will block until all writeback requests have completed and the
+ * inode has been invalidated. It will, however, not wait for
+ * completion of pending writeback requests that have been issued
+ * before.
+ *
+ * If there are no dirty pages, this function will never block.
+ *
  * @param se the session object
  * @param ino the inode number
  * @param off the offset in the inode where to start invalidating
@@ -1549,9 +1616,16 @@ int fuse_lowlevel_notify_inval_inode(struct fuse_session *se, fuse_ino_t ino,
  * Notify to invalidate parent attributes and the dentry matching
  * parent/name
  *
- * To avoid a deadlock don't call this function from a filesystem
- * operation and don't call it with a lock held that can also be held
- * by a filesystem operation.
+ * To avoid a deadlock this function must not be called in the
+ * execution path of a related filesytem operation or within any code
+ * that could hold a lock that could be needed to execute such an
+ * operation. As of kernel 4.18, a "related operation" is a lookup(),
+ * symlink(), mknod(), mkdir(), unlink(), rename(), link() or create()
+ * request for the parent, and a setattr(), unlink(), rmdir(),
+ * rename(), setxattr(), removexattr(), readdir() or readdirplus()
+ * request for the inode itself.
+ *
+ * When called correctly, this function will never block.
  *
  * Added in FUSE protocol version 7.12. If the kernel does not support
  * this (or a newer) version, the function will return -ENOSYS and do
@@ -1575,9 +1649,13 @@ int fuse_lowlevel_notify_inval_entry(struct fuse_session *se, fuse_ino_t parent,
  * watches registered for the dentry, then the watchers are informed
  * that the dentry has been deleted.
  *
- * To avoid a deadlock don't call this function from a filesystem
- * operation and don't call it with a lock held that can also be held
- * by a filesystem operation.
+ * To avoid a deadlock this function must not be called while
+ * executing a related filesytem operation or while holding a lock
+ * that could be needed to execute such an operation (see the
+ * description of fuse_lowlevel_notify_inval_entry() for more
+ * details).
+ *
+ * When called correctly, this function will never block.
  *
  * Added in FUSE protocol version 7.18. If the kernel does not support
  * this (or a newer) version, the function will return -ENOSYS and do

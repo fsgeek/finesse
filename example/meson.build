@@ -3,7 +3,7 @@ examples = [ 'passthrough', 'passthrough_fh',
              'ioctl_client', 'poll_client', 'ioctl',
              'cuse', 'cuse_client' ]
 
-if not platform.endswith('bsd')
+if not platform.endswith('bsd') and platform != 'dragonfly'
     examples += 'passthrough_ll'
 
     # According to Conrad Meyer <cem@freebsd.org>, FreeBSD doesn't
@@ -22,6 +22,7 @@ foreach ex : examples
     executable(ex, ex + '.c',
                include_directories: include_dirs,
                link_with: [ libfuse, libfinesse ],
+               dependencies: [ libfuse_dep ],
                install: false)
 endforeach
 
@@ -30,8 +31,14 @@ foreach ex : threaded_examples
     executable(ex, ex + '.c',
                include_directories: include_dirs,
                link_with: [ libfuse, libfinesse ],
-               dependencies: thread_dep,
+               dependencies: [ thread_dep, libfuse_dep ],
                install: false)
 endforeach
+
+if not platform.endswith('bsd') and platform != 'dragonfly'
+    executable('passthrough_hp', 'passthrough_hp.cc',
+               dependencies: [ thread_dep, libfuse_dep ],
+               install: false)
+endif
 
 # TODO: Link passthrough_fh with ulockmgr if available

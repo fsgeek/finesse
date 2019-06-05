@@ -16,6 +16,7 @@
 #include "fuse_kernel.h"
 #include "fuse_opt.h"
 #include "fuse_misc.h"
+#include "mount_util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -314,7 +315,7 @@ size_t fuse_add_direntry(fuse_req_t req, char *buf, size_t bufsize,
 	dirent->ino = stbuf->st_ino;
 	dirent->off = off;
 	dirent->namelen = namelen;
-	dirent->type = (stbuf->st_mode & 0170000) >> 12;
+	dirent->type = (stbuf->st_mode & S_IFMT) >> 12;
 	strncpy(dirent->name, name, namelen);
 	memset(dirent->name + namelen, 0, entlen_padded - entlen);
 
@@ -407,7 +408,7 @@ size_t fuse_add_direntry_plus(fuse_req_t req, char *buf, size_t bufsize,
 	dirent->ino = e->attr.st_ino;
 	dirent->off = off;
 	dirent->namelen = namelen;
-	dirent->type = (e->attr.st_mode & 0170000) >> 12;
+	dirent->type = (e->attr.st_mode & S_IFMT) >> 12;
 	strncpy(dirent->name, name, namelen);
 	memset(dirent->name + namelen, 0, entlen_padded - entlen);
 
@@ -422,6 +423,8 @@ static void fill_open(struct fuse_open_out *arg,
 		arg->open_flags |= FOPEN_DIRECT_IO;
 	if (f->keep_cache)
 		arg->open_flags |= FOPEN_KEEP_CACHE;
+	if (f->cache_readdir)
+		arg->open_flags |= FOPEN_CACHE_DIR;
 	if (f->nonseekable)
 		arg->open_flags |= FOPEN_NONSEEKABLE;
 }
@@ -1394,7 +1397,7 @@ static void do_write(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 
 	memset(&fi, 0, sizeof(fi));
 	fi.fh = arg->fh;
-	fi.writepage = (arg->write_flags & 1) != 0;
+	fi.writepage = (arg->write_flags & FUSE_WRITE_CACHE) != 0;
 
 	if (req->se->conn.proto_minor < 9)
 	{
@@ -1427,7 +1430,7 @@ static void do_write_buf(fuse_req_t req, fuse_ino_t nodeid, const void *inarg,
 
 	memset(&fi, 0, sizeof(fi));
 	fi.fh = arg->fh;
-	fi.writepage = arg->write_flags & 1;
+	fi.writepage = arg->write_flags & FUSE_WRITE_CACHE;
 
 	if (se->conn.proto_minor < 9)
 	{
@@ -1508,12 +1511,13 @@ static void do_fsync(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 {
 	struct fuse_fsync_in *arg = (struct fuse_fsync_in *)inarg;
 	struct fuse_file_info fi;
+	int datasync = arg->fsync_flags & 1;
 
 	memset(&fi, 0, sizeof(fi));
 	fi.fh = arg->fh;
 
 	if (req->se->op.fsync)
-		req->se->op.fsync(req, nodeid, arg->fsync_flags & 1, &fi);
+		req->se->op.fsync(req, nodeid, datasync, &fi);
 	else
 		fuse_reply_err(req, ENOSYS);
 }
@@ -1579,12 +1583,13 @@ static void do_fsyncdir(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 {
 	struct fuse_fsync_in *arg = (struct fuse_fsync_in *)inarg;
 	struct fuse_file_info fi;
+	int datasync = arg->fsync_flags & 1;
 
 	memset(&fi, 0, sizeof(fi));
 	fi.fh = arg->fh;
 
 	if (req->se->op.fsyncdir)
-		req->se->op.fsyncdir(req, nodeid, arg->fsync_flags & 1, &fi);
+		req->se->op.fsyncdir(req, nodeid, datasync, &fi);
 	else
 		fuse_reply_err(req, ENOSYS);
 }
@@ -1917,6 +1922,27 @@ static void do_fallocate(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 		fuse_reply_err(req, ENOSYS);
 }
 
+static void do_copy_file_range(fuse_req_t req, fuse_ino_t nodeid_in, const void *inarg)
+{
+	struct fuse_copy_file_range_in *arg = (struct fuse_copy_file_range_in *) inarg;
+	struct fuse_file_info fi_in, fi_out;
+
+	memset(&fi_in, 0, sizeof(fi_in));
+	fi_in.fh = arg->fh_in;
+
+	memset(&fi_out, 0, sizeof(fi_out));
+	fi_out.fh = arg->fh_out;
+
+
+	if (req->se->op.copy_file_range)
+		req->se->op.copy_file_range(req, nodeid_in, arg->off_in,
+					    &fi_in, arg->nodeid_out,
+					    arg->off_out, &fi_out, arg->len,
+					    arg->flags);
+	else
+		fuse_reply_err(req, ENOSYS);
+}
+
 static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 {
 	struct fuse_init_in *arg = (struct fuse_init_in *)inarg;
@@ -1994,9 +2020,9 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 			se->conn.capable |= FUSE_CAP_POSIX_ACL;
 		if (arg->flags & FUSE_HANDLE_KILLPRIV)
 			se->conn.capable |= FUSE_CAP_HANDLE_KILLPRIV;
-	}
-	else
-	{
+		if (arg->flags & FUSE_NO_OPENDIR_SUPPORT)
+			se->conn.capable |= FUSE_CAP_NO_OPENDIR_SUPPORT;
+	} else {
 		se->conn.max_readahead = 0;
 	}
 
@@ -2034,7 +2060,8 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 				   FUSE_CAP_POSIX_LOCKS);
 	LL_SET_DEFAULT(se->op.flock, FUSE_CAP_FLOCK_LOCKS);
 	LL_SET_DEFAULT(se->op.readdirplus, FUSE_CAP_READDIRPLUS);
-	LL_SET_DEFAULT(se->op.readdirplus, FUSE_CAP_READDIRPLUS_AUTO);
+	LL_SET_DEFAULT(se->op.readdirplus && se->op.readdir,
+		       FUSE_CAP_READDIRPLUS_AUTO);
 	se->conn.time_gran = 1;
 
 	if (bufsize < FUSE_MIN_READ_BUFFER)
@@ -2484,50 +2511,51 @@ static struct
 	void (*func)(fuse_req_t, fuse_ino_t, const void *);
 	const char *name;
 } fuse_ll_ops[] = {
-	[FUSE_LOOKUP] = {do_lookup, "LOOKUP"},
-	[FUSE_FORGET] = {do_forget, "FORGET"},
-	[FUSE_GETATTR] = {do_getattr, "GETATTR"},
-	[FUSE_SETATTR] = {do_setattr, "SETATTR"},
-	[FUSE_READLINK] = {do_readlink, "READLINK"},
-	[FUSE_SYMLINK] = {do_symlink, "SYMLINK"},
-	[FUSE_MKNOD] = {do_mknod, "MKNOD"},
-	[FUSE_MKDIR] = {do_mkdir, "MKDIR"},
-	[FUSE_UNLINK] = {do_unlink, "UNLINK"},
-	[FUSE_RMDIR] = {do_rmdir, "RMDIR"},
-	[FUSE_RENAME] = {do_rename, "RENAME"},
-	[FUSE_LINK] = {do_link, "LINK"},
-	[FUSE_OPEN] = {do_open, "OPEN"},
-	[FUSE_READ] = {do_read, "READ"},
-	[FUSE_WRITE] = {do_write, "WRITE"},
-	[FUSE_STATFS] = {do_statfs, "STATFS"},
-	[FUSE_RELEASE] = {do_release, "RELEASE"},
-	[FUSE_FSYNC] = {do_fsync, "FSYNC"},
-	[FUSE_SETXATTR] = {do_setxattr, "SETXATTR"},
-	[FUSE_GETXATTR] = {do_getxattr, "GETXATTR"},
-	[FUSE_LISTXATTR] = {do_listxattr, "LISTXATTR"},
-	[FUSE_REMOVEXATTR] = {do_removexattr, "REMOVEXATTR"},
-	[FUSE_FLUSH] = {do_flush, "FLUSH"},
-	[FUSE_INIT] = {do_init, "INIT"},
-	[FUSE_OPENDIR] = {do_opendir, "OPENDIR"},
-	[FUSE_READDIR] = {do_readdir, "READDIR"},
-	[FUSE_RELEASEDIR] = {do_releasedir, "RELEASEDIR"},
-	[FUSE_FSYNCDIR] = {do_fsyncdir, "FSYNCDIR"},
-	[FUSE_GETLK] = {do_getlk, "GETLK"},
-	[FUSE_SETLK] = {do_setlk, "SETLK"},
-	[FUSE_SETLKW] = {do_setlkw, "SETLKW"},
-	[FUSE_ACCESS] = {do_access, "ACCESS"},
-	[FUSE_CREATE] = {do_create, "CREATE"},
-	[FUSE_INTERRUPT] = {do_interrupt, "INTERRUPT"},
-	[FUSE_BMAP] = {do_bmap, "BMAP"},
-	[FUSE_IOCTL] = {do_ioctl, "IOCTL"},
-	[FUSE_POLL] = {do_poll, "POLL"},
-	[FUSE_FALLOCATE] = {do_fallocate, "FALLOCATE"},
-	[FUSE_DESTROY] = {do_destroy, "DESTROY"},
-	[FUSE_NOTIFY_REPLY] = {(void *)1, "NOTIFY_REPLY"},
-	[FUSE_BATCH_FORGET] = {do_batch_forget, "BATCH_FORGET"},
-	[FUSE_READDIRPLUS] = {do_readdirplus, "READDIRPLUS"},
-	[FUSE_RENAME2] = {do_rename2, "RENAME2"},
-	[CUSE_INIT] = {cuse_lowlevel_init, "CUSE_INIT"},
+	[FUSE_LOOKUP]	   = { do_lookup,      "LOOKUP"	     },
+	[FUSE_FORGET]	   = { do_forget,      "FORGET"	     },
+	[FUSE_GETATTR]	   = { do_getattr,     "GETATTR"     },
+	[FUSE_SETATTR]	   = { do_setattr,     "SETATTR"     },
+	[FUSE_READLINK]	   = { do_readlink,    "READLINK"    },
+	[FUSE_SYMLINK]	   = { do_symlink,     "SYMLINK"     },
+	[FUSE_MKNOD]	   = { do_mknod,       "MKNOD"	     },
+	[FUSE_MKDIR]	   = { do_mkdir,       "MKDIR"	     },
+	[FUSE_UNLINK]	   = { do_unlink,      "UNLINK"	     },
+	[FUSE_RMDIR]	   = { do_rmdir,       "RMDIR"	     },
+	[FUSE_RENAME]	   = { do_rename,      "RENAME"	     },
+	[FUSE_LINK]	   = { do_link,	       "LINK"	     },
+	[FUSE_OPEN]	   = { do_open,	       "OPEN"	     },
+	[FUSE_READ]	   = { do_read,	       "READ"	     },
+	[FUSE_WRITE]	   = { do_write,       "WRITE"	     },
+	[FUSE_STATFS]	   = { do_statfs,      "STATFS"	     },
+	[FUSE_RELEASE]	   = { do_release,     "RELEASE"     },
+	[FUSE_FSYNC]	   = { do_fsync,       "FSYNC"	     },
+	[FUSE_SETXATTR]	   = { do_setxattr,    "SETXATTR"    },
+	[FUSE_GETXATTR]	   = { do_getxattr,    "GETXATTR"    },
+	[FUSE_LISTXATTR]   = { do_listxattr,   "LISTXATTR"   },
+	[FUSE_REMOVEXATTR] = { do_removexattr, "REMOVEXATTR" },
+	[FUSE_FLUSH]	   = { do_flush,       "FLUSH"	     },
+	[FUSE_INIT]	   = { do_init,	       "INIT"	     },
+	[FUSE_OPENDIR]	   = { do_opendir,     "OPENDIR"     },
+	[FUSE_READDIR]	   = { do_readdir,     "READDIR"     },
+	[FUSE_RELEASEDIR]  = { do_releasedir,  "RELEASEDIR"  },
+	[FUSE_FSYNCDIR]	   = { do_fsyncdir,    "FSYNCDIR"    },
+	[FUSE_GETLK]	   = { do_getlk,       "GETLK"	     },
+	[FUSE_SETLK]	   = { do_setlk,       "SETLK"	     },
+	[FUSE_SETLKW]	   = { do_setlkw,      "SETLKW"	     },
+	[FUSE_ACCESS]	   = { do_access,      "ACCESS"	     },
+	[FUSE_CREATE]	   = { do_create,      "CREATE"	     },
+	[FUSE_INTERRUPT]   = { do_interrupt,   "INTERRUPT"   },
+	[FUSE_BMAP]	   = { do_bmap,	       "BMAP"	     },
+	[FUSE_IOCTL]	   = { do_ioctl,       "IOCTL"	     },
+	[FUSE_POLL]	   = { do_poll,        "POLL"	     },
+	[FUSE_FALLOCATE]   = { do_fallocate,   "FALLOCATE"   },
+	[FUSE_DESTROY]	   = { do_destroy,     "DESTROY"     },
+	[FUSE_NOTIFY_REPLY] = { (void *) 1,    "NOTIFY_REPLY" },
+	[FUSE_BATCH_FORGET] = { do_batch_forget, "BATCH_FORGET" },
+	[FUSE_READDIRPLUS] = { do_readdirplus,	"READDIRPLUS"},
+	[FUSE_RENAME2]     = { do_rename2,      "RENAME2"    },
+	[FUSE_COPY_FILE_RANGE] = { do_copy_file_range, "COPY_FILE_RANGE" },
+	[CUSE_INIT]	   = { cuse_lowlevel_init, "CUSE_INIT"   },
 };
 
 #define FUSE_MAXOP (sizeof(fuse_ll_ops) / sizeof(fuse_ll_ops[0]))
@@ -3065,6 +3093,24 @@ int fuse_session_mount(struct fuse_session *se, const char *mountpoint)
 			close(fd);
 	} while (fd >= 0 && fd <= 2);
 
+	/*
+	 * To allow FUSE daemons to run without privileges, the caller may open
+	 * /dev/fuse before launching the file system and pass on the file
+	 * descriptor by specifying /dev/fd/N as the mount point. Note that the
+	 * parent process takes care of performing the mount in this case.
+	 */
+	fd = fuse_mnt_parse_fuse_fd(mountpoint);
+	if (fd != -1) {
+		if (fcntl(fd, F_GETFD) == -1) {
+			fprintf(stderr,
+				"fuse: Invalid file descriptor /dev/fd/%u\n",
+				fd);
+			return -1;
+		}
+		se->fd = fd;
+		return 0;
+	}
+
 	/* Open channel */
 	fd = fuse_kern_mount(mountpoint, se->mo);
 	if (fd == -1)
@@ -3090,9 +3136,11 @@ int fuse_session_fd(struct fuse_session *se)
 
 void fuse_session_unmount(struct fuse_session *se)
 {
-	fuse_kern_unmount(se->mountpoint, se->fd);
-	free(se->mountpoint);
-	se->mountpoint = NULL;
+	if (se->mountpoint != NULL) {
+		fuse_kern_unmount(se->mountpoint, se->fd);
+		free(se->mountpoint);
+		se->mountpoint = NULL;
+	}
 }
 
 #ifdef linux

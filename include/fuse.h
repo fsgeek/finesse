@@ -66,7 +66,7 @@ enum fuse_fill_dir_flags {
 
 /** Function to add an entry in a readdir() operation
  *
- * The *off* parameter can be any non-zero value that enableds the
+ * The *off* parameter can be any non-zero value that enables the
  * filesystem to identify the current point in the directory
  * stream. It does not need to be the actual physical position. A
  * value of zero is reserved to indicate that seeking in directories
@@ -220,7 +220,7 @@ struct fuse_config {
 	/**
 	 * This option disables flushing the cache of the file
 	 * contents on every open(2).  This should only be enabled on
-	 * filesystems, where the file data is never changed
+	 * filesystems where the file data is never changed
 	 * externally (not through the mounted FUSE filesystem).  Thus
 	 * it is not suitable for network filesystems and other
 	 * intermediate filesystems.
@@ -305,7 +305,7 @@ struct fuse_operations {
 	 * but libfuse and the kernel will still assign a different
 	 * inode for internal use (called the "nodeid").
 	 *
-	 * `fi` will always be NULL if the file is not currenlty open, but
+	 * `fi` will always be NULL if the file is not currently open, but
 	 * may also be NULL if the file is open.
 	 */
 	int (*getattr) (const char *, struct stat *, struct fuse_file_info *fi);
@@ -394,12 +394,11 @@ struct fuse_operations {
 	 *  - Creation (O_CREAT, O_EXCL, O_NOCTTY) flags will be
 	 *    filtered out / handled by the kernel.
 	 *
-	 *  - Access modes (O_RDONLY, O_WRONLY, O_RDWR) should be used
-	 *    by the filesystem to check if the operation is
-	 *    permitted.  If the ``-o default_permissions`` mount
-	 *    option is given, this check is already done by the
-	 *    kernel before calling open() and may thus be omitted by
-	 *    the filesystem.
+	 *  - Access modes (O_RDONLY, O_WRONLY, O_RDWR, O_EXEC, O_SEARCH)
+	 *    should be used by the filesystem to check if the operation is
+	 *    permitted.  If the ``-o default_permissions`` mount option is
+	 *    given, this check is already done by the kernel before calling
+	 *    open() and may thus be omitted by the filesystem.
 	 *
 	 *  - When writeback caching is enabled, the kernel may send
 	 *    read requests even for files opened with O_WRONLY. The
@@ -471,21 +470,28 @@ struct fuse_operations {
 	 * BIG NOTE: This is not equivalent to fsync().  It's not a
 	 * request to sync dirty data.
 	 *
-	 * Flush is called on each close() of a file descriptor.  So if a
-	 * filesystem wants to return write errors in close() and the file
-	 * has cached dirty data, this is a good place to write back data
-	 * and return any errors.  Since many applications ignore close()
-	 * errors this is not always useful.
+	 * Flush is called on each close() of a file descriptor, as opposed to
+	 * release which is called on the close of the last file descriptor for
+	 * a file.  Under Linux, errors returned by flush() will be passed to 
+	 * userspace as errors from close(), so flush() is a good place to write
+	 * back any cached dirty data. However, many applications ignore errors 
+	 * on close(), and on non-Linux systems, close() may succeed even if flush()
+	 * returns an error. For these reasons, filesystems should not assume
+	 * that errors returned by flush will ever be noticed or even
+	 * delivered.
 	 *
 	 * NOTE: The flush() method may be called more than once for each
-	 * open().	This happens if more than one file descriptor refers
-	 * to an opened file due to dup(), dup2() or fork() calls.	It is
-	 * not possible to determine if a flush is final, so each flush
-	 * should be treated equally.  Multiple write-flush sequences are
-	 * relatively rare, so this shouldn't be a problem.
+	 * open().  This happens if more than one file descriptor refers to an
+	 * open file handle, e.g. due to dup(), dup2() or fork() calls.  It is
+	 * not possible to determine if a flush is final, so each flush should
+	 * be treated equally.  Multiple write-flush sequences are relatively
+	 * rare, so this shouldn't be a problem.
 	 *
-	 * Filesystems shouldn't assume that flush will always be called
-	 * after some writes, or that if will be called at all.
+	 * Filesystems shouldn't assume that flush will be called at any
+	 * particular point.  It may be called more times than expected, or not
+	 * at all.
+	 *
+	 * [close]: http://pubs.opengroup.org/onlinepubs/9699919799/functions/close.html
 	 */
 	int (*flush) (const char *, struct fuse_file_info *);
 
@@ -496,7 +502,7 @@ struct fuse_operations {
 	 * are unmapped.
 	 *
 	 * For every open() call there will be exactly one release() call
-	 * with the same flags and file descriptor.	 It is possible to
+	 * with the same flags and file handle.  It is possible to
 	 * have a file opened more than once, in which case only the last
 	 * release will mean, that no more reads/writes will happen on the
 	 * file.  The return value of release is ignored.
@@ -528,7 +534,7 @@ struct fuse_operations {
 	 * this method should check if opendir is permitted for this
 	 * directory. Optionally opendir may also return an arbitrary
 	 * filehandle in the fuse_file_info structure, which will be
-	 * passed to readdir, closedir and fsyncdir.
+	 * passed to readdir, releasedir and fsyncdir.
 	 */
 	int (*opendir) (const char *, struct fuse_file_info *);
 
@@ -670,8 +676,11 @@ struct fuse_operations {
 	 *
 	 * If flags has FUSE_IOCTL_DIR then the fuse_file_info refers to a
 	 * directory file handle.
+	 *
+	 * Note : the unsigned long request submitted by the application
+	 * is truncated to 32 bits.
 	 */
-	int (*ioctl) (const char *, int cmd, void *arg,
+	int (*ioctl) (const char *, unsigned int cmd, void *arg,
 		      struct fuse_file_info *, unsigned int flags, void *data);
 
 	/**
@@ -750,6 +759,23 @@ struct fuse_operations {
 	 */
 	int (*fallocate) (const char *, int, off_t, off_t,
 			  struct fuse_file_info *);
+
+	/**
+	 * Copy a range of data from one file to another
+	 *
+	 * Performs an optimized copy between two file descriptors without the
+	 * additional cost of transferring data through the FUSE kernel module
+	 * to user space (glibc) and then back into the FUSE filesystem again.
+	 *
+	 * In case this method is not implemented, glibc falls back to reading
+	 * data from the source and writing to the destination. Effectively
+	 * doing an inefficient copy of the data.
+	 */
+	ssize_t (*copy_file_range) (const char *path_in,
+				    struct fuse_file_info *fi_in,
+				    off_t offset_in, const char *path_out,
+				    struct fuse_file_info *fi_out,
+				    off_t offset_out, size_t size, int flags);
 };
 
 /** Extra context that may be needed by some filesystems
@@ -767,7 +793,7 @@ struct fuse_context {
 	/** Group ID of the calling process */
 	gid_t gid;
 
-	/** Thread ID of the calling process */
+	/** Process ID of the calling thread */
 	pid_t pid;
 
 	/** Private filesystem data */
@@ -811,6 +837,15 @@ struct fuse_context {
  * how to do this.
  *
  * Note: this is currently implemented as a macro.
+ *
+ * The following error codes may be returned from fuse_main():
+ *   1: Invalid option arguments
+ *   2: No mount point specified
+ *   3: FUSE setup failed
+ *   4: Mounting failed
+ *   5: Failed to daemonize (detach from session)
+ *   6: Failed to set up signal handlers
+ *   7: An error occured during the life of the file system
  *
  * @param argc the argument counter passed to the main() function
  * @param argv the argument vector passed to the main() function
@@ -1149,13 +1184,19 @@ int fuse_fs_removexattr(struct fuse_fs *fs, const char *path,
 			const char *name);
 int fuse_fs_bmap(struct fuse_fs *fs, const char *path, size_t blocksize,
 		 uint64_t *idx);
-int fuse_fs_ioctl(struct fuse_fs *fs, const char *path, int cmd, void *arg,
-		  struct fuse_file_info *fi, unsigned int flags, void *data);
+int fuse_fs_ioctl(struct fuse_fs *fs, const char *path, unsigned int cmd,
+		  void *arg, struct fuse_file_info *fi, unsigned int flags,
+		  void *data);
 int fuse_fs_poll(struct fuse_fs *fs, const char *path,
 		 struct fuse_file_info *fi, struct fuse_pollhandle *ph,
 		 unsigned *reventsp);
 int fuse_fs_fallocate(struct fuse_fs *fs, const char *path, int mode,
 		 off_t offset, off_t length, struct fuse_file_info *fi);
+ssize_t fuse_fs_copy_file_range(struct fuse_fs *fs, const char *path_in,
+				struct fuse_file_info *fi_in, off_t off_in,
+				const char *path_out,
+				struct fuse_file_info *fi_out, off_t off_out,
+				size_t len, int flags);
 void fuse_fs_init(struct fuse_fs *fs, struct fuse_conn_info *conn,
 		struct fuse_config *cfg);
 void fuse_fs_destroy(struct fuse_fs *fs);
@@ -1205,10 +1246,20 @@ typedef struct fuse_fs *(*fuse_module_factory_t)(struct fuse_args *args,
  * @param factory_ the factory function for this filesystem module
  */
 #define FUSE_REGISTER_MODULE(name_, factory_) \
-	fuse_module_factory_t fuse_module_ ## name_ ## _factory = factory_;
+	fuse_module_factory_t fuse_module_ ## name_ ## _factory = factory_
 
 /** Get session from fuse object */
 struct fuse_session *fuse_get_session(struct fuse *f);
+
+/**
+ * Open a FUSE file descriptor and set up the mount for the given
+ * mountpoint and flags.
+ *
+ * @param mountpoint reference to the mount in the file system
+ * @param options mount options
+ * @return the FUSE file descriptor or -1 upon error
+ */
+int fuse_open_channel(const char *mountpoint, const char *options);
 
 #ifdef __cplusplus
 }

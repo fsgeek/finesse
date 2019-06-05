@@ -15,6 +15,7 @@
 #include "fuse_misc.h"
 #include "fuse_opt.h"
 #include "fuse_lowlevel.h"
+#include "mount_util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,7 +148,11 @@ static int fuse_helper_opt_proc(void *data, const char *arg, int key,
 	switch (key) {
 	case FUSE_OPT_KEY_NONOPT:
 		if (!opts->mountpoint) {
-			char mountpoint[PATH_MAX];
+			if (fuse_mnt_parse_fuse_fd(arg) != -1) {
+				return fuse_opt_add_opt(&opts->mountpoint, arg);
+			}
+
+			char mountpoint[PATH_MAX] = "";
 			if (realpath(arg, mountpoint) == NULL) {
 				fprintf(stderr,
 					"fuse: bad mount point `%s': %s\n",
@@ -303,30 +308,30 @@ int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 	if (!opts.show_help &&
 	    !opts.mountpoint) {
 		fprintf(stderr, "error: no mountpoint specified\n");
-		res = 1;
+		res = 2;
 		goto out1;
 	}
 
 
 	fuse = fuse_new_31(&args, op, op_size, user_data);
 	if (fuse == NULL) {
-		res = 1;
+		res = 3;
 		goto out1;
 	}
 
 	if (fuse_mount(fuse,opts.mountpoint) != 0) {
-		res = 1;
+		res = 4;
 		goto out2;
 	}
 
 	if (fuse_daemonize(opts.foreground) != 0) {
-		res = 1;
+		res = 5;
 		goto out3;
 	}
 
 	struct fuse_session *se = fuse_get_session(fuse);
 	if (fuse_set_signal_handlers(se) != 0) {
-		res = 1;
+		res = 6;
 		goto out3;
 	}
 
@@ -339,7 +344,7 @@ int fuse_main_real(int argc, char *argv[], const struct fuse_operations *op,
 		res = fuse_loop_mt_32(fuse, &loop_config);
 	}
 	if (res)
-		res = 1;
+		res = 7;
 
 	fuse_remove_signal_handlers(se);
 out3:
@@ -414,4 +419,22 @@ struct fuse_conn_info_opts* fuse_parse_conn_info_opts(struct fuse_args *args)
 		return NULL;
 	}
 	return opts;
+}
+
+int fuse_open_channel(const char *mountpoint, const char* options)
+{
+	struct mount_opts *opts = NULL;
+	int fd = -1;
+	const char *argv[] = { "", "-o", options };
+	int argc = sizeof(argv) / sizeof(argv[0]);
+	struct fuse_args args = FUSE_ARGS_INIT(argc, (char**) argv);
+
+	opts = parse_mount_opts(&args);
+	if (opts == NULL)
+		return -1;
+
+	fd = fuse_kern_mount(mountpoint, opts);
+	destroy_mount_opts(opts);
+
+	return fd;
 }

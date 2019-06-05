@@ -29,6 +29,8 @@
 #include <config.h>
 #endif
 
+#define _GNU_SOURCE
+
 #ifdef linux
 /* For pread()/pwrite()/utimensat() */
 #define _XOPEN_SOURCE 700
@@ -42,10 +44,16 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#ifdef __FreeBSD__
+#include <sys/socket.h>
+#include <sys/un.h>
+#endif
 #include <sys/time.h>
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
+
+#include "passthrough_helpers.h"
 
 static void *xmp_init(struct fuse_conn_info *conn,
 		      struct fuse_config *cfg)
@@ -136,16 +144,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 {
 	int res;
 
-	/* On Linux this could just be 'mknod(path, mode, rdev)' but this
-	   is more portable */
-	if (S_ISREG(mode)) {
-		res = open(path, O_CREAT | O_EXCL | O_WRONLY, mode);
-		if (res >= 0)
-			res = close(res);
-	} else if (S_ISFIFO(mode))
-		res = mkfifo(path, mode);
-	else
-		res = mknod(path, mode, rdev);
+	res = mknod_wrapper(AT_FDCWD, path, NULL, mode, rdev);
 	if (res == -1)
 		return -errno;
 
@@ -445,6 +444,46 @@ static int xmp_removexattr(const char *path, const char *name)
 }
 #endif /* HAVE_SETXATTR */
 
+#ifdef HAVE_COPY_FILE_RANGE
+static ssize_t xmp_copy_file_range(const char *path_in,
+				   struct fuse_file_info *fi_in,
+				   off_t offset_in, const char *path_out,
+				   struct fuse_file_info *fi_out,
+				   off_t offset_out, size_t len, int flags)
+{
+	int fd_in, fd_out;
+	ssize_t res;
+
+	if(fi_in == NULL)
+		fd_in = open(path_in, O_RDONLY);
+	else
+		fd_in = fi_in->fh;
+
+	if (fd_in == -1)
+		return -errno;
+
+	if(fi_out == NULL)
+		fd_out = open(path_out, O_WRONLY);
+	else
+		fd_out = fi_out->fh;
+
+	if (fd_out == -1) {
+		close(fd_in);
+		return -errno;
+	}
+
+	res = copy_file_range(fd_in, &offset_in, fd_out, &offset_out, len,
+			      flags);
+	if (res == -1)
+		res = -errno;
+
+	close(fd_in);
+	close(fd_out);
+
+	return res;
+}
+#endif
+
 static struct fuse_operations xmp_oper = {
 	.init           = xmp_init,
 	.getattr	= xmp_getattr,
@@ -479,6 +518,9 @@ static struct fuse_operations xmp_oper = {
 	.getxattr	= xmp_getxattr,
 	.listxattr	= xmp_listxattr,
 	.removexattr	= xmp_removexattr,
+#endif
+#ifdef HAVE_COPY_FILE_RANGE
+	.copy_file_range = xmp_copy_file_range,
 #endif
 };
 
