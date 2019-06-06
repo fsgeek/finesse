@@ -233,7 +233,7 @@ static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec
     return finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
 }
 
-static void finesse_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void finesse_fuse_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     // This is my testing hack - to implement unlink here
     (void)parent;
@@ -247,7 +247,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .forget = finesse_forget,
     .getattr = finesse_getattr,
     .readlink = finesse_readlink,
-    .unlink = finesse_unlink,
+    .unlink = finesse_fuse_unlink,
     .opendir = finesse_opendir,
     .readdir = finesse_readdir,
     .readdirplus = finesse_readdirplus,
