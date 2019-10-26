@@ -13,6 +13,9 @@ FUSE_3.0 {
 		fuse_reply_write;
 		fuse_reply_xattr;
 		fuse_req_userdata;
+                fuse_session_add_statsDir;
+		fuse_session_remove_statsDir;
+		fuse_session_statsDir;
 		fuse_session_destroy;
 		fuse_session_exit;
 		fuse_session_exited;
@@ -121,7 +124,10 @@ FUSE_3.0 {
 		fuse_clean_cache;
 		fuse_lowlevel_notify_delete;
 		fuse_fs_flock;
-		fuse_fs_fallocate;
+		generate_start_time;
+		generate_end_time;
+		populate_time;
+                fuse_fs_fallocate;
 		fuse_lowlevel_help;
 		fuse_lowlevel_version;
 		fuse_cmdline_help;

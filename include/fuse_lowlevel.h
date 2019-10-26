@@ -1223,6 +1223,24 @@ struct fuse_lowlevel_ops
 				 struct fuse_file_info *fi_out, size_t len,
 				 int flags);
 };
+// Begin StackFS instrumentation
+/**
+ * Function to initialise the request start time
+ * */
+void generate_start_time(fuse_req_t req);
+
+/** 
+ *Function to initialise the request end time
+ * */
+void generate_end_time(fuse_req_t req);
+
+/**
+ * Function to track the difference of the timings and 
+ * store it in the fuse session object
+ * */
+
+void populate_time(fuse_req_t req);
+// End StackFS instrumentation
 
 /**
  * Reply with an error code or success.
@@ -1805,6 +1823,23 @@ void fuse_req_interrupt_func(fuse_req_t req, fuse_interrupt_func_t func,
  * @return 1 if the request has been interrupted, 0 otherwise
  */
 int fuse_req_interrupted(fuse_req_t req);
+
+// Begin StackFS instrumentation
+/**
+* Assign statistics directory passed by user to the session.
+*/
+void fuse_session_add_statsDir(struct fuse_session *se, char *statsdir);
+
+/**
+*Remove the statistics directory assigned by the user
+*/
+void fuse_session_remove_statsDir(struct fuse_session *se);
+
+/**
+*Return the statistics directory assigned by the user
+*/
+char *fuse_session_statsDir(struct fuse_session *se);
+//  End StackFS instrumentation
 
 /* ----------------------------------------------------------- *
  * Inquiry functions                                           *
