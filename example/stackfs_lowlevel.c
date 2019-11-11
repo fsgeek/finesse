@@ -12,7 +12,8 @@
  * published by the Free Software Foundation.
  */
 
-// gcc -Wall -Werror stackfs_lowlevel.c `pkg-config fuse3 --cflags --libs` -o StackFS_ll
+// Compile: gcc -Wall -Werror stackfs_lowlevel.c `pkg-config fuse3 --cflags --libs` -o stackfs_ll
+
 #define FUSE_USE_VERSION 31
 #define _XOPEN_SOURCE 500
 #define _GNU_SOURCE
@@ -249,6 +250,9 @@ struct lo_data {
 	/* do we still need this ? let's see*/
 	double attr_valid;
         const char *source;
+        int debug;
+        int writeback;
+        int flock;
 };
 
 struct lo_dirptr {
@@ -554,6 +558,27 @@ struct lo_inode *find_lo_inode(fuse_req_t req, struct stat *st, char *fullpath)
 find_out:
 	pthread_spin_unlock(&lo_data->spinlock);
 	return lo_inode;
+}
+
+static void stackfs_ll_init(void *userdata,
+                    struct fuse_conn_info *conn)
+{
+        struct lo_data *lo = (struct lo_data*) userdata;
+
+        if(conn->capable & FUSE_CAP_EXPORT_SUPPORT)
+                conn->want |= FUSE_CAP_EXPORT_SUPPORT;
+
+        if (lo->writeback &&
+            conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
+                if (lo->debug)
+                        fuse_log(FUSE_LOG_DEBUG, "lo_init: activating writeback\n");
+                conn->want |= FUSE_CAP_WRITEBACK_CACHE;
+        }
+        if (lo->flock && conn->capable & FUSE_CAP_FLOCK_LOCKS) {
+                if (lo->debug)
+                        fuse_log(FUSE_LOG_DEBUG, "lo_init: activating flock locks\n");
+                conn->want |= FUSE_CAP_FLOCK_LOCKS;
+        }
 }
 
 static void stackfs_ll_lookup(fuse_req_t req, fuse_ino_t parent,
@@ -1272,7 +1297,8 @@ static void stackfs_ll_getxattr(fuse_req_t req, fuse_ino_t ino,
 #endif
 
 static struct fuse_lowlevel_ops hello_ll_oper = {
-	.lookup		=	stackfs_ll_lookup,
+	.init           =       stackfs_ll_init,
+        .lookup		=	stackfs_ll_lookup,
 	.getattr	=	stackfs_ll_getattr,
 	.statfs		=	stackfs_ll_statfs,
 	.setattr	=	stackfs_ll_setattr,
@@ -1351,7 +1377,7 @@ int main(int argc, char **argv)
 
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
         struct fuse_cmdline_opts opts;
-        struct fuse_session *se;        
+        struct fuse_session *se;
 	/*Default attr valid time is 1 sec*/
 	struct stackFS_info s_info = {NULL, NULL, 1.0, 0, 0};
 
@@ -1436,13 +1462,13 @@ int main(int argc, char **argv)
 	} else
 		printf("No tracing\n");
 
-	printf("Multi Threaded : %d\n", ~opts.singlethread);
+	printf("Single Threaded : %d\n", opts.singlethread);
 
 
         
         /*Begin modifications*/
         se = fuse_session_new(&args, &hello_ll_oper, sizeof(hello_ll_oper), lo); 
-        
+
         if (se == NULL)
             goto out5;
 
@@ -1464,7 +1490,6 @@ int main(int argc, char **argv)
             ret = fuse_session_loop_mt(se, opts.clone_fd);
 
         fuse_session_unmount(se);
-        fuse_remove_signal_handlers(se);
         fuse_session_remove_statsDir(se);
 	
         /* destroy the lock protecting the hash table */
