@@ -136,6 +136,11 @@ static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
     return finesse_original_ops->lookup(req, parent, name);
 }
 
+//static void finesse_mkdir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode) {
+//   finesse_set_provider(req, 0);
+//    return finesse_original_ops->mkdir(req, nodeid, name, mode);
+//}
+
 static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);
 static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
@@ -252,6 +257,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .readdir = finesse_readdir,
     .readdirplus = finesse_readdirplus,
     .releasedir = finesse_releasedir,
+//    .mkdir = finesse_mkdir,
     .create = finesse_create,
     .open = finesse_fuse_open,
     .release = finesse_release,
