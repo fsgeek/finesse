@@ -2893,7 +2893,7 @@ void fuse_session_destroy(struct fuse_session *se)
 	destroy_mount_opts(se->mo);
 
 // Begin StackFS instrumentation
-        pthread_spin_destroy(&se->lock);
+        pthread_spin_destroy(&se->array_lock);
 // End StackFS instrumentation
         free(se);
 }
@@ -3099,7 +3099,12 @@ struct fuse_session *fuse_session_new(struct fuse_args *args,
 		fuse_log(FUSE_LOG_ERR, "fuse: failed to allocate fuse object\n");
 		goto out1;
 	}
-	se->fd = -1;
+
+        // Begin StackFS instrumentation
+        pthread_spin_init(&se->array_lock, PTHREAD_PROCESS_PRIVATE); /*For array*/
+        // End StackFS instrumentation
+
+        se->fd = -1;
 	se->conn.max_write = UINT_MAX;
 	se->conn.max_readahead = UINT_MAX;
 
