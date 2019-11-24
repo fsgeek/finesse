@@ -54,5 +54,5 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...);
 int finesse_close(int fd);
 int finesse_unlink(const char *pathname);
 int finesse_unlinkat(int dirfd, const char *pathname, int flags);
-int finesse_mkdir(const char *path, mode_t mode);
-int finesse_mkdirat(int fd, const char *path, mode_t mode);
+//int finesse_mkdir(const char *path, mode_t mode);
+//int finesse_mkdirat(int fd, const char *path, mode_t mode);
