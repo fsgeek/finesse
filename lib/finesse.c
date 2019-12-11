@@ -271,10 +271,19 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
     return finesse_original_ops->write(req, nodeid, buf, size, off, fi);
 }
 
-static void finesse_statfs(fuse_req_t req, fuse_ino_t nodeid);
-static void finesse_statfs(fuse_req_t req, fuse_ino_t nodeid) 
+//static void finesse_fuse_statfs(fuse_req_t req, const char *path);
+//static void finesse_fuse_statfs(fuse_req_t req, const char *path) 
+//{
+//    finesse_set_provider(req, 0);
+//    req->finesse_notify = 1;
+//    return finesse_original_ops->statfs(req, path);
+//}
+
+static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
+static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid) 
 {
     finesse_set_provider(req, 0);
+    req->finesse_notify = 1;
     return finesse_original_ops->statfs(req, nodeid);
 }
 
@@ -322,7 +331,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .setattr         = finesse_setattr,
     .rmdir           = finesse_rmdir,
     .write           = finesse_write,
-    .statfs          = finesse_statfs,
+    .statfs          = finesse_fuse_fstatfs,
     .fsync           = finesse_fsync,
     //.getxattr        = finesse_getxattr,
     .flush           = finesse_flush
@@ -612,6 +621,13 @@ static void *finesse_mq_worker(void *arg)
             // end gross hack
             break;
         }
+        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS:
+        {
+	    struct statvfs fs;
+	    int64_t result = fstatvfs(finesse_req->fstatfsreq->nodeid, &fs);
+            status = FinesseSendFstatfsResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &fs, result);
+            break;
+        }
         case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH:
         {
             char *path_found = find_files_in_paths(se,
@@ -762,6 +778,8 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
         // TODO
         break;
     }
+    case FUSE_STATFS:
+    	break;
     }
     return;
 }

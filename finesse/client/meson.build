@@ -35,6 +35,7 @@ libfinesse_sources = ['dirmap.c',
                       'test.c',
                       'mkdir.c',
                       'unlink.c',
+		      'statfs.c',
                       generated
                       ]
 

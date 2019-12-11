@@ -25,6 +25,10 @@ typedef enum {
 	FINESSE_DIR_MAP_RESPONSE,	  // response to dir map request
 	FINESSE_UNLINK_REQUEST,		   // request file unlink
 	FINESSE_UNLINK_RESPONSE,	   // respond to file unlink request
+	FINESSE_STATFS_REQUEST,		  // request statfs
+	FINESSE_STATFS_RESPONSE,         // respond to statfs request
+	FINESSE_FSTATFS_REQUEST,		  // request fstatfs
+	FINESSE_FSTATFS_RESPONSE,         // respond to fstatfs request
 
 	FINESSE_PATH_SEARCH_REQUEST,  // look for a list of files in a list of paths
 	FINESSE_PATH_SEARCH_RESPONSE, // respond to a search request
@@ -135,6 +139,35 @@ typedef struct finesse_unlink_response
 {
 	u_int32_t Status;
 } finesse_unlink_response_t;
+
+//
+// Statfs structures
+//
+typedef struct finesse_statfs_request
+{
+	u_int16_t PathLength;
+	char Path[1]
+} finesse_statfs_response_t;
+
+typedef struct finesse_statfs_response
+{
+	u_int32_t Status;
+	struct statvfs StatfsStruc;
+} finesse_statfs_response_t;
+
+//
+// FStatfs structures
+//
+typedef struct finesse_fstatfs_request
+{
+	fuse_ino_t Nodeid;
+} finesse_fstatfs_response_t;
+
+typedef struct finesse_fstatfs_response
+{
+	u_int32_t Status;
+	struct statvfs StatfsStruc;
+} finesse_fstatfs_response_t;
 
 //
 // Path search structures
