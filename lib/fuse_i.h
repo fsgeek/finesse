@@ -16,6 +16,9 @@ struct fuse_req
 	struct fuse_session *se;
 	uint64_t unique;
 	int ctr;
+// Begin StackFS instrumentation
+	int opcode;
+// End StackFS instrumentation
 	pthread_mutex_t lock;
 	struct fuse_ctx ctx;
 	struct fuse_chan *ch;
@@ -26,7 +29,6 @@ struct fuse_req
 	unsigned int finesse_notify : 1; // notify finesse
 	void *finesse_req;
 	void *finesse_lookup_info;
-	int opcode;
 	struct fuse_req *original_fuse_req;
 	/* END FINESSE CHANGE */
 	union {
@@ -40,6 +42,10 @@ struct fuse_req
 			void *data;
 		} ni;
 	} u;
+// Begin StackFS instrumentation
+        struct timespec ts1;
+        struct timespec ts2;
+// End StackFS instrumentation
 	struct fuse_req *next;
 	struct fuse_req *prev;
 };
@@ -57,7 +63,12 @@ struct fuse_session
 {
 	char *mountpoint;
 	volatile int exited;
-	int fd;
+// Begin StackFS instrumentation
+        pthread_spinlock_t array_lock; /*protects the array*/
+	long long unsigned int processing[46][33];
+	char *statsDir;
+// End StackFS instrumentation
+        int fd;
 	struct mount_opts *mo;
 	int debug;
 	int deny_others;

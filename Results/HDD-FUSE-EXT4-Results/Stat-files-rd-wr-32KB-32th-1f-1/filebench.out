@@ -1,0 +1,19 @@
+Filebench Version 1.5-alpha3
+0.000: Allocated 5671MB of shared memory
+0.017: Populating and pre-allocating filesets
+0.017: Removing bigfileset tree (if exists)
+0.043: Pre-allocating directories in bigfileset tree
+0.043: Pre-allocating files in bigfileset tree
+744.624: Waiting for pre-allocation to finish (in case of a parallel pre-allocation)
+744.624: Population and pre-allocation of filesets completed
+786.175: Attempting to create fileset more than once, ignoring
+786.193: Starting 1 fileopen instances
+787.289: Running...
+792.290: Run took 5 seconds...
+792.290: Per-Operation Breakdown
+finish               1ops        0ops/s   0.0mb/s      0.0ms/op [0.00ms -  0.00ms]
+close1               1ops        0ops/s   0.0mb/s      3.2ms/op [0.00ms -  3.25ms]
+write-file           69842ops    13967ops/s 436.5mb/s      2.1ms/op [0.04ms - 696.87ms]
+open1                32ops        6ops/s   0.0mb/s      7.5ms/op [0.08ms - 224.35ms]
+792.290: IO Summary: 69875 ops 13973.773 ops/s 0/13967 rd/wr 436.5mb/s   2.1ms/op
+792.290: Shutting down processes
