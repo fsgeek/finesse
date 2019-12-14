@@ -3257,6 +3257,10 @@ void fuse_session_unmount(struct fuse_session *se)
 	}
 }
 
+struct fuse_conn_info *fuse_session_get_conn(struct fuse_session *se) {
+    return &(se->conn);
+}
+
 #ifdef linux
 int fuse_req_getgroups(fuse_req_t req, int size, gid_t list[])
 {

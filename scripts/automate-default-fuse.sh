@@ -46,11 +46,11 @@ then
 fi
 
 #HARDCODED
-TYPE="SSD"
-WORKLOAD_DIR="$HOME/fuse-3.7.0/workloads/default-fuse/$TYPE/"
+TYPE="HDD"
+WORKLOAD_DIR="$HOME/finesse/workloads/default-fuse/$TYPE/"
 MOUNT_POINT="$HOME/COM_DIR/"
 FUSE_MOUNT_POINT="$HOME/COM_DIR/FUSE_EXT4_FS/"
-COMMON_FOLDER="$HOME/fuse-3.7.0/Results/$TYPE-FUSE-EXT4-Results"
+COMMON_FOLDER="$HOME/finesse/Results/$TYPE-FUSE-EXT4-Results"
 
 
 work_load_types=( sq rd cr preall ) 	  # Sequential, random, create and delete workloads
@@ -88,7 +88,8 @@ do
 		files=( 4M )
 	elif [ "$wlt" == "preall" ]
 	then
-		work_load_ops=( re de )
+		#work_load_ops=( re de )
+		work_load_ops=( re )
 		io_sizes=( 4KB )
 	fi
 
@@ -154,9 +155,8 @@ do
                                                         mount -t ext4 /dev/sdc $MOUNT_POINT
                                                 elif [ "$TYPE" == "SSD" ]
                                                 then
-                                                #        mkfs.ext4 -F -E  lazy_itable_init=0,lazy_journal_init=0 -O ^uninit_bg /dev/sdb > /dev/null
-                                                #        mount -t ext4 /dev/sdb $MOUNT_POINT
-                                                	echo "fsdfdsfds"
+                                                        mkfs.ext4 -F -E  lazy_itable_init=0,lazy_journal_init=0 -O ^uninit_bg /dev/sdb > /dev/null
+                                                        mount -t ext4 /dev/sdb $MOUNT_POINT
 						fi
     
                                                 echo 0 > /proc/sys/kernel/randomize_va_space

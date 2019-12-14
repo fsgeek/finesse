@@ -2043,6 +2043,7 @@ void fuse_session_unmount(struct fuse_session *se);
  */
 void fuse_session_destroy(struct fuse_session *se);
 
+struct fuse_conn_info *fuse_session_get_conn(struct fuse_session *se);
 /* ----------------------------------------------------------- *
  * Custom event loop support                                   *
  * ----------------------------------------------------------- */

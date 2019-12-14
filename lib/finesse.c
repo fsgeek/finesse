@@ -310,6 +310,13 @@ static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_in
     return finesse_original_ops->flush(req, nodeid, fi);
 }
 
+static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forget_data *forgets);
+static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forget_data *forgets)
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->forget_multi(req, count, forgets);
+}
+
 static struct fuse_lowlevel_ops finesse_ops = {
     .init            = finesse_fuse_init,
     .lookup          = finesse_lookup,
@@ -334,7 +341,8 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .statfs          = finesse_fuse_fstatfs,
     .fsync           = finesse_fsync,
     //.getxattr        = finesse_getxattr,
-    .flush           = finesse_flush
+    .flush           = finesse_flush,
+    .forget_multi    = finesse_forget_multi
     };
 
 uuid_t finesse_server_uuid;

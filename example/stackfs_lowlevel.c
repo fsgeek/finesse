@@ -1378,6 +1378,8 @@ int main(int argc, char **argv)
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
         struct fuse_cmdline_opts opts;
         struct fuse_session *se;
+	struct fuse_conn_info *conn;
+	struct fuse_conn_info_opts *optimization_flags;
 	/*Default attr valid time is 1 sec*/
 	struct stackFS_info s_info = {NULL, NULL, 1.0, 0, 0};
 
@@ -1467,7 +1469,10 @@ int main(int argc, char **argv)
 
         
         /*Begin modifications*/
-        se = fuse_session_new(&args, &hello_ll_oper, sizeof(hello_ll_oper), lo); 
+	optimization_flags = fuse_parse_conn_info_opts(&args);
+        se = fuse_session_new(&args, &hello_ll_oper, sizeof(hello_ll_oper), lo);
+        conn = fuse_session_get_conn(se);
+	fuse_apply_conn_info_opts(optimization_flags, conn);	
 
         if (se == NULL)
             goto out5;

@@ -47,10 +47,10 @@ fi
 
 #HARDCODED
 TYPE="SSD"
-WORKLOAD_DIR="$HOME/fuse-3.7.0/workloads/opts-fuse/$TYPE/"
+WORKLOAD_DIR="$HOME/finesse/workloads/opts-fuse/$TYPE/"
 MOUNT_POINT="$HOME/COM_DIR/"
 FUSE_MOUNT_POINT="$HOME/COM_DIR/FUSE_EXT4_FS/"
-COMMON_FOLDER="$HOME/fuse-3.7.0/Results/$TYPE-FUSE-OPTS-EXT4-Results"
+COMMON_FOLDER="$HOME/finesse/Results/$TYPE-FUSE-OPTS-EXT4-Results"
 
 work_load_types=( sq rd cr preall )  # Sequential and random workloads
 work_load_ops=( re wr )	             # write and read workloads
@@ -155,6 +155,7 @@ do
 						then
                                                 	mkfs.ext4 -F -E  lazy_itable_init=0,lazy_journal_init=0 -O ^uninit_bg /dev/sdb > /dev/null
                                                 	mount -t ext4 /dev/sdb $MOUNT_POINT	
+							echo "urgh"
 						fi
 
                                                 echo 0 > /proc/sys/kernel/randomize_va_space

@@ -1,5 +1,5 @@
 set mode quit timeout
-set $dir=/home/puneet/COM_DIR/FUSE_EXT4_FS/
+set $dir=/home/puneet/COM_DIR/FUSE_EXT4_FS
 #Fix the No. of files to 1M prealloc (1 M run)
 set $nfiles=1000000
 set $meandirwidth=1000
