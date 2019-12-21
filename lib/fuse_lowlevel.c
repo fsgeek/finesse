@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/file.h>
+#include <time.h>
 
 #ifndef F_LINUX_SPECIFIC_BASE
 #define F_LINUX_SPECIFIC_BASE 1024
@@ -49,6 +50,43 @@ struct fuse_pollhandle
 };
 
 static size_t pagesize;
+
+// Begin StackFS instrumentation
+void populate_time(fuse_req_t req) {
+        struct timespec *ts1, *ts2;
+        struct fuse_session *se;
+
+        ts1 = &(req->ts1);
+        ts2 = &(req->ts2);
+        se = req->se;
+/*        long time =
+           (ts2->tv_sec*1000000 + ts2->tv_nsec/1000) -
+           (ts1->tv_sec*1000000 + ts1->tv_nsec/1000); */
+        long time =
+                (ts2->tv_sec*1000000000 + ts2->tv_nsec) -
+                (ts1->tv_sec*1000000000 + ts1->tv_nsec);
+
+        pthread_spin_lock(&se->array_lock); /*lock*/
+        int i;
+        for (i=1; i<33; i++){
+                if(time>>i == 0){
+                        se->processing[req->opcode][i-1] +=1;
+                        pthread_spin_unlock(&se->array_lock); /*unlock*/
+                        return ;
+                }
+        }
+        se->processing[req->opcode][32] +=1;
+        pthread_spin_unlock(&se->array_lock); /*unlock*/
+}
+//  End StackFS instrumentation
+
+void generate_start_time(fuse_req_t req) {
+        clock_gettime(CLOCK_MONOTONIC, &(req->ts1));
+}
+
+void generate_end_time(fuse_req_t req) {
+        clock_gettime(CLOCK_MONOTONIC, &(req->ts2));
+}
 
 static __attribute__((constructor)) void fuse_ll_init_pagesize(void)
 {
@@ -332,7 +370,11 @@ static int send_reply_ok(fuse_req_t req, const void *arg, size_t argsize)
 
 int fuse_reply_err(fuse_req_t req, int err)
 {
-	return send_reply(req, -err, NULL, 0);
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        return send_reply(req, -err, NULL, 0);
 }
 
 void fuse_reply_none(fuse_req_t req)
@@ -429,7 +471,11 @@ int fuse_reply_entry(fuse_req_t req, const struct fuse_entry_param *e)
 	if (!e->ino && req->se->conn.proto_minor < 4)
 		return fuse_reply_err(req, ENOENT);
 
-	memset(&arg, 0, sizeof(arg));
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        memset(&arg, 0, sizeof(arg));
 	fill_entry(&arg, e);
 	return send_reply_ok(req, &arg, size);
 }
@@ -442,7 +488,11 @@ int fuse_reply_create(fuse_req_t req, const struct fuse_entry_param *e,
 	struct fuse_entry_out *earg = (struct fuse_entry_out *)buf;
 	struct fuse_open_out *oarg = (struct fuse_open_out *)(buf + entrysize);
 
-	memset(buf, 0, sizeof(buf));
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        memset(buf, 0, sizeof(buf));
 	fill_entry(earg, e);
 	fill_open(oarg, f);
 	return send_reply_ok(req, buf,
@@ -455,7 +505,11 @@ int fuse_reply_attr(fuse_req_t req, const struct stat *attr,
 	struct fuse_attr_out arg;
 	size_t size = req->se->conn.proto_minor < 9 ? FUSE_COMPAT_ATTR_OUT_SIZE : sizeof(arg);
 
-	memset(&arg, 0, sizeof(arg));
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        memset(&arg, 0, sizeof(arg));
 	arg.attr_valid = calc_timeout_sec(attr_timeout);
 	arg.attr_valid_nsec = calc_timeout_nsec(attr_timeout);
 	convert_stat(attr, &arg.attr);
@@ -465,14 +519,22 @@ int fuse_reply_attr(fuse_req_t req, const struct stat *attr,
 
 int fuse_reply_readlink(fuse_req_t req, const char *linkname)
 {
-	return send_reply_ok(req, linkname, strlen(linkname));
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        return send_reply_ok(req, linkname, strlen(linkname));
 }
 
 int fuse_reply_open(fuse_req_t req, const struct fuse_file_info *f)
 {
 	struct fuse_open_out arg;
 
-	memset(&arg, 0, sizeof(arg));
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
+        memset(&arg, 0, sizeof(arg));
 	fill_open(&arg, f);
 	return send_reply_ok(req, &arg, sizeof(arg));
 }
@@ -481,6 +543,10 @@ int fuse_reply_write(fuse_req_t req, size_t count)
 {
 	struct fuse_write_out arg;
 
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
 	memset(&arg, 0, sizeof(arg));
 	arg.size = count;
 
@@ -489,6 +555,10 @@ int fuse_reply_write(fuse_req_t req, size_t count)
 
 int fuse_reply_buf(fuse_req_t req, const char *buf, size_t size)
 {
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
 	return send_reply_ok(req, buf, size);
 }
 
@@ -894,6 +964,11 @@ int fuse_reply_data(fuse_req_t req, struct fuse_bufvec *bufv,
 	struct iovec iov[2];
 	struct fuse_out_header out;
 	int res;
+
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts2)); /*Track the completion of req*/
+//	populate_time(&(req->ts1), &(req->ts2), req);    /*Add the diff to session*/
+// End StackFS instrumentation
 
 	iov[0].iov_base = &out;
 	iov[0].iov_len = sizeof(struct fuse_out_header);
@@ -2627,7 +2702,9 @@ void fuse_session_process_buf_int(struct fuse_session *se,
 	void *mbuf = NULL;
 	int err;
 	int res;
-
+// Begin StackFS instrumentation
+	printf("size of write header and fuse write in structure is : %zu\n", write_header_size);
+// End StackFS instrumentation
 	if (buf->flags & FUSE_BUF_IS_FD)
 	{
 		if (buf->size < tmpbuf.buf[0].size)
@@ -2676,10 +2753,16 @@ void fuse_session_process_buf_int(struct fuse_session *se,
 	}
 
 	req->unique = in->unique;
+// Begin StackFS instrumentation
+        req->opcode = in->opcode;
+// EndStackS instrumentation
 	req->ctx.uid = in->uid;
 	req->ctx.gid = in->gid;
 	req->ctx.pid = in->pid;
 	req->ch = ch ? fuse_chan_get(ch) : NULL;
+// Begin StackFS instrumentation
+//	clock_gettime(CLOCK_MONOTONIC, &(req->ts1)); /*Start of the req creation*/
+// EndStackS instrumentation
 
 	err = EIO;
 	if (!se->got_init)
@@ -2808,7 +2891,11 @@ void fuse_session_destroy(struct fuse_session *se)
 	if (se->fd != -1)
 		close(se->fd);
 	destroy_mount_opts(se->mo);
-	free(se);
+
+// Begin StackFS instrumentation
+        pthread_spin_destroy(&se->array_lock);
+// End StackFS instrumentation
+        free(se);
 }
 
 static void fuse_ll_pipe_destructor(void *data)
@@ -3012,7 +3099,12 @@ struct fuse_session *fuse_session_new(struct fuse_args *args,
 		fuse_log(FUSE_LOG_ERR, "fuse: failed to allocate fuse object\n");
 		goto out1;
 	}
-	se->fd = -1;
+
+        // Begin StackFS instrumentation
+        pthread_spin_init(&se->array_lock, PTHREAD_PROCESS_PRIVATE); /*For array*/
+        // End StackFS instrumentation
+
+        se->fd = -1;
 	se->conn.max_write = UINT_MAX;
 	se->conn.max_readahead = UINT_MAX;
 
@@ -3085,6 +3177,21 @@ out1:
 	return NULL;
 }
 
+void fuse_session_add_statsDir(struct fuse_session *se, char *statsdir)
+{
+        se->statsDir = statsdir;
+}
+
+void fuse_session_remove_statsDir(struct fuse_session *se)
+{
+        se->statsDir = NULL;
+}
+
+char *fuse_session_statsDir(struct fuse_session *se)
+{
+        return se->statsDir;
+}
+
 int fuse_session_mount(struct fuse_session *se, const char *mountpoint)
 {
 	int fd;
@@ -3148,6 +3255,10 @@ void fuse_session_unmount(struct fuse_session *se)
 		free(se->mountpoint);
 		se->mountpoint = NULL;
 	}
+}
+
+struct fuse_conn_info *fuse_session_get_conn(struct fuse_session *se) {
+    return &(se->conn);
 }
 
 #ifdef linux

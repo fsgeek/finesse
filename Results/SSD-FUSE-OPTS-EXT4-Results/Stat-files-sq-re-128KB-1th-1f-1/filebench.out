@@ -1,0 +1,14 @@
+Filebench Version 1.5-alpha3
+0.000: Allocated 5671MB of shared memory
+0.026: Populating and pre-allocating filesets
+0.027: bigfileset populated: 1 files, avg. dir. width = 1, avg. dir. depth = -nan, 0 leafdirs, 61440.000MB total size
+0.027: Removing bigfileset tree (if exists)
+0.067: Pre-allocating directories in bigfileset tree
+0.067: Pre-allocating files in bigfileset tree
+319.790: Waiting for pre-allocation to finish (in case of a parallel pre-allocation)
+319.790: Population and pre-allocation of filesets completed
+357.121: Attempting to create fileset more than once, ignoring
+357.128: Starting 1 fileopen instances
+358.214: Running...
+359.214: Run took 1 seconds...
+359.214: Shutting down processes

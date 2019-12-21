@@ -283,6 +283,11 @@ static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 	return finesse_original_ops->forget(req, ino, nlookup);
 }
 
+static void finesse_mkdir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode) {
+    finesse_set_provide(req, 0);
+    return finesse_original_ops->mkdir(req, nodeid, name, mode);
+}
+
 static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
@@ -312,12 +317,12 @@ static void finesse_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
 	return finesse_original_ops->readdir(req, ino, size, offset, fi);
 }
 
-static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi);
-static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
-{
-	finesse_set_provider(req, 0);
-	return finesse_original_ops->readdirplus(req, ino, size, offset, fi);
-}
+//static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi);
+//static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
+//{
+//	finesse_set_provider(req, 0);
+//	return finesse_original_ops->readdirplus(req, ino, size, offset, fi);
+//}
 
 static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi);
 static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
@@ -356,12 +361,13 @@ static void finesse_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offs
 	return finesse_original_ops->read(req, ino, size, offset, fi);
 }
 
-static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *in_buf, off_t off, struct fuse_file_info *fi);
-static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *in_buf, off_t off, struct fuse_file_info *fi)
-{
-	finesse_set_provider(req, 0);
-	return finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
-}
+// UNCOMMENT WRITE_BUF BEFORE RUNNING WORKLAODS ON OPTIMIZED STACKFS
+//static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *in_buf, off_t off, struct fuse_file_info *fi);
+//static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *in_buf, off_t off, struct fuse_file_info *fi)
+//{
+//	finesse_set_provider(req, 0);
+//	return finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
+//}
 
 static void finesse_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
@@ -371,22 +377,90 @@ static void finesse_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 	fuse_reply_err(req, 0);
 }
 
+static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi);
+static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->setattr(req, nodeid, attr, to_set, fi);
+}
+
+static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name);
+static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->rmdir(req, parent, name);
+}
+
+static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char *buf,
+                          size_t size, off_t off, struct fuse_file_info *fi);
+static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
+                          size_t size, off_t off, struct fuse_file_info *fi) 
+{
+    finesse_set_provider(req, 0);
+    req->finesse_notify = 1;
+    return finesse_original_ops->write(req, nodeid,buf, size, off, fi);
+}
+
+static void finesse_statfs(fuse_req_t req, const char *path);
+static void finesse_statfs(fuse_req_t req, const char *path) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->statfs(req, path);
+}
+
+static void finesse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
+static void finesse_fstatfs(fuse_req_t req, fuse_ino_t nodeid) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->statfs(req, nodeid);
+}
+
+static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struct fuse_file_info *fi);
+static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struct fuse_file_info *fi) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->fsync(req, nodeid, datasync, fi);
+}
+
+//static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name, size_t size);
+//static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name, size_t size) 
+//{
+//      finesse_set_provider(req, 0);
+//    return finesse_original_ops->getxattr(req, nodeid, name, size);
+//}
+
+static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_info *fi);
+static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_info *fi) 
+{
+    finesse_set_provider(req, 0);
+    return finesse_original_ops->flush(req, nodeid, fi);
+}
+
 static struct fuse_lowlevel_ops finesse_ops = {
-	.init = finesse_init,
-	.lookup = finesse_lookup,
-	.forget = finesse_forget,
-	.getattr = finesse_getattr,
-	.readlink = finesse_readlink,
-	.unlink = finesse_unlink,
-	.opendir = finesse_opendir,
-	.readdir = finesse_readdir,
-	.readdirplus = finesse_readdirplus,
-	.releasedir = finesse_releasedir,
-	.create = finesse_create,
-	.open = finesse_open,
-	.release = finesse_release,
-	.read = finesse_read,
-	.write_buf = finesse_write_buf};
+	.init            = finesse_init,
+	.lookup          = finesse_lookup,
+	.forget          = finesse_forget,
+	.getattr         = finesse_getattr,
+	.readlink        = finesse_readlink,
+	.unlink          = finesse_unlink,
+	.opendir         = finesse_opendir,
+	.readdir         = finesse_readdir,
+	//.readdirplus     = finesse_readdirplus,
+        .mkdir           = finesse_mkdir,
+	.releasedir      = finesse_releasedir,
+	.create          = finesse_create,
+	.open            = finesse_open,
+	.release         = finesse_release,
+	.read            = finesse_read,
+	//.write_buf       = finesse_write_buf
+
+        .setattr         = finesse_setattr,
+        .rmdir           = finesse_rmdir,
+        .write           = finesse_write,
+        .statfs          = finesse_fstatfs,
+        .fsync           = finesse_fsync,
+        //.getxattr        = finesse_getxattr,
+        .flush           = finesse_flush};
 
 uuid_t finesse_server_uuid;
 
@@ -691,6 +765,92 @@ static void *finesse_mq_worker(void *arg)
 			//       unlink which isn't supported.
 			ulrsp->Status = unlink(&ulreq->Name[strlen(se->mountpoint)]);
 			// end gross hack
+
+			break;
+		}
+		
+		case FINESSE_STATFS_REQUEST:
+		{
+			size_t message_length = sizeof(finesse_map_release_request_t) + offsetof(finesse_message_t, Message);
+			finesse_statfs_request_t *sfsreq = (finesse_statfs_request_t *)finesse_request->Message;
+			finesse_statfs_response_t *sfsrsp = (finesse_statfs_response_t *)finesse_response->Message;
+
+			// format generic response info
+			memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
+			memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
+			finesse_response->MessageType = FINESSE_STATFS_RESPONSE;
+			finesse_response->MessageId = finesse_request->MessageId;
+			finesse_response->MessageLength = sizeof(finesse_statfs_response_t);
+			bytes_to_send = offsetof(finesse_message_t, Message) + sizeof(finesse_statfs_response_t);
+
+			if (message_length > bytes_received)
+			{ // invalid key length
+				((finesse_statfs_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
+				fprintf(stderr, "%s @ %d (%s): invalid request\n", __FILE__, __LINE__, __FUNCTION__);
+				break;
+			}
+
+			struct statvfs fs;
+			object = statfs(sfsreq->Path, &fs);
+			if (NULL != object)
+			{
+				finesse_object_release(object);
+			}
+			((finesse_statfs_response_t *)finesse_response->Message)->Status = FINESSE_STATFS_SUCCESS;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_type = fs->f_type;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_bsize = fs->f_bsize;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_blocks = fs->f_blocks;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_bfree = fs->f_bfree;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_bavail = fs->f_bavail;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_files = fs->f_files;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_ffree = fs->f_ffree;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_fsid = fs->f_fsid;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_namelen = fs->f_namelen;
+			((finesse_statfs_response_t *)finesse_response->Message)->Statfs->f_frsize = fs->f_frsize;
+
+
+			break;
+		}
+		
+		case FINESSE_FSTATFS_REQUEST:
+		{
+			size_t message_length = sizeof(finesse_map_release_request_t) + offsetof(finesse_message_t, Message);
+			finesse_fstatfs_request_t *sfsreq = (finesse_fstatfs_request_t *)finesse_request->Message;
+			finesse_fstatfs_response_t *sfsrsp = (finesse_fstatfs_response_t *)finesse_response->Message;
+
+			// format generic response info
+			memcpy(finesse_response->MagicNumber, FINESSE_MESSAGE_MAGIC, FINESSE_MESSAGE_MAGIC_SIZE);
+			memcpy(&finesse_response->SenderUuid, finesse_server_uuid, sizeof(uuid_t));
+			finesse_response->MessageType = FINESSE_STATFS_RESPONSE;
+			finesse_response->MessageId = finesse_request->MessageId;
+			finesse_response->MessageLength = sizeof(finesse_statfs_response_t);
+			bytes_to_send = offsetof(finesse_message_t, Message) + sizeof(finesse_fstatfs_response_t);
+
+			if (message_length > bytes_received)
+			{ // invalid key length
+				((finesse_fstatfs_response_t *)finesse_response->Message)->Status = FINESSE_MAP_RESPONSE_INVALID;
+				fprintf(stderr, "%s @ %d (%s): invalid request\n", __FILE__, __LINE__, __FUNCTION__);
+				break;
+			}
+
+			struct statvfs fs;
+			object = fstatfs(sfsreq->Nodeid, &fs);
+			if (NULL != object)
+			{
+				finesse_object_release(object);
+			}
+			((finesse_fstatfs_response_t *)finesse_response->Message)->Status = FINESSE_STATFS_SUCCESS;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_type = fs->f_type;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_bsize = fs->f_bsize;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_blocks = fs->f_blocks;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_bfree = fs->f_bfree;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_bavail = fs->f_bavail;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_files = fs->f_files;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_ffree = fs->f_ffree;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_fsid = fs->f_fsid;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_namelen = fs->f_namelen;
+			((finesse_fstatfs_response_t *)finesse_response->Message)->FStatfs->f_frsize = fs->f_frsize;
+
 
 			break;
 		}

@@ -721,7 +721,7 @@ old_test_finesse_search(
 
     for (index = 0; index < 100; index++) {
         for (index2 = 0; NULL != files_in_path[index2]; index2++) {
-            munit_assert(MUNIT_OK == finesse_test_server());
+            //munit_assert(MUNIT_OK == finesse_test_server());
         }
     }
 

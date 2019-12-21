@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package finesse;
-
+// To compile proto files: protoc --c_out=. finesse.proto
 /* note that these definitions are based upon the existing FUSE definitions */
 
 message FinesseFuseAttribute {
@@ -50,7 +50,6 @@ message FinesseDirMap {
 	repeated FinesseFuseDirentPlus dirmap = 1;	
 }
 
-
 message FinesseMessageHeader {
 	string ProtocolName = 1;
 	uint64 MessageId = 3;
@@ -62,12 +61,13 @@ message FinesseMessageHeader {
 		DIR_MAP_RELEASE = 22;
 		UNLINK = 31;
 		PATH_SEARCH = 41;
+		STATFS = 51;
+		FSTATFS = 52;
 		// This value should always be the highest possible op code
-		MAX_REQUEST = 42;
+		MAX_REQUEST = 53;
 	}
 	Operation Op = 4;
 }
-
 
 message FinesseRequest {
 	FinesseMessageHeader Header = 1;
@@ -100,15 +100,39 @@ message FinesseRequest {
 		repeated string files = 2;
 		repeated string paths = 3;
 	}
+	
+	message Statfs {
+		string Path = 1;
+	}	
+	
+	message FStatfs {
+		uint64 Nodeid = 1;
+	}	
 
 	oneof Request {
-		NameMap 		NameMapReq = 3;
+		NameMap 	NameMapReq = 3;
 		NameMapRelease  NameMapReleaseReq = 4;
-		DirMap 			DirMapReq = 5;
+		DirMap 		DirMapReq = 5;
 		DirMapRelease 	DirMapReleaseReq = 6;
-		Unlink 			UnlinkReq = 7;
-		PathSearch 		PathSearchReq = 8;
+		Unlink 		UnlinkReq = 7;
+		PathSearch 	PathSearchReq = 8;
+		Statfs		StatfsReq = 9;
+		FStatfs	        FStatfsReq = 10;
 	}
+}
+
+message StatFsStruc {
+         sint64  f_bsize = 1;     /* optimal transfer block size */
+         sint64  f_blocks = 2;    /* total data blocks in file system */
+         sint64  f_bfree = 3;     /* free blocks in fs */
+         sint64  f_bavail = 4;    /* free blocks avail to non-superuser */
+         sint64  f_files = 5;     /* total file nodes in file system */
+         sint64  f_ffree = 6;     /* free file nodes in fs */
+         uint64  f_fsid = 7;      /* file system id */
+	 sint64  f_frsize = 8;    /* fragment size */
+	 uint64  f_flag = 9;      /* mount flags */
+	 uint64  f_namemax = 10;  /* maximum filename length */
+	 sint64  f_favail = 11;   /* maximum filename length */
 }
 
 message FinesseResponse {
@@ -127,9 +151,20 @@ message FinesseResponse {
 		string Name = 1;
 	}
 
+	message Statfs {
+		StatFsStruc Statfsstruc = 1;
+	}
+
+	message FStatfs {
+		StatFsStruc Statfsstruc = 1;
+	}
+
+
 	oneof Response {
 		NameMap 	NameMapRsp = 3;
 		DirMap 		DirMapRsp = 4;
 		PathSearch 	PathSearchRsp = 5;
+		Statfs		StatfsRsp = 6;
+		FStatfs 	FStatfsRsp = 7;
 	}
 }

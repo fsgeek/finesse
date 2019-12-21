@@ -57,6 +57,10 @@ void FinesseServerGetRequest(finesse_server_handle_t ServerHandle)
         break;
     case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH:
         break;
+    case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__STATFS:
+    	break;
+    case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS:
+    	break;
     }
 
     // cleanup:
