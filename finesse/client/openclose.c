@@ -6,11 +6,17 @@
 #include "finesse-internal.h"
 #include <stdarg.h>
 #include <uuid/uuid.h>
-
+#include <pthread.h>
 /* 
  * REF: https://rafalcieslak.wordpress.com/2013/04/02/dynamic-linker-tricks-using-ld_preload-to-cheat-inject-features-and-investigate-programs/
  *      https://github.com/poliva/ldpreloadhook/blob/master/hook.c
  */
+
+struct map_name_args {
+    const char *mapfile_name;
+    uuid_t *uuid;
+    int *status;  
+};
 
 static int fin_open(const char *pathname, int flags, ...)
 {
@@ -101,8 +107,14 @@ int finesse_open(const char *pathname, int flags, ...)
 
     //
     // let's see if the other side knows about this file already
+    // invoke finesse_map_name asynchronously
     //
-    status = finesse_map_name(pathname, &uuid);
+    pthread_t tid;
+    struct map_name_args *mn_args = (struct map_name_args *) malloc(sizeof(struct map_name_args));
+    mn_args->mapfile_name = pathname;
+    mn_args->uuid = &uuid;
+    mn_args->status = &status;
+    pthread_create(&tid, NULL, finesse_map_name_async, (void *) mn_args);
 
     if (0 == status) {
         // if this is a NOENT and O_CREAT is not specified, we know this open will fail
@@ -113,7 +125,9 @@ int finesse_open(const char *pathname, int flags, ...)
     }
 
     fd = fin_open(pathname, flags, mode);
- 
+    pthread_join(tid, NULL);
+    free(mn_args); 
+
     while (fd >= 0) {
         finesse_key_t key;
         finesse_file_state_t *file_state;
@@ -207,4 +221,21 @@ int finesse_map_name(const char *mapfile_name, uuid_t *uuid)
     }
 
     return status;
+}
+
+
+void *finesse_map_name_async(void *args)
+{
+    struct map_name_args *parsed_args = (struct map_name_args *) args;  
+    int status;
+    uint64_t req_id;
+
+    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)parsed_args->mapfile_name, &req_id);
+    while (0 == status) {
+        status = FinesseGetNameMapResponse(finesse_client_handle, req_id, parsed_args->uuid);
+        break;
+    }
+    *(parsed_args->status) = status;
+     
+    return NULL;
 }

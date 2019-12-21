@@ -72,6 +72,7 @@ void finesse_free_response(void *response);
 void finesse_server_close_connection(void);
 void finesse_server_open_connection(void);
 int finesse_map_name(const char *mapfile_name, uuid_t *uuid);
+void *finesse_map_name_async(void *args);
 int finesse_set_client_uuid(uuid_t *uuid);
 unsigned finesse_generate_messageid(void); 
 int finesse_test_server(void);

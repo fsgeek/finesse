@@ -54,12 +54,13 @@ endif
 librt = cc.find_library('rt')
 libuuid = cc.find_library('uuid')
 libfuse = cc.find_library('libfuse')
+libpthread = cc.find_library('pthread')
 
 libfinesse = library('finesse', libfinesse_sources, 
                 version: meson.project_version(),
                 soversion: '3', 
                 include_directories: include_dirs,
-                dependencies: [deps, librt, libuuid, protoc_c_lib, libfuse], 
+                dependencies: [deps, libpthread, librt, libuuid, protoc_c_lib, libfuse], 
                 install: true,
                 c_args: [ '-DFUSE_USE_VERSION=34', protoc_c_cflags])
 
