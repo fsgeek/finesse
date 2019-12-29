@@ -388,6 +388,57 @@ test_message_search_path(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_message_fstatfs(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    finesse_server_handle_t server_handle = NULL;
+    finesse_client_handle_t client_handle = NULL;
+    int status;
+    uint64_t request_id;
+    void *request;
+    size_t request_length;
+    Finesse__FinesseRequest *finesse_req;
+    fuse_ino_t nodeid = 5;
+    struct statvfs stat_sent = { .f_bsize = 10 };
+    struct statvfs *stat_unpacked = malloc(sizeof(struct statvfs));
+
+    status = FinesseStartServerConnection(&server_handle);
+    munit_assert(0 == status);
+    munit_assert_not_null(server_handle);
+
+    status = FinesseStartClientConnection(&client_handle);
+    munit_assert(0 == status);
+    munit_assert_not_null(client_handle);
+
+    // Send a statfs request
+    status = FinesseSendFstatfsRequest(client_handle, nodeid, &request_id);
+    munit_assert(0 == status);
+
+    // get the statfs request
+    status = FinesseGetRequest(server_handle, &request, &request_length);
+    munit_assert(0 == status);
+
+    finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
+    munit_assert_not_null(finesse_req);
+    munit_assert(FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS == finesse_req->header->op);
+
+    // TODO: make sure we get everything (done in the debugger, let's automate it)
+
+    // Let's send a response
+    status = FinesseSendFstatfsResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &stat_sent, 0);
+    munit_assert(0 == status);
+
+    finesse__finesse_request__free_unpacked(finesse_req, NULL);
+
+    stat_unpacked = malloc(sizeof(struct statvfs));
+    status = FinesseGetFstatfsResponse(client_handle, request_id, stat_unpacked);
+    munit_assert(0 == status);
+    free(stat_unpacked);
+    
+    return MUNIT_OK;
+}
 
 #define TEST(_name, _func, _params)             \
     {                                           \
@@ -412,7 +463,8 @@ main(
         TEST((char *)(uintptr_t)"/message/test", test_message_test, NULL), 
         TEST((char *)(uintptr_t)"/message/name_map", test_message_name_map, NULL),
         TEST((char *)(uintptr_t)"/message/search_path", test_message_search_path, NULL),
-        TEST(NULL, NULL, NULL),
+        TEST((char *)(uintptr_t)"/message/fstatfs", test_message_fstatfs, NULL),
+	TEST(NULL, NULL, NULL),
     };
     static const MunitSuite suite = {
         .prefix = (char *)(uintptr_t)"/finesse",
