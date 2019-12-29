@@ -439,6 +439,14 @@ test_message_fstatfs(
     munit_assert(35 ==  stat_unpacked->f_frsize);
     free(stat_unpacked);
     
+    status = FinesseStopClientConnection(client_handle);
+    munit_assert(0 == status);
+    client_handle = NULL;
+
+    status = FinesseStopServerConnection(server_handle);
+    munit_assert(0 == status);
+    server_handle = NULL;
+    
     return MUNIT_OK;
 }
 
