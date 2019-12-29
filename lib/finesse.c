@@ -276,7 +276,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
 //{
 //    finesse_set_provider(req, 0);
 //    req->finesse_notify = 1;
-//    return finesse_original_ops->statfs(req, path);
+//   return finesse_original_ops->statfs(req, path);
 //}
 
 static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
@@ -629,10 +629,17 @@ static void *finesse_mq_worker(void *arg)
             // end gross hack
             break;
         }
+        //case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__STATFS:
+        //{
+	//    struct statvfs fs;
+	//    int64_t result = finesse_original_ops->statfs(finesse_req->statfsreq->path, &fs);
+        //    status = FinesseSendStatfsResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &fs, result);
+        //    break;
+        //}
         case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS:
         {
-	    struct statvfs fs;
-	    int64_t result = fstatvfs(finesse_req->fstatfsreq->nodeid, &fs);
+            struct statvfs fs;
+            int64_t result = fstatvfs(finesse_req->fstatfsreq->nodeid, &fs);
             status = FinesseSendFstatfsResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &fs, result);
             break;
         }

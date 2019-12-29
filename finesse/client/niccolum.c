@@ -401,12 +401,12 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
     return finesse_original_ops->write(req, nodeid,buf, size, off, fi);
 }
 
-static void finesse_statfs(fuse_req_t req, const char *path);
-static void finesse_statfs(fuse_req_t req, const char *path) 
-{
-    finesse_set_provider(req, 0);
-    return finesse_original_ops->statfs(req, path);
-}
+//static void finesse_statfs(fuse_req_t req, const char *path);
+//static void finesse_statfs(fuse_req_t req, const char *path) 
+//{
+//    finesse_set_provider(req, 0);
+//    return finesse_original_ops->statfs(req, path);
+//}
 
 static void finesse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
 static void finesse_fstatfs(fuse_req_t req, fuse_ino_t nodeid) 
@@ -1029,6 +1029,7 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
 	}
 	case FUSE_OPENDIR:
 	{
+
 		// TODO
 		break;
 	}
@@ -1036,7 +1037,6 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
 	{
 		// TODO
 		break;
-	}
 	}
 	return;
 }
