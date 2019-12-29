@@ -401,7 +401,7 @@ test_message_fstatfs(
     size_t request_length;
     Finesse__FinesseRequest *finesse_req;
     fuse_ino_t nodeid = 5;
-    struct statvfs stat_sent = { .f_bsize = 10 };
+    struct statvfs stat_sent = { .f_bsize = 10, .f_frsize = 35 };
     struct statvfs *stat_unpacked = malloc(sizeof(struct statvfs));
 
     status = FinesseStartServerConnection(&server_handle);
@@ -435,6 +435,8 @@ test_message_fstatfs(
     stat_unpacked = malloc(sizeof(struct statvfs));
     status = FinesseGetFstatfsResponse(client_handle, request_id, stat_unpacked);
     munit_assert(0 == status);
+    munit_assert(10 == stat_unpacked->f_bsize);
+    munit_assert(35 ==  stat_unpacked->f_frsize);
     free(stat_unpacked);
     
     return MUNIT_OK;
