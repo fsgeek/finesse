@@ -13,7 +13,6 @@
 
 #include <defs.h>
 // #include <crt/nstime.h>
-
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -30,7 +29,7 @@
 extern char *files_in_path[];
 extern char *libs_in_path[];
 
-static int finesse_enabled = 0;
+static int finesse_enabled = 1;
 
 static void finesse_init_dummy(void);
 static void finesse_init_dummy(void)
@@ -484,6 +483,53 @@ test_open_dir(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_fstatfs(
+    const MunitParameter params[] __notused,
+    void *prv __notused) 
+{
+    int fd;
+    int status;
+    const char *prefix;
+    const char *test_file;
+    struct statvfs *statfsstruc;
+
+    finesse_init();
+    setup_test(params);
+    
+    prefix =  munit_parameters_get(params, TEST_MOUNT_PREFIX);
+    munit_assert_not_null(prefix);
+
+    munit_assert_not_null(test_files);
+    test_file = test_files[0];
+    munit_assert_not_null(test_file);
+    
+    if (finesse_enabled) {
+        fd = finesse_open(test_file, O_CREAT, 0664);
+        munit_assert_int(fd, >=, 0);
+        statfsstruc = malloc(sizeof(struct statvfs));
+        status = finesse_fstatfs(fd, statfsstruc);
+        free(statfsstruc);
+        munit_assert_int(status, ==, 0);
+    } 
+    else {
+        fd = open(test_file, O_CREAT, 0664);
+        munit_assert_int(fd, >=, 0);
+    }
+
+    if (finesse_enabled) {
+        munit_assert_int(finesse_close(fd), >=, 0);
+    }
+    else {
+       munit_assert_int(close(fd), >=, 0); 
+    }
+    
+    cleanup_test(params);
+
+    finesse_shutdown();
+    return MUNIT_OK;
+}
+
 static const char *ld_library_path[] = {
 "/usr/lib/x86_64-linux-gnu/libfakeroot",
 "/usr/lib/i686-linux-gnu",
@@ -838,7 +884,8 @@ main(
         TEST("/open/dir", test_open_dir, open_params),
         TEST("/open/existing-files", test_open_existing_files, open_params),
         TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),
-        TEST("/lookup/create", test_lookup_table_create, NULL),
+        TEST("/fstatfs", test_fstatfs, open_params),
+	TEST("/lookup/create", test_lookup_table_create, NULL),
         TEST("/lookup/test_table", test_lookup_table, NULL),
         TEST("/search/path/niccolum", test_finesse_search, NULL),
         TEST("/search/path/native", test_path_search_native, NULL),
