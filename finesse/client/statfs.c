@@ -166,7 +166,10 @@ int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, uuid
     size_t buffer_len = 0;
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
-
+ 
+    if (buf == NULL) 
+        return EFAULT; 
+    
     while (NULL == buffer) {
         finesse_set_server_message_header(FinesseServerHandle, &header, RequestId, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS);
 
@@ -225,8 +228,7 @@ int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, uint6
     size_t buffer_len = 0;
     int status;
 
-    while (NULL == buffer)
-    {
+    while (NULL == buffer) {
         status = FinesseGetClientResponse(FinesseClientHandle, &buffer, &buffer_len);
 
         if (0 != status)
@@ -243,18 +245,25 @@ int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, uint6
         }
 
         assert(rsp->header->messageid == RequestId);
-        buf->f_bsize = rsp->fstatfsrsp->statfsstruc->f_bsize; 
-        buf->f_blocks = rsp->fstatfsrsp->statfsstruc->f_blocks;
-        buf->f_bfree = rsp->fstatfsrsp->statfsstruc->f_bfree;
-        buf->f_bavail = rsp->fstatfsrsp->statfsstruc->f_bavail;
-        buf->f_files = rsp->fstatfsrsp->statfsstruc->f_files; 
-        buf->f_ffree = rsp->fstatfsrsp->statfsstruc->f_ffree; 
-        buf->f_fsid = rsp->fstatfsrsp->statfsstruc->f_fsid; 
-        buf->f_frsize = rsp->fstatfsrsp->statfsstruc->f_frsize;
-        buf->f_flag = rsp->fstatfsrsp->statfsstruc->f_flag; 
-        buf->f_namemax = rsp->fstatfsrsp->statfsstruc->f_namemax;
-        buf->f_favail = rsp->fstatfsrsp->statfsstruc->f_favail;
-
+        if (0 == rsp->status) {
+	    assert(rsp->fstatfsrsp);
+	    if (NULL == buf) {
+	      status = -ENOMEM;
+	      break;
+	    }
+	    buf->f_bsize = rsp->fstatfsrsp->statfsstruc->f_bsize; 
+            buf->f_blocks = rsp->fstatfsrsp->statfsstruc->f_blocks;
+            buf->f_bfree = rsp->fstatfsrsp->statfsstruc->f_bfree;
+            buf->f_bavail = rsp->fstatfsrsp->statfsstruc->f_bavail;
+            buf->f_files = rsp->fstatfsrsp->statfsstruc->f_files; 
+            buf->f_ffree = rsp->fstatfsrsp->statfsstruc->f_ffree; 
+            buf->f_fsid = rsp->fstatfsrsp->statfsstruc->f_fsid; 
+            buf->f_frsize = rsp->fstatfsrsp->statfsstruc->f_frsize;
+            buf->f_flag = rsp->fstatfsrsp->statfsstruc->f_flag; 
+            buf->f_namemax = rsp->fstatfsrsp->statfsstruc->f_namemax;
+            buf->f_favail = rsp->fstatfsrsp->statfsstruc->f_favail;
+	}
+	
         status = rsp->status;
         break;
     }
@@ -334,6 +343,9 @@ int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, uuid_
     size_t buffer_len = 0;
     size_t packed_buffer_len = 0;
     int status = -ENOSYS;
+    
+    if (buf == NULL) 
+        return EFAULT; 
 
     while (NULL == buffer) {
         finesse_set_server_message_header(FinesseServerHandle, &header, RequestId, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__STATFS);

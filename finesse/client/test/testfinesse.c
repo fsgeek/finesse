@@ -424,9 +424,7 @@ test_message_fstatfs(
     munit_assert_not_null(finesse_req);
     munit_assert(FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS == finesse_req->header->op);
 
-    // TODO: make sure we get everything (done in the debugger, let's automate it)
-
-    // Let's send a response
+    // Send a response
     status = FinesseSendFstatfsResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &stat_sent, 0);
     munit_assert(0 == status);
 
@@ -438,7 +436,50 @@ test_message_fstatfs(
     munit_assert(10 == stat_unpacked->f_bsize);
     munit_assert(35 ==  stat_unpacked->f_frsize);
     free(stat_unpacked);
+
+    // Test error path
+    status = FinesseSendFstatfsRequest(client_handle, nodeid, &request_id);
+    munit_assert(0 == status);
+
+    status = FinesseGetRequest(server_handle, &request, &request_length);
+    munit_assert(0 == status);
+
+    finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
+    munit_assert_not_null(finesse_req);
+    munit_assert(FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS == finesse_req->header->op);
+
+    status = FinesseSendFstatfsResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, NULL, EFAULT);
+    munit_assert(EFAULT == status);
+
+    finesse__finesse_request__free_unpacked(finesse_req, NULL);
+
+    stat_unpacked = malloc(sizeof(struct statvfs));
+    status = FinesseGetFstatfsResponse(client_handle, request_id, stat_unpacked);
+    munit_assert(-1 == status);
+    free(stat_unpacked);
+   
+
+    status = FinesseSendFstatfsRequest(client_handle, nodeid, &request_id);
+    munit_assert(0 == status);
+
+    status = FinesseGetRequest(server_handle, &request, &request_length);
+    munit_assert(0 == status);
+
+    finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
+    munit_assert_not_null(finesse_req);
+    munit_assert(FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS == finesse_req->header->op);
+
+    status = FinesseSendFstatfsResponse(server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &stat_sent, ENOENT);
+    munit_assert(0 == status);
+
+    finesse__finesse_request__free_unpacked(finesse_req, NULL);
+
+    stat_unpacked = malloc(sizeof(struct statvfs));
+    status = FinesseGetFstatfsResponse(client_handle, request_id, stat_unpacked);
+    munit_assert(ENOENT == status);
+    free(stat_unpacked);
     
+    // Stop connection    
     status = FinesseStopClientConnection(client_handle);
     munit_assert(0 == status);
     client_handle = NULL;
