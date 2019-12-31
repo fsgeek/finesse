@@ -733,7 +733,7 @@ test_path_search_native(
 {
     unsigned index; 
 
-    munit_assert(0);
+    //munit_assert(0);
 
     for (index = 0; index < 100; index++) {
         munit_assert(MUNIT_OK == path_search_internal(NULL));
@@ -748,7 +748,7 @@ test_path_search_pt(
 {
     unsigned index; 
 
-    munit_assert(0);
+    //munit_assert(0);
 
     for (index = 0; index < 100; index++) {
         munit_assert(MUNIT_OK == path_search_internal((char *)(uintptr_t)"/mnt/pt"));
@@ -763,7 +763,7 @@ test_library_search_native(
 {
     unsigned index;
 
-    munit_assert(0);
+    //munit_assert(0);
 
     for (index = 0; index < 100; index++) {
         munit_assert(MUNIT_OK == lib_search_internal(NULL));
@@ -779,7 +779,7 @@ test_library_search_pt(
     unsigned index;
 
 
-    munit_assert(0);
+    //munit_assert(0);
 
     for (index = 0; index < 100; index++) {
         munit_assert(MUNIT_OK == lib_search_internal((char *)(uintptr_t)"/mnt/pt"));
