@@ -29,7 +29,7 @@
 extern char *files_in_path[];
 extern char *libs_in_path[];
 
-static int finesse_enabled = 1;
+static int finesse_enabled = 0;
 
 static void finesse_init_dummy(void);
 static void finesse_init_dummy(void)
@@ -148,13 +148,15 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
     (void) params;
     (void) arg;
 
-    munit_assert(0);
+    //munit_assert(0);
 
     finesse_init();
 
     pthread_attr_init(&thread_attr);
 
     memset(&threads, 0, sizeof(threads));
+    
+    munit_assert(0 == finesse_init_file_state_mgr());
 
     for (unsigned index = 0; index < thread_count; index++) {
         if (index > 0) {
@@ -183,6 +185,8 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
         munit_assert(0 == status);
         munit_assert(NULL == result);
     }
+    
+    finesse_terminate_file_state_mgr();
 
     finesse_shutdown();
 
@@ -333,7 +337,10 @@ test_open_existing_files(
     munit_assert_not_null(prefix);
 
     munit_assert_not_null(test_files);
-    
+    if (finesse_enabled) {
+    	munit_assert(0 == finesse_init_file_state_mgr());
+    }
+ 
     // create files
     index = 0;
     while (NULL != test_files[index]) {
@@ -380,6 +387,9 @@ test_open_existing_files(
 
     cleanup_test(params);
 
+    if (finesse_enabled)
+        finesse_terminate_file_state_mgr();
+
     finesse_shutdown();
 
     return MUNIT_OK;
@@ -418,6 +428,8 @@ test_open_nonexistant_files(
 
     generate_files(dir, file, file_count);
     munit_assert(strlen(prefix) < 256);
+    if (finesse_enabled)
+        munit_assert(0 == finesse_init_file_state_mgr());
 
     index = 0;
     while (NULL != test_files[index]) {
@@ -434,6 +446,10 @@ test_open_nonexistant_files(
         munit_assert_int(errno, ==, ENOENT);
         index++;
     }
+
+    if (finesse_enabled)
+        finesse_terminate_file_state_mgr();
+
 
     finesse_shutdown();
 
@@ -452,6 +468,7 @@ test_open_dir(
     char scratch[512];
 
     finesse_init();
+    
 
     setup_test(params);
 
@@ -460,6 +477,9 @@ test_open_dir(
 
     pathname = munit_parameters_get(params, TEST_OPEN_FILE_PARAM_DIR);
     munit_assert_not_null(pathname);
+    
+    if (finesse_enabled)
+        munit_assert(0 == finesse_init_file_state_mgr());
 
     strncpy(scratch, prefix, sizeof(scratch));
     strncat(scratch, pathname, sizeof(scratch) - strlen(scratch));
@@ -474,10 +494,14 @@ test_open_dir(
 
     if (finesse_enabled) {
         munit_assert_int(finesse_close(fd), >=, 0);
+        finesse_terminate_file_state_mgr();
+
     }
     else {
         munit_assert_int(close(fd), >=, 0);
     }
+    
+    
     finesse_shutdown();
 
     return MUNIT_OK;
@@ -494,6 +518,8 @@ test_fstatfs(
     const char *test_file;
     struct statvfs *statfsstruc;
 
+    finesse_enabled = get_finesse_option(params);
+   
     finesse_init();
     setup_test(params);
     
@@ -504,6 +530,9 @@ test_fstatfs(
     test_file = test_files[0];
     munit_assert_not_null(test_file);
     
+    if(finesse_enabled)
+        munit_assert(0 == finesse_init_file_state_mgr());
+
     if (finesse_enabled) {
         fd = finesse_open(test_file, O_CREAT, 0664);
         munit_assert_int(fd, >=, 0);
@@ -525,7 +554,10 @@ test_fstatfs(
     }
     
     cleanup_test(params);
-
+    
+    if (finesse_enabled)
+        finesse_terminate_file_state_mgr();
+    
     finesse_shutdown();
     return MUNIT_OK;
 }
@@ -851,7 +883,7 @@ static const char *mount_prefix[] = {"", /* "/mnt/pt",*/ NULL};
 static const char *files[] = { "testfile1", NULL};
 static const char *dirs[] = { "/tmp/nicfs/dir1", NULL};
 static const char *file_counts[] = { "1", /* "100", "1000",  "10000",*/ NULL};
-static char *TEST_FINESSE_OPTIONS[] = {TEST_FINESSE_OPTION_FALSE, /* TEST_FINESSE_OPTION_TRUE, */ NULL};
+static char *TEST_FINESSE_OPTIONS[] = {/*TEST_FINESSE_OPTION_FALSE,*/ TEST_FINESSE_OPTION_TRUE, NULL};
 
 MunitParameterEnum open_params[] = 
 {
