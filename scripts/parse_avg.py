@@ -3,6 +3,53 @@ import os
 import numpy as np
 import re
 import pandas as pd
+import glob
+import pdb
+
+op_types = [
+    "Stat-files-cr-wr-4KB-1th-4Mf",
+    "Stat-files-cr-wr-4KB-32th-4Mf",
+    "Stat-files-preall-de-4KB-1th-4Mf",
+    "Stat-files-preall-de-4KB-32th-4Mf",
+    "Stat-files-preall-re-4KB-1th-1Mf",
+    "Stat-files-preall-re-4KB-32th-1Mf",
+    "Stat-files-rd-re-1024KB-1th-1f",
+    "Stat-files-rd-re-1024KB-32th-1f",
+    "Stat-files-rd-re-128KB-1th-1f",
+    "Stat-files-rd-re-128KB-32th-1f",
+    "Stat-files-rd-re-32KB-1th-1f",
+    "Stat-files-rd-re-32KB-32th-1f",
+    "Stat-files-rd-re-4KB-1th-1f",
+    "Stat-files-rd-re-4KB-32th-1f",
+    "Stat-files-rd-wr-1024KB-1th-1f",
+    "Stat-files-rd-wr-1024KB-32th-1f",
+    "Stat-files-rd-wr-128KB-1th-1f",
+    "Stat-files-rd-wr-128KB-32th-1f",
+    "Stat-files-rd-wr-32KB-1th-1f",
+    "Stat-files-rd-wr-32KB-32th-1f-",
+    "Stat-files-rd-wr-4KB-1th-1f",
+    "Stat-files-rd-wr-4KB-32th-1f",
+    "Stat-files-sq-re-1024KB-1th-1f",
+    "Stat-files-sq-re-1024KB-32th-1f",
+    "Stat-files-sq-re-1024KB-32th-32f",
+    "Stat-files-sq-re-128KB-1th-1f",
+    "Stat-files-sq-re-128KB-32th-1f",
+    "Stat-files-sq-re-128KB-32th-32f",
+    "Stat-files-sq-re-32KB-1th-1f",
+    "Stat-files-sq-re-32KB-32th-1f",
+    "Stat-files-sq-re-32KB-32th-32f",
+    "Stat-files-sq-re-4KB-1th-1f",
+    "Stat-files-sq-re-4KB-32th-1f",
+    "Stat-files-sq-re-4KB-32th-32f",
+    "Stat-files-sq-wr-1024KB-1th-1f",
+    "Stat-files-sq-wr-1024KB-32th-32f",
+    "Stat-files-sq-wr-128KB-1th-1f",
+    "Stat-files-sq-wr-128KB-32th-32f",
+    "Stat-files-sq-wr-32KB-1th-1f",
+    "Stat-files-sq-wr-32KB-32th-32f",
+    "Stat-files-sq-wr-4KB-1th-1f",
+    "Stat-files-sq-wr-4KB-32th-32f"
+]
 
 def parse_write(filepath, regx_pattern):
     with open(filepath) as fp:
@@ -57,6 +104,13 @@ def parse_delete(filepath, regx_pattern):
         
         return np.mean(vals)
 
+def calculate_overhead(baseline, comparison):
+    baseline = baseline
+    comparison = comparison
+    overhead = baseline / comparison
+    overhead = (1 - overhead) * 100
+    return overhead
+
 def get_avg(optype, filepath, regx_pattern):
     avg = None
     if "-wr-" in optype:
@@ -72,61 +126,49 @@ def get_avg(optype, filepath, regx_pattern):
 
     return avg
 
-def get_avgs(path, regx_pattern):
-    data = {"Type": [], "Workload": [], "Avg": []}
+def get_avgs(parentdir, fsystem_type, regx_pattern):
+    dataframe = []
+    if not os.path.isdir(parentdir + fsystem_type):
+        print("There are no results in this directory: " + parentdir + fsystem_type)
     
-    for fsystem in os.listdir(path):
+    for op_type in op_types:
+        data = {"Type": None, "Workload": None, "Avg": None, "Std": None, "Runs": None, "Overhead": None}
         
-        for op_type in os.listdir(path + fsystem + "/"):
-            filepath = path + "/" + fsystem + "/" + op_type + "/" + "filebench.out"
-            
-            if not os.path.isfile(filepath):
-                print("File path does not exist: " + filepath)
-                sys.exit()
-            else:
-                avg = get_avg(op_type, filepath, regx_pattern)
-                data["Type"].append(fsystem)
-                data["Workload"].append(op_type)
-                data["Avg"].append(avg)
+        file_paths = glob.glob(parentdir + fsystem_type + "/" + op_type + "*")
+        
+        if len(file_paths) == 0:
+            print("Missing the results for " + fsystem_type + "/" + op_type)
 
-    return pd.DataFrame(data)
+        avgs = np.array([])
+        for path in file_paths:
+            avg = get_avg(op_type, path + "/filebench.out", regx_pattern)
+            avgs = np.append(avgs, avg)
+        
+        data["Type"] = fsystem_type
+        data["Workload"] = op_type
+        data["Avg"] = np.mean(avgs)
+        data["Std"] = np.std(avgs)
+        data["Runs"] = len(avgs)
+        dataframe.append(data)
+    
+    return pd.DataFrame(dataframe)
 
-def calculate_overhead(baseline, comparison):
-    baseline = baseline
-    comparison = comparison
-    overhead = baseline / comparison
-    overhead = (1 - overhead) * 100
-    return overhead
-
-def get_default_fuse_overhead(dataframe):
-   ext4_hdd = dataframe.loc[dataframe["Type"] == "HDD-EXT4-Results"].reset_index(drop=True) 
-   fuse_hdd = dataframe.loc[dataframe["Type"] == "HDD-FUSE-EXT4-Results"].reset_index(drop=True)
-   fuseopts_hdd = dataframe.loc[dataframe["Type"] == "HDD-FUSE-OPTS-EXT4-Results"].reset_index(drop=True)
-   ext4_ssd = dataframe.loc[dataframe["Type"] == "SSD-EXT4-Results"].reset_index(drop=True)
-   fuse_ssd = dataframe.loc[dataframe["Type"] == "SSD-FUSE-EXT4-Results"].reset_index(drop=True)
-   fuseopts_ssd = dataframe.loc[dataframe["Type"] == "SSD-FUSE-OPTS-EXT4-Results"].reset_index(drop=True)
-
-   ext4_hdd["Overhead"] = 0
-   fuse_hdd["Overhead"] = calculate_overhead(ext4_hdd["Avg"], fuse_hdd["Avg"]) 
-   fuseopts_hdd["Overhead"] = calculate_overhead(ext4_hdd["Avg"], fuseopts_hdd["Avg"])
-   ext4_ssd["Overhead"] = 0 
-   fuse_ssd["Overhead"] = calculate_overhead(ext4_ssd["Avg"], fuse_ssd["Avg"])
-   fuseopts_ssd["Overhead"] = calculate_overhead(ext4_ssd["Avg"], fuseopts_ssd["Avg"])
-   
-   new_dataframe = ext4_ssd
-   new_dataframe = new_dataframe.append(fuse_ssd, ignore_index=True)
-   new_dataframe = new_dataframe.append(fuseopts_ssd, ignore_index=True)
-   new_dataframe = new_dataframe.append(ext4_hdd, ignore_index=True)
-   new_dataframe = new_dataframe.append(fuse_hdd, ignore_index=True)
-   new_dataframe = new_dataframe.append(fuseopts_hdd, ignore_index=True)
-   return new_dataframe.sort_values(by=["Type", "Workload"])
+def parse_results(parentdir, regx_pattern):
+    hdd_ext4 = get_avgs(parentdir, "HDD-EXT4-Results", regx_pattern)
+    hdd_fuse = get_avgs(parentdir, "HDD-FUSE-EXT4-Results", regx_pattern)
+    hdd_fuse_opts = get_avgs(parentdir, "HDD-FUSE-OPTS-EXT4-Results", regx_pattern)
+    ssd_ext4 = get_avgs(parentdir, "SSD-EXT4-Results", regx_pattern)
+    ssd_fuse = get_avgs(parentdir, "SSD-FUSE-EXT4-Results", regx_pattern)
+    ssd_fuse_opts = get_avgs(parentdir, "SSD-FUSE-OPTS-EXT4-Results", regx_pattern)
+    
+    hdd_ext4["Overhead"] = 0
+    hdd_fuse["Overhead"] = calculate_overhead(hdd_ext4["Avg"], hdd_fuse["Avg"]) 
+    hdd_fuse_opts["Overhead"] = calculate_overhead(hdd_ext4["Avg"], hdd_fuse_opts["Avg"])
+    ssd_ext4["Overhead"] = 0 
+    ssd_fuse["Overhead"] = calculate_overhead(ssd_ext4["Avg"], ssd_fuse["Avg"])
+    ssd_fuse_opts["Overhead"] = calculate_overhead(ssd_ext4["Avg"], ssd_fuse_opts["Avg"])
 
 if __name__ == '__main__':
     regx_pattern = "[0-9]*ops\/s"
     path = sys.argv[1]
-    parsed_avgs = get_avgs(path, regx_pattern)
-    overheads = get_default_fuse_overhead(parsed_avgs) 
-    print(overheads.to_string())
-    #with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
-    #    print(overheads)
-
+    parse_results(path, regx_pattern)
