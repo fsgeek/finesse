@@ -1,37 +1,9 @@
-%%
-%% This is file `sample-sigplan.tex',
-%% generated with the docstrip utility.
-%%
-%% The original source files were:
-%%
-%% samples.dtx  (with options: `sigplan')
-%% 
-%% IMPORTANT NOTICE:
-%% 
-%% For the copyright see the source file.
-%% 
-%% Any modified versions of this file must be renamed
-%% with new filenames distinct from sample-sbaseigplan.tex.
-%% 
-%% For distribution of the original source see the terms
-%% for copying and modification in the file samples.dtx.
-%% 
-%% This generated file may be distributed as long as the
-%% original source files, as listed above, are part of the
-%% same distribution. (The sources need not necessarily be
-%% in the same archive or directory.)
-%%
-%% The first command in your LaTeX source must be the \documentclass command.
-\documentclass[sigplan,screen]{acmart}
 
-%%
-%% \BibTeX command to typeset BibTeX logo in the docs
-\AtBeginDocument{%
-  \providecommand\BibTeX{{%
-    \normalfont B\kern-0.5em{\scshape i\kern-0.25em b}\kern-0.8em\TeX}}}
-
-% Remove ACM reference format thingy
-\settopmatter{printacmref=false}
+%!TEX program = lualatex
+\documentclass[sigplan,10pt,letter,plain]{acmart}
+\settopmatter{printacmref=false} % Removes citation information below abstract
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
 
 %% Rights management information.  This information is sent to you
 %% when you complete the rights form.  These commands have SAMPLE
@@ -44,7 +16,7 @@
 % \acmDOI{10.1145/1122445.1122456}
 
 %% These commands are for a PROCEEDINGS abstract or paper.
-% \acmConference[EuroSys '20]{EuroSys '20}{April 27--30, 2020}{Heraklion, Greece}
+%\acmConference[EuroSys '20]{EuroSys '20}{April 27--30, 2020}{Heraklion, Greece}
 % \acmISBN{978-1-4503-XXXX-X/18/06}
 
 
@@ -68,7 +40,7 @@
 %%\citestyle{acmauthoryear}
 
 %% remove copyright box at the bottom
-\setcopyright{none}
+%\setcopyright{none}
 
 %%
 %% end of the preamble, start of the body of the document source.
@@ -77,7 +49,7 @@
 %%
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
-\title{Finesse}
+\title{Finesse: Kernel Bypass File Systems}
 
 %%
 %% The "author" command and its associated commands are used to define
@@ -85,78 +57,64 @@
 %% Of note is the shared affiliation of the first two authors, and the
 %% "authornote" and "authornotemark" commands
 %% used to denote shared contribution to the research.
+
+\author{Matheus Stolet}
+\authornote{Student, Presenter}
+\affiliation{%
+  \institution{University of British Columbia}
+}
+\email{stolet@cs.ubc.ca}
 \author{Tony Mason}
+\authornote{Student}
 \affiliation{%
   \institution{University of British Columbia}
 }
 \email{fsgeek@cs.ubc.ca}
 
-
-\author{Matheus Stolet}
-\affiliation{%
-  \institution{University of British Columbia}
-}
-\email{stolet@cs.ubc.ca}
+\renewcommand{\shortauthors}{M. Stolet et al.}
 
 %%
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-  In-kernel file systems are challenging to develop. Program-
-  mers involved in kernel development have to deal with bugs
-  that cause fatal system crashes. Userspace file systems mitigate
-  this problem by allowing developers to anchor themselves in
-  a forgiving user-space environment. Unfortunately, popular
-  solutions to file systems in user-space, such as FUSE \cite{fusegithub}, add
-  significant overhead to operations, making them unpalatable
-  to many applications. Finesse solves this problem
-  by adding a client library and a thin software layer that sits
-  on top of the FUSE library. The Finesse layer allows the user
-  to bypass the kernel for selected operations, so that applica-
-  tions communicate directly with the FUSE file system. New
-  opperations can be added to the application library, enabling
-  applications to extend the file system by creating their own set
-  of custom operations. Ultimately, Finesse is a kernel
-  bypass system meant to improve the performance of user-space file
-  systems, without increasing development complexity.
-
-  Finesse achieves better performance by modifying FUSE
-  to serve multiple message sources. This is done by implementing
-  a message passing interface that allows applications to make direct
-  calls to the FUSE file system, effectively avoiding the convoluted kernel path
-  taken by FUSE. If an operation is not implemented
-  in the Finesse layer, it falls back to regular FUSE behaviour,
-  allowing the file system to serve operations coming from Finesse
-  and the FUSE kernel driver. 
-  
-  There are two major pieces to the Finesse
-  system: the Finesse application library and the Finesse FUSE extension. 
-  The Finesse application library is a user-facing library that allows the explicit
-  invocation of operations implemented in the Finesse library and the implicit invocation
-  of operations through LD\_PRELOAD, that loads the Finesse library before other shared libraries such as
-  \textit{libc}. The Finesse FUSE extension lies between the FUSE file system and the FUSE library.
-  It listens to incoming file system operations from the Finesse library and redirects them to the
-  FUSE file system.
-
-  Finesse is still in development, and we are working at porting a bigger number of file system
-  operations to use the Finesse library instead of defaulting to regular FUSE behaviour. Preliminary
-  evaluations have showed that the implementation of \textit{unlink} using the Finesse library led to
-  considerable performance advantages. For example, when deleting 4 million preallocated 4KB files over
-  many directories, regular FUSE had a 14.94\% performance overhead, while FUSE with Finesse led to a 
-  29.21\% performance gain.
-
-
+  Developing kernel file systems presents challenges due to the complexity of the environment.  The inflexibility of this environment discourages exploration of alternatives; most file systems research is focused on improving the storage management aspects, rather than the application facing interfaces.  While userspace file systems mitigate the development complexity, they do so with a significant performance penalty and little flexibility for exploring novel access models.  Finesse addresses these two concerns by adding both a client side library and a FUSE file system library.  Finesse implements a kernel bypass mechanism for key operations and enables making new interfaces available to applications.  Improving performance while balancing compatibility against flexibility to explore alternative interfaces is compelling for userspace file systems development.
 \end{abstract}
 
 %%
 %% Keywords. The author(s) should pick words that accurately describe
 %% the work being presented. Separate the keywords with commas.
-\keywords{file systems, operating systems, user-space, kernel bypass}
+% \keywords{file systems, operating systems, user-space, kernel bypass}
 
 %%
 %% This command processes the author and affiliation and title
 %% information and builds the first part of the formatted document.
 \maketitle
+
+%\balance - can't use that with the footnotes; doesn't seem to handle it quite right.  Maybe once the page is full?
+
+\section{Introduction}
+
+Kernel programming is notorious for being a challenging development environment.  Despite this complexity, production use file systems are frequently implemented for in-kernel execution because they offer the best performance.  Programming in user space is more forgiving and has a broader range of well-supported languages, libraries, and options that are not available in the kernel environment. The cost of using userspace file systems development tools, such as FUSE~\cite{fusegithub}, is typically performance.  Recent work has pointed this out and looked at various ways of improving performance~\cite{vangoor2017fuse,10.1145/3341301.3359637}.
+
+Prior work has explored various ways of improving performanc, including interception libraries~\cite{wright2012ldplfs} and kernel mode extensions for optimizing data copy~\cite{234870}.  The idea of implementing a hybrid combination of both kernel bypass and fallback kernel support has not been explored.
+
+\section{Model}
+
+Finesse explores such a hybrid environment by introducing a client side shared library that intercepts a subset of calls and provides an alternative implementation, as well as an enhanced FUSE library model.  This combination permits Finesse to provide an efficient kernel bypass mechanism.  This is achieved using an efficient message passing interface between the client application and the FUSE file system library.  Operations that are not implemented by the Finesse library fall back to system calls and standard FUSE behavior.
+
+The Finesse application library is a user-facing library that allows the explicit invocation of operations implemented in the Finesse library and the implicit invocation of operations through LD\_PRELOAD, that loads the Finesse library before other shared libraries such as \textit{libc}. The Finesse FUSE extension lies between the FUSE file system and the FUSE library.   It listens to incoming file system operations from the Finesse library and redirects them to the FUSE file system.
+
+\section{Evaluation}
+
+Finesse is still in development, and we are working at porting a bigger number of file system operations to use the Finesse library instead of defaulting to regular FUSE behavior. Preliminary evaluations have showed that the implementation of \textit{unlink} using the Finesse library led to considerable performance improvements for a number of operations. For example, when deleting 4 million preallocated 4KB files over many directories, the existing FUSE library we tested showed a 15\% decrease in performance.  The same test done with the Finesse+FUSE library yielded a 29\% performance gain. 
+%\textbf{How did this compare with the native file system?}
+
+
+\section{Conclusion}
+
+Finesse combines a kernel bypass message passing architecture with a fallback traditional file systems support layer.  Preliminary results for this approach have achieved up to 44\% better performance on specific operations, and we anticipate further positive results as we continue expanding our work.
+In future, we will explore adding file systems API enhancements that will yield both better performance as well as novel functionality.
+
 
 % \section{Introduction}
 % ACM's consolidated article template, introduced in 2017, provides a
