@@ -77,7 +77,7 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-  Developing kernel file systems presents challenges due to the complexity of the environment.  The inflexibility of this environment discourages exploration of alternatives; most file systems research is focused on improving the storage management aspects, rather than the application facing interfaces.  While userspace file systems mitigate the development complexity, they do so with a significant performance penalty and little flexibility for exploring novel access models.  Finesse addresses these two concerns by adding both a client side library and a FUSE file system library.  Finesse implements a kernel bypass mechanism for key operations and enables making new interfaces available to applications.  Improving performance while balancing compatibility against flexibility to explore alternative interfaces is compelling for userspace file systems development.
+  Finesse implements a kernel bypass technique for enhancing the performance of the popular cross-platform FUSE file system framework, without requiring intrusive changes to existing applications \textit{or} user-mode file systems.  Further, Finesse provides a more extensible model that permits enhancement of applications by shifting expensive meta-data intensive operations into the FUSE file system.  Thus, Finesse offers a compelling improvement for FUSE file system developers: existing applications benefit from improved performance without program changes and without requiring file system source code changes, as well as permitting application developers to exploit new functionality that is exposed by the Finesse-enhanced file system, as well as functionality extensions implemented by file systems developers.
 \end{abstract}
 
 %%
@@ -96,24 +96,19 @@
 
 Kernel programming is notorious for being a challenging development environment.  Despite this complexity, production use file systems are frequently implemented for in-kernel execution because they offer the best performance.  Programming in user space is more forgiving and has a broader range of well-supported languages, libraries, and options that are not available in the kernel environment. The cost of using userspace file systems development tools, such as FUSE~\cite{fusegithub}, is typically performance.  Recent work has pointed this out and looked at various ways of improving performance~\cite{vangoor2017fuse,10.1145/3341301.3359637}.
 
-Prior work has explored various ways of improving performanc, including interception libraries~\cite{wright2012ldplfs} and kernel mode extensions for optimizing data copy~\cite{234870}.  The idea of implementing a hybrid combination of both kernel bypass and fallback kernel support has not been explored.
+Prior work has explored various ways of improving performance, including interception libraries~\cite{wright2012ldplfs} and kernel mode extensions for optimizing data copy~\cite{234870}.  The idea of implementing a hybrid combination of both kernel bypass and fallback kernel support has not been explored.
 
-\section{Model}
+\section{Description}
 
-Finesse explores such a hybrid environment by introducing a client side shared library that intercepts a subset of calls and provides an alternative implementation, as well as an enhanced FUSE library model.  This combination permits Finesse to provide an efficient kernel bypass mechanism.  This is achieved using an efficient message passing interface between the client application and the FUSE file system library.  Operations that are not implemented by the Finesse library fall back to system calls and standard FUSE behavior.
+Finesse explores this hybrid environment by modifying the behavior of the existing system libraries, which enables enhancing existing applications without requiring any program changes, and by modifying the FUSE file system library, which enables supporting existing FUSE file systems with a simple recompilation.
 
-The Finesse application library is a user-facing library that allows the explicit invocation of operations implemented in the Finesse library and the implicit invocation of operations through LD\_PRELOAD, that loads the Finesse library before other shared libraries such as \textit{libc}. The Finesse FUSE extension lies between the FUSE file system and the FUSE library.   It listens to incoming file system operations from the Finesse library and redirects them to the FUSE file system.
+Finesse uses a simple message passing model for implementing a kernel bypass between the applications and user mode FUSE file systems.  Existing applications can eschew using Finesse by using the original system libraries without any loss of functionality.  Currently, we achieve replacement of existing system libraries on Linux by using the LD\_PRELOAD mechanism, which ensures the Finesse application library is invoked first.  When Finesse determines that the call is directed to a mounted FUSE file system, it converts that call to a message, which is passed directly to the FUSE file system.
 
-\section{Evaluation}
-
-Finesse is still in development, and we are working at porting a bigger number of file system operations to use the Finesse library instead of defaulting to regular FUSE behavior. Preliminary evaluations have showed that the implementation of \textit{unlink} using the Finesse library led to considerable performance improvements for a number of operations. For example, when deleting 4 million preallocated 4KB files over many directories, the existing FUSE library we tested showed a 15\% decrease in performance.  The same test done with the Finesse+FUSE library yielded a 29\% performance gain. 
-%\textbf{How did this compare with the native file system?}
-
+We have observed up to a 61\% performance improvement with Finesse with the \textit{unlink} system call, versus using the standard FUSE interface. In this test, we added \textit{unlink} support to the FUSE pass-through file system, preallocated four million 4KB files in multiple directories, and measured the time to delete them.  Finesse was 29\% \textit{faster} than the native file system, and 61\% faster than FUSE alone.  Finesse is in active development and we continue to increase the number of file system operations supported by Finesse.
 
 \section{Conclusion}
 
-Finesse combines a kernel bypass message passing architecture with a fallback traditional file systems support layer.  Preliminary results for this approach have achieved up to 44\% better performance on specific operations, and we anticipate further positive results as we continue expanding our work.
-In future, we will explore adding file systems API enhancements that will yield both better performance as well as novel functionality.
+Finesse combines a kernel bypass message passing architecture with a fallback traditional file systems support layer.  Preliminary results for this approach have achieved up to 62\% better performance on one operations.  We anticipate further positive results as we continue expanding our work. In future, we will also explore adding file systems API enhancements that will yield both better performance as well as novel functionality.
 
 
 % \section{Introduction}
