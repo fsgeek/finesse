@@ -1,3 +1,25 @@
+libfuse 3.9.1 (2020-03-19)
+===========================
+
+* Fixed memory leak in fuse_session_new().
+* Fixed an issue with the linker version script.
+* Make ioctl prototype conditional on FUSE_USE_VERSION.  Define FUSE_USE_VERSION < 35 to
+  get old ioctl prototype with int commands; define FUSE_USE_VERSION >= 35 to get new
+  ioctl prototype with unsigned int commands.
+* Various small bugfixes.
+
+libfuse 3.9.0 (2019-12-14)
+==========================
+
+* Added support for FUSE_EXPLICIT_INVAL_DATA to enable
+  only invalidate cached pages on explicit request.
+
+libfuse 3.8.0 (2019-11-03)
+==========================
+
+* Added support for FUSE_LSEEK operation which can be used to report holes
+  in sparse files.
+
 libfuse 3.7.0 (2019-09-27)
 ==========================
 

@@ -23,7 +23,7 @@
 #define FUSE_MAJOR_VERSION 3
 
 /** Minor version of FUSE library interface */
-#define FUSE_MINOR_VERSION 2
+#define FUSE_MINOR_VERSION 9
 
 #define FUSE_MAKE_VERSION(maj, min)  ((maj) * 10 + (min))
 #define FUSE_VERSION FUSE_MAKE_VERSION(FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION)
@@ -359,6 +359,29 @@ struct fuse_loop_config {
 #define FUSE_CAP_NO_OPENDIR_SUPPORT    (1 << 24)
 
 /**
+ * Indicates support for invalidating cached pages only on explicit request.
+ *
+ * If this flag is set in the `capable` field of the `fuse_conn_info` structure,
+ * then the FUSE kernel module supports invalidating cached pages only on
+ * explicit request by the filesystem through fuse_lowlevel_notify_inval_inode()
+ * or fuse_invalidate_path().
+ *
+ * By setting this flag in the `want` field of the `fuse_conn_info` structure,
+ * the filesystem is responsible for invalidating cached pages through explicit
+ * requests to the kernel.
+ *
+ * Note that setting this flag does not prevent the cached pages from being
+ * flushed by OS itself and/or through user actions.
+ *
+ * Note that if both FUSE_CAP_EXPLICIT_INVAL_DATA and FUSE_CAP_AUTO_INVAL_DATA
+ * are set in the `capable` field of the `fuse_conn_info` structure then
+ * FUSE_CAP_AUTO_INVAL_DATA takes precedence.
+ *
+ * This feature is disabled by default.
+ */
+#define FUSE_CAP_EXPLICIT_INVAL_DATA    (1 << 25)
+
+/**
  * Ioctl flags
  *
  * FUSE_IOCTL_COMPAT: 32bit compat ioctl on 64bit machine
@@ -612,7 +635,7 @@ enum fuse_buf_flags {
 	 * until .size bytes have been copied or an error or EOF is
 	 * detected.
 	 */
-	FUSE_BUF_FD_RETRY	= (1 << 3),
+	FUSE_BUF_FD_RETRY	= (1 << 3)
 };
 
 /**
@@ -654,7 +677,7 @@ enum fuse_buf_copy_flags {
 	 * is full or empty).  See SPLICE_F_NONBLOCK in the splice(2)
 	 * man page.
 	 */
-	FUSE_BUF_SPLICE_NONBLOCK= (1 << 4),
+	FUSE_BUF_SPLICE_NONBLOCK= (1 << 4)
 };
 
 /**

@@ -133,6 +133,8 @@ FUSE_3.0 {
 		fuse_cmdline_help;
 		fuse_apply_conn_info_opts;
 		fuse_parse_conn_info_opts;
+		fuse_fs_lseek;
+		fuse_reply_lseek;
 
 		finesse_set_provider;
 		finesse_get_provider;
@@ -179,7 +181,7 @@ FUSE_3.7 {
 		fuse_set_log_func;
 		fuse_log;
 		fuse_session_get_conn;
-} FUSE_3.3;
+} FUSE_3.4;
 
 # Local Variables:
 # indent-tabs-mode: t

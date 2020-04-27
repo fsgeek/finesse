@@ -745,7 +745,7 @@ static int fuse_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
 	struct fuse_ll_pipe *llp;
 	int splice_flags;
 	size_t pipesize;
-	size_t total_fd_size;
+	size_t total_buf_size;
 	size_t idx;
 	size_t headerlen;
 	struct fuse_bufvec pipe_buf = FUSE_BUFVEC_INIT(len);
@@ -756,17 +756,13 @@ static int fuse_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
 	if (flags & FUSE_BUF_NO_SPLICE)
 		goto fallback;
 
-	total_fd_size = 0;
-	for (idx = buf->idx; idx < buf->count; idx++)
-	{
-		if (buf->buf[idx].flags & FUSE_BUF_IS_FD)
-		{
-			total_fd_size = buf->buf[idx].size;
-			if (idx == buf->idx)
-				total_fd_size -= buf->off;
-		}
+	total_buf_size = 0;
+	for (idx = buf->idx; idx < buf->count; idx++) {
+		total_buf_size = buf->buf[idx].size;
+		if (idx == buf->idx)
+			total_buf_size -= buf->off;
 	}
-	if (total_fd_size < 2 * pagesize)
+	if (total_buf_size < 2 * pagesize)
 		goto fallback;
 
 	if (se->conn.proto_minor < 14 ||
@@ -1186,6 +1182,16 @@ int fuse_reply_poll(fuse_req_t req, unsigned revents)
 
 	memset(&arg, 0, sizeof(arg));
 	arg.revents = revents;
+
+	return send_reply_ok(req, &arg, sizeof(arg));
+}
+
+int fuse_reply_lseek(fuse_req_t req, off_t off)
+{
+	struct fuse_lseek_out arg;
+
+	memset(&arg, 0, sizeof(arg));
+	arg.offset = off;
 
 	return send_reply_ok(req, &arg, sizeof(arg));
 }
@@ -2035,6 +2041,20 @@ static void do_copy_file_range(fuse_req_t req, fuse_ino_t nodeid_in, const void 
 		fuse_reply_err(req, ENOSYS);
 }
 
+static void do_lseek(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
+{
+	struct fuse_lseek_in *arg = (struct fuse_lseek_in *) inarg;
+	struct fuse_file_info fi;
+
+	memset(&fi, 0, sizeof(fi));
+	fi.fh = arg->fh;
+
+	if (req->se->op.lseek)
+		req->se->op.lseek(req, nodeid, arg->offset, arg->whence, &fi);
+	else
+		fuse_reply_err(req, ENOSYS);
+}
+
 static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 {
 	struct fuse_init_in *arg = (struct fuse_init_in *)inarg;
@@ -2111,6 +2131,8 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 			se->conn.capable |= FUSE_CAP_HANDLE_KILLPRIV;
 		if (arg->flags & FUSE_NO_OPENDIR_SUPPORT)
 			se->conn.capable |= FUSE_CAP_NO_OPENDIR_SUPPORT;
+		if (arg->flags & FUSE_EXPLICIT_INVAL_DATA)
+			se->conn.capable |= FUSE_CAP_EXPLICIT_INVAL_DATA;
 		if (!(arg->flags & FUSE_MAX_PAGES)) {
 			size_t max_bufsize =
 				FUSE_DEFAULT_MAX_PAGES_PER_REQ * getpagesize()
@@ -2232,6 +2254,8 @@ static void do_init(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 		outarg.flags |= FUSE_WRITEBACK_CACHE;
 	if (se->conn.want & FUSE_CAP_POSIX_ACL)
 		outarg.flags |= FUSE_POSIX_ACL;
+	if (se->conn.want & FUSE_CAP_EXPLICIT_INVAL_DATA)
+		outarg.flags |= FUSE_EXPLICIT_INVAL_DATA;
 	outarg.max_readahead = se->conn.max_readahead;
 	outarg.max_write = se->conn.max_write;
 	if (se->conn.proto_minor >= 13)
@@ -2379,7 +2403,7 @@ int fuse_lowlevel_notify_inval_inode(struct fuse_session *se, fuse_ino_t ino,
 	if (!se)
 		return -EINVAL;
 
-	if (se->conn.proto_major < 6 || se->conn.proto_minor < 12)
+	if (se->conn.proto_minor < 12)
 		return -ENOSYS;
 
 	outarg.ino = ino;
@@ -2400,8 +2424,8 @@ int fuse_lowlevel_notify_inval_entry(struct fuse_session *se, fuse_ino_t parent,
 
 	if (!se)
 		return -EINVAL;
-
-	if (se->conn.proto_major < 6 || se->conn.proto_minor < 12)
+	
+	if (se->conn.proto_minor < 12)
 		return -ENOSYS;
 
 	outarg.parent = parent;
@@ -2426,7 +2450,7 @@ int fuse_lowlevel_notify_delete(struct fuse_session *se,
 	if (!se)
 		return -EINVAL;
 
-	if (se->conn.proto_major < 6 || se->conn.proto_minor < 18)
+	if (se->conn.proto_minor < 18)
 		return -ENOSYS;
 
 	outarg.parent = parent;
@@ -2455,7 +2479,7 @@ int fuse_lowlevel_notify_store(struct fuse_session *se, fuse_ino_t ino,
 	if (!se)
 		return -EINVAL;
 
-	if (se->conn.proto_major < 6 || se->conn.proto_minor < 15)
+	if (se->conn.proto_minor < 15)
 		return -ENOSYS;
 
 	out.unique = 0;
@@ -2537,7 +2561,7 @@ int fuse_lowlevel_notify_retrieve(struct fuse_session *se, fuse_ino_t ino,
 	if (!se)
 		return -EINVAL;
 
-	if (se->conn.proto_major < 6 || se->conn.proto_minor < 15)
+	if (se->conn.proto_minor < 15)
 		return -ENOSYS;
 
 	rreq = malloc(sizeof(*rreq));
@@ -2655,6 +2679,7 @@ static struct
 	[FUSE_READDIRPLUS] = { do_readdirplus,	"READDIRPLUS"},
 	[FUSE_RENAME2]     = { do_rename2,      "RENAME2"    },
 	[FUSE_COPY_FILE_RANGE] = { do_copy_file_range, "COPY_FILE_RANGE" },
+	[FUSE_LSEEK]	   = { do_lseek,       "LSEEK"	     },
 	[CUSE_INIT]	   = { cuse_lowlevel_init, "CUSE_INIT"   },
 };
 
@@ -3170,7 +3195,8 @@ out5:
 out4:
 	fuse_opt_free_args(args);
 out3:
-	free(mo);
+	if (mo != NULL)
+		destroy_mount_opts(mo);
 out2:
 	free(se);
 out1:

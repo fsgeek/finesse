@@ -2,7 +2,7 @@
   FUSE: Filesystem in Userspace
   Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
 
-  This program can be distributed under the terms of the GNU GPL.
+  This program can be distributed under the terms of the GNU GPLv2.
   See the file COPYING.
 */
 
@@ -389,8 +389,6 @@ static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
 	struct lo_inode *dir = lo_inode(req, parent);
 	struct fuse_entry_param e;
 
-	saverr = ENOMEM;
-
 	res = mknod_wrapper(dir->fd, name, link, mode, rdev);
 
 	saverr = errno;
@@ -598,7 +596,6 @@ static void lo_readlink(fuse_req_t req, fuse_ino_t ino)
 }
 
 struct lo_dirp {
-	int fd;
 	DIR *dp;
 	struct dirent *entry;
 	off_t offset;
@@ -613,15 +610,18 @@ static void lo_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 {
 	int error = ENOMEM;
 	struct lo_data *lo = lo_data(req);
-	struct lo_dirp *d = calloc(1, sizeof(struct lo_dirp));
+	struct lo_dirp *d;
+	int fd;
+
+	d = calloc(1, sizeof(struct lo_dirp));
 	if (d == NULL)
 		goto out_err;
 
-	d->fd = openat(lo_fd(req, ino), ".", O_RDONLY);
-	if (d->fd == -1)
+	fd = openat(lo_fd(req, ino), ".", O_RDONLY);
+	if (fd == -1)
 		goto out_errno;
 
-	d->dp = fdopendir(d->fd);
+	d->dp = fdopendir(fd);
 	if (d->dp == NULL)
 		goto out_errno;
 
@@ -630,7 +630,7 @@ static void lo_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 
 	fi->fh = (uintptr_t) d;
 	if (lo->cache == CACHE_ALWAYS)
-		fi->keep_cache = 1;
+		fi->cache_readdir = 1;
 	fuse_reply_open(req, fi);
 	return;
 
@@ -638,8 +638,8 @@ out_errno:
 	error = errno;
 out_err:
 	if (d) {
-		if (d->fd != -1)
-			close(d->fd);
+		if (fd != -1)
+			close(fd);
 		free(d);
 	}
 	fuse_reply_err(req, error);
@@ -1155,13 +1155,26 @@ static void lo_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
 	res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
 			      flags);
 	if (res < 0)
-		fuse_reply_err(req, -errno);
+		fuse_reply_err(req, errno);
 	else
 		fuse_reply_write(req, res);
 }
 #endif
 
-static struct fuse_lowlevel_ops lo_oper = {
+static void lo_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
+		     struct fuse_file_info *fi)
+{
+	off_t res;
+
+	(void)ino;
+	res = lseek(fi->fh, off, whence);
+	if (res != -1)
+		fuse_reply_lseek(req, res);
+	else
+		fuse_reply_err(req, errno);
+}
+
+static const struct fuse_lowlevel_ops lo_oper = {
 	.init		= lo_init,
 	.lookup		= lo_lookup,
 	.mkdir		= lo_mkdir,
@@ -1198,6 +1211,7 @@ static struct fuse_lowlevel_ops lo_oper = {
 #ifdef HAVE_COPY_FILE_RANGE
 	.copy_file_range = lo_copy_file_range,
 #endif
+	.lseek		= lo_lseek,
 };
 
 int main(int argc, char *argv[])
