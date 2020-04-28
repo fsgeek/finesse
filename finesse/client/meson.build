@@ -1,11 +1,6 @@
 protoc = find_program('protoc', required : false)
 dep = dependency('protobuf', required : false)
 
-if not protoc.found() or not dep.found()
-  error('MESON_SKIP_TEST: protoc tool and/or protobuf pkg-config dependency not found')
-endif
-
-
 # pkg-config --cflags 'libprotobuf-c >= 1.0.0'
 # pkg-config --libs 'libprotobuf-c >= 1.0.0'
 # soup = dependency('libsoup-2.4', version : '>= 2.24')
@@ -14,12 +9,10 @@ protoc_c_cfg = run_command('pkg-config', '--cflags', 'libprotobuf-c >= 1.0.0')
 protoc_c_cflags = protoc_c_cfg.stdout().strip()
 protoc_c_lib = dependency('libprotobuf-c', version: '>= 1.0.0')
 
+r = run_command(protoc, 'finesse.proto', '--c_out=.')
+assert(r.returncode() == 0, 'Failed to generate protobuf code correctly')
 
-gen = generator(protoc, \
- output    : ['@BASENAME@.pb-c.c', '@BASENAME@.pb-c.h'],
- arguments : ['--proto_path=@CURRENT_SOURCE_DIR@', '--c_out=@BUILD_DIR@', '@INPUT@'])
 
-generated = gen.process('finesse.proto')
 
 libfinesse_sources = ['dirmap.c',
                       'fdmgr.c',
@@ -35,8 +28,9 @@ libfinesse_sources = ['dirmap.c',
                       'test.c',
                       'mkdir.c',
                       'unlink.c',
-		      'statfs.c',
-                      generated
+            		      'statfs.c',
+                      'finesse.pb-c.c',
+                      'finesse.pb-c.h',
                       ]
 
 # source - https://stackoverflow.com/questions/13939904/how-to-use-protocol-buffers-with-autoconf-automake

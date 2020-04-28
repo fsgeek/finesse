@@ -79,8 +79,7 @@ def main():
     generate_sorted_list([x for x in file_dic], "files_in_path")
     generate_sorted_list([x for x in lib_dic], 'libs_in_path')
 
-
-    return
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

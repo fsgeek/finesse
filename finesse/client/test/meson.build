@@ -1,16 +1,15 @@
-sources = ['testfinesse.c', 'munit.c']
 libuuid = cc.find_library('uuid')
 python = find_program('python3', 'python')
 fptoc = files('fptoc.py')
-testfuse_sources = ['testfuse.c', 'munit.c']
-
 r = run_command(python, fptoc)
-if r.returncode() != 0
-    testfuse_sources += 'pathdata.c'
-endif
+assert(r.returncode() == 0, 'Failed to generate pathdata.c correctly')
+common_sources = ['munit.c', 'pathdata.c']
+
+testfinesse_sources = common_sources + ['testfinesse.c']
+testfuse_sources = common_sources + ['testfuse.c']
                 
 executable('testfinesse', 
-            sources,
+            testfinesse_sources,
             dependencies: [deps, librt, libuuid, protoc_c_lib, libfuse], 
             include_directories: include_dirs, 
             link_with : [libfinesse])
