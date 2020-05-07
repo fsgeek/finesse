@@ -17,6 +17,8 @@
 #include <pthread.h>
 #include "munit.h"
 #include <errno.h>
+#include <finesse.h>
+
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
@@ -27,6 +29,23 @@ test_one(
     const MunitParameter params[] __notused,
     void *prv __notused)
 {
+    return MUNIT_OK;
+}
+
+static MunitResult
+test_server_connect(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_server_handle_t fsh;
+
+    status = FinesseStartServerConnection(&fsh);
+    munit_assert(0 == status);
+
+    status = FinesseStopServerConnection(fsh);
+    munit_assert(0 == status);
+
     return MUNIT_OK;
 }
 
@@ -48,6 +67,7 @@ main(
 {
     static MunitTest tests[] = {
         TEST((char *)(uintptr_t)"/one", test_one, NULL),
+        TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
 	TEST(NULL, NULL, NULL),
     };
     static const MunitSuite suite = {
