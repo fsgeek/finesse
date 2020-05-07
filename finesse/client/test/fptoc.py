@@ -1,35 +1,36 @@
-#!/usr/bin/python
-
-#
-# TODO: have this script pull the environment stuff and compute this 
-#
-# To generate this I manully just enumerated:
-# static const char *ld_library_path[] = {
-# "/usr/lib/x86_64-linux-gnu/libfakeroot",
-# "/lib/i386-linux-gnu",
-# "/usr/lib/i386-linux-gnu",
-# "/usr/lib/i686-linux-gnu",
-# "/usr/lib/i386-linux-gnu/mesa",
-# "/usr/local/lib",
-# "/lib/x86_64-linux-gnu",
-# "/usr/lib/x86_64-linux-gnu",
-# "/usr/lib/x86_64-linux-gnu/mesa-egl",
-# "/usr/lib/x86_64-linux-gnu/mesa",
-# "/lib32",
-# "/usr/lib32",
-# "/libx32",
-# "/usr/libx32",
-# };
-
+#!/usr/bin/python3
+'''
+The function of this script is to review the dynamic library path and compute a list of all the things
+found there, so we know what to search for when we're testing.
+'''
 import os
 import argparse
 import glob
 import sys
 
+def get_sys_paths():
+    '''This function will look in /etc/ld.so.conf.d/*.conf'''
+    searchdir = '/etc/ld.so.conf.d'
+    paths = []
+    candidates = [x for x in os.listdir(searchdir) if x.endswith('.conf')]
+    for candidate in candidates:
+        with open('{}/{}'.format(searchdir, candidate), "rt") as fd:
+            for line in fd.readlines():
+                if line.startswith('#'): continue
+                paths.append(line.strip())                
+    return paths
+
+def get_search_paths():
+    search_paths = []
+    if 'LD_LIBRARY_PATH' in os.environ:
+        search_paths += os.environ['LD_LIBRARY_PATH'].split(':')
+    search_paths += get_sys_paths()
+    return search_paths
+
 def generate_sorted_list(files, structname, fd=None):
     print("const char *{}[] = ".format(structname))
     print("{")
-    files.sort();
+    files.sort()
     for f in files:
         print('    "{}",'.format(f))
     print("};")    
@@ -41,7 +42,7 @@ def generate_sorted_list(files, structname, fd=None):
 def main():
     parser = argparse.ArgumentParser(description='Generate environmental search data for testing.')
     parser.add_argument('--path', dest='path', default=os.environ['PATH'].split(':'), type=list)
-    parser.add_argument('--libs', dest='libs', default=os.environ['LD_LIBRARY_PATH'].split(':'), type=list)
+    parser.add_argument('--libs', dest='libs', default=get_search_paths(), type=list)
     parser.add_argument('--output', dest = 'output', default='pathdata.c', type=str, nargs=1)
     args = parser.parse_args()
 

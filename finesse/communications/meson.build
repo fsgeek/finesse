@@ -1,7 +1,7 @@
 #
 # Read build files from sub-directories
 #
-subdirs = [ 'communications', 'client']
+subdirs = [ 'lib', 'test' ]
 foreach n : subdirs
     subdir(n)
 endforeach
