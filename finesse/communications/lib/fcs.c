@@ -27,6 +27,7 @@ typedef struct client_connection_state {
 typedef struct server_connection_state {
     int                         server_connection;
     pthread_t                   listener_thread;
+    char                        server_connection_name[MAX_SHM_PATH_NAME];
     client_connection_state_t * client_connection_state_table[SHM_PAGE_COUNT];
 } server_connection_state_t;
 
@@ -135,12 +136,10 @@ static void *listener(void *context)
 int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
 {
     int status = 0;
-    char service_name[128];
     DIR *dir = NULL;
     server_connection_state_t *scs = NULL;
     struct sockaddr_un server_saddr;
 
-    snprintf(service_name, sizeof(service_name), "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
 
     while (NULL == dir) {
 
@@ -152,19 +151,17 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
 
         dir = opendir(FINESSE_SERVICE_PREFIX);
 
-        if (NULL != dir) {
-            break;
-        }
-
-        status = errno;
-
-        if (ENOENT == status) {
+        if ((NULL == dir) && (ENOENT == errno)) {
             status = mkdir(FINESSE_SERVICE_PREFIX, 0700); // only accessible for this user!
+            assert(0 == status);
+            dir = opendir(FINESSE_SERVICE_PREFIX);
         }
 
         if (0 != status) {
             break;
         }
+
+        snprintf(scs->server_connection_name, sizeof(scs->server_connection_name), "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
 
         // need a socket
         scs->server_connection = socket(AF_UNIX, SOCK_DGRAM, 0);
@@ -174,8 +171,8 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
         }
 
         server_saddr.sun_family = AF_UNIX;
-        assert(sizeof(server_saddr.sun_path) < strlen(service_name));
-        strncpy(server_saddr.sun_path, service_name, sizeof(server_saddr.sun_path));
+        assert(strlen(scs->server_connection_name) < sizeof(server_saddr.sun_path));
+        strncpy(server_saddr.sun_path, scs->server_connection_name, sizeof(server_saddr.sun_path));
         status = bind(scs->server_connection, (struct sockaddr *) &server_saddr, sizeof(server_saddr));
         if (status < 0) {
             status = errno;
@@ -188,7 +185,6 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
     }
 
     if (NULL != dir) {
-        assert(0 != status); // this should be an error condition
         closedir(dir);
     }
 
@@ -219,6 +215,9 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
             scs->client_connection_state_table[index] = NULL;
         }
     }
+
+    status = unlink(scs->server_connection_name);
+    assert(0 == status);
 
     free(scs);
 

@@ -34,6 +34,7 @@
 //
 //   
 
+#if 0
 static int initialized = 0;
 
 void fincomm_init(void)
@@ -51,3 +52,4 @@ void fincomm_shutdown(void)
     }
     return;
 }
+#endif // 0
