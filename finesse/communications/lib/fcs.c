@@ -133,6 +133,46 @@ static void *listener(void *context)
     return (void *)0;
 }
 
+static int CheckForLiveServer(server_connection_state_t *scs)
+{
+    int status = 0;
+    struct stat scs_stat;
+    int client_sock;
+    struct sockaddr_un server_addr;
+
+    assert(NULL != scs);
+    assert(strlen(scs->server_connection_name) > 0);
+
+    while (NULL != scs) {
+        status = stat(scs->server_connection_name, &scs_stat);
+
+        if ((status < 0) && (ENOENT == errno)) {
+            status = 0; // 0 = does not exist
+            break;
+        }
+
+        // let's see if we can connect to it.
+        client_sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+        assert(client_sock >= 0);
+        server_addr.sun_family = AF_UNIX;
+        strncpy(server_addr.sun_path, scs->server_connection_name, sizeof(server_addr.sun_path));
+
+        status = connect(client_sock, &server_addr, sizeof(server_addr));
+        if (status < 0) {
+            status = unlink(scs->server_connection_name);
+            status = 0;
+            break; // 0 = does not exist
+        }
+
+        // If we were able to connect, this is a duplicate server instance
+        close(client_sock);
+        status = EEXIST; // !0 = exists already
+
+    }
+    
+    return status;
+}
+
 int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
 {
     int status = 0;
@@ -162,6 +202,9 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
         }
 
         snprintf(scs->server_connection_name, sizeof(scs->server_connection_name), "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
+
+        status = CheckForLiveServer(scs);
+        assert(0 == status);
 
         // need a socket
         scs->server_connection = socket(AF_UNIX, SOCK_DGRAM, 0);
