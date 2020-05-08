@@ -12,11 +12,143 @@
 #include <dirent.h>
 #include <sys/mman.h>
 
+typedef struct connection_state {
+    fincomm_registration_info       reg_info;
+    int                             server_connection;
+    struct sockaddr_un              server_sockaddr;
+    int                             server_shm_fd;
+    size_t                          server_shm_size;
+    void *                          server_shm;
+    int                             aux_shm_fd;
+    int                             aux_shm_size;
+    void *                          aux_shm;
+    char                            aux_shm_path[MAX_SHM_PATH_NAME];
+} connection_state_t;
+
+static void CleanupClientConnectionState(connection_state_t *ccs)
+{
+    int status;
+
+    if (NULL == ccs) {
+        return;
+    }
+
+    if ((ccs->reg_info.ClientSharedMemPathNameLength > 0) &&
+        (strlen(ccs->reg_info.ClientSharedMemPathName) > 0)) {
+        (void) unlink(ccs->reg_info.ClientSharedMemPathName);
+        ccs->reg_info.ClientSharedMemPathNameLength = 0;
+        ccs->reg_info.ClientSharedMemPathName[0] = '\0';
+    }
+
+    if (ccs->server_connection >= 0) {
+        status = close(ccs->server_connection);
+        assert(0 == status);
+        ccs->server_connection = -1;
+    }
+
+    if ((NULL != ccs->server_shm) &&
+        (ccs->server_shm_size > 0)) {
+        status = munmap(ccs->server_shm, ccs->server_shm_size);
+        assert(0 == status);
+        ccs->server_shm = NULL;
+        ccs->server_shm_size = 0;
+    }
+
+    if (ccs->server_shm_fd >= 0) {
+        status = close(ccs->server_shm_fd);
+        assert(0 == status);
+        ccs->server_shm_fd = -1;
+    }
+
+    if (ccs->aux_shm_fd >= 0) {
+        status = close(ccs->aux_shm_fd);
+        assert(0 == status);
+        ccs->aux_shm_fd = -1;
+    }
+
+    if ((NULL != ccs->aux_shm) && 
+        (ccs->aux_shm_size)) {
+        status = munmap(ccs->aux_shm, ccs->aux_shm_size);
+        assert(0 == status);
+        ccs->aux_shm = NULL;
+        ccs->aux_shm_size = 0;
+    }
+
+    free(ccs);
+    ccs = NULL;
+
+}
+
+
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 {
     int status = 0;
-    *FinesseClientHandle = 0;
+    connection_state_t *ccs = NULL;
+    fincomm_registration_confirmation conf;
 
+    while (0 == status) {
+        ccs = (connection_state_t *)malloc(sizeof(connection_state_t));
+        if (NULL == ccs) {
+            status = ENOMEM;
+            break;
+        }
+        memset(ccs, 0, sizeof(connection_state_t));
+
+        uuid_generate(ccs->reg_info.ClientId);
+        status = GenerateClientSharedMemoryName(ccs->reg_info.ClientSharedMemPathName, sizeof(ccs->reg_info.ClientSharedMemPathName), ccs->reg_info.ClientId);
+        assert(0 == status);
+        ccs->reg_info.ClientSharedMemPathNameLength = strlen(ccs->reg_info.ClientSharedMemPathName);
+        assert(ccs->reg_info.ClientSharedMemPathNameLength > 0);
+
+        // Shared memory: shm_open (create/open), ftruncate/fstat (set length, get length), mmap/munmap, shm_unlink,
+        // Use restrictive permissions
+
+        ccs->server_shm_fd = shm_open(ccs->reg_info.ClientSharedMemPathName, O_RDWR | O_CREAT | O_EXCL, 0600);
+        assert(ccs->server_shm_fd >= 0);
+
+        ccs->server_shm_size = SHM_PAGE_SIZE * SHM_PAGE_COUNT;
+        status = ftruncate(ccs->server_shm_fd, ccs->server_shm_size);
+        assert(0 == status);
+
+        ccs->server_shm = mmap(NULL, ccs->server_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->server_shm_fd, 0);
+        assert(NULL != ccs->server_shm);
+
+        ccs->server_sockaddr.sun_family = AF_UNIX;
+        status = GenerateServerName(ccs->server_sockaddr.sun_path, sizeof(ccs->server_sockaddr.sun_path));
+        assert(0 == status);
+
+        ccs->server_connection = socket(AF_UNIX, SOCK_DGRAM, 0);
+        assert(ccs->server_connection >= 0);
+
+        status = connect(ccs->server_connection, &ccs->server_sockaddr, sizeof(ccs->server_sockaddr));
+        if (status < 0) {
+            break;
+        }
+
+        status = send(ccs->server_connection, &ccs->reg_info, sizeof(ccs->reg_info), 0);
+        assert(sizeof(ccs->reg_info) == status);
+
+        memset(&conf, 0, sizeof(conf));
+        status = recv(ccs->server_connection, &conf, sizeof(conf), 0);
+        assert(sizeof(conf) == status);
+        assert(conf.ClientSharedMemSize == ccs->server_shm_size);
+        assert(0 == conf.Result);
+
+        // Unlink shared memory so it will "go away" when the client/server go away
+        status = shm_unlink(ccs->reg_info.ClientSharedMemPathName);
+        assert(0 == status);
+
+        // Done!
+        break;
+
+    }
+
+    if (0 != status) {
+        CleanupClientConnectionState(ccs);
+        ccs = NULL;
+    }
+
+    *FinesseClientHandle = ccs;
     return status;
 }
 
@@ -32,14 +164,14 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 {
     int status = ENOMEM;
-    client_connection_state_t *client_handle = NULL;
+    connection_state_t *client_handle = NULL;
     size_t allocsize = 0;
     size_t queue_name_length = 0;
 
     queue_name_length = strlen(mq_prefix) + 37; // prefix + uuid size + NULL
-    allocsize = offsetof(client_connection_state_t, queue_name) + queue_name_length;
+    allocsize = offsetof(connection_state_t, queue_name) + queue_name_length;
 
-    client_handle = (client_connection_state_t *)malloc(allocsize);
+    client_handle = (connection_state_t *)malloc(allocsize);
 
     while (NULL != client_handle)
     {
@@ -96,7 +228,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
 {
     int status = 0;
-    client_connection_state_t *client_handle = (client_connection_state_t *)FinesseClientHandle;
+    connection_state_t *client_handle = (connection_state_t *)FinesseClientHandle;
 
     while (NULL != client_handle)
     {

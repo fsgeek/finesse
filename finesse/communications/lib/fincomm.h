@@ -26,7 +26,9 @@
 #include <uuid/uuid.h>
 
 #define FINESSE_SERVICE_PREFIX "/tmp/finesse"
-#define FINESSE_SERVICE_NAME "Finesse-1.0"
+
+int GenerateServerName(char *ServerName, size_t ServerNameLength);
+int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId);
 
 #define OPTIMAL_ALIGNMENT_SIZE (64) // this should be whatever the best choice is for laying out cache line optimal data structures
 #define MAX_SHM_PATH_NAME (128)     // secondary shared memory regions must fit within a buffer of this size (including a null terminator)
@@ -37,10 +39,16 @@
 // The registration structure is how the client connects to the server
 //
 typedef struct {
-    uuid_t     ClientId;
-    u_int32_t  ClientSharedMemPathNameLength;
-    char     ClientSharedMemPathName[MAX_SHM_PATH_NAME];
+    uuid_t      ClientId;
+    u_int32_t   ClientSharedMemPathNameLength;
+    char        ClientSharedMemPathName[MAX_SHM_PATH_NAME];
 } fincomm_registration_info;
+
+typedef struct {
+    uuid_t      ServerId;
+    size_t      ClientSharedMemSize;
+    u_int32_t   Result;
+} fincomm_registration_confirmation;
 
 //
 // Each shared memory region consists of a set of communications blocks

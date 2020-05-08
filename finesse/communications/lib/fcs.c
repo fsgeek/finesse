@@ -12,7 +12,7 @@
 #include <dirent.h>
 #include <sys/mman.h>
 
-typedef struct client_connection_state {
+typedef struct connection_state {
     fincomm_registration_info       reg_info;
     int                             client_connection;
     int                             client_shm_fd;
@@ -22,17 +22,17 @@ typedef struct client_connection_state {
     int                             aux_shm_size;
     void *                          aux_shm;
     char                            aux_shm_path[MAX_SHM_PATH_NAME];
-} client_connection_state_t;
+} connection_state_t;
 
 typedef struct server_connection_state {
     int                         server_connection;
     pthread_t                   listener_thread;
+    uuid_t                      server_uuid;
     char                        server_connection_name[MAX_SHM_PATH_NAME];
-    client_connection_state_t * client_connection_state_table[SHM_PAGE_COUNT];
+    connection_state_t * client_connection_state_table[SHM_PAGE_COUNT];
 } server_connection_state_t;
 
-
-static void teardown_client_connection(client_connection_state_t *ccs)
+static void teardown_client_connection(connection_state_t *ccs)
 {
     int status;
 
@@ -57,7 +57,7 @@ static void teardown_client_connection(client_connection_state_t *ccs)
         ccs->client_shm_fd = -1;
     }
 
-    if (ccs->aux_shm) {
+    if (NULL != ccs->aux_shm) {
         status = munmap(ccs->aux_shm, ccs->aux_shm_size);
         assert(0 == status);
         ccs->aux_shm = (void *)0;
@@ -78,6 +78,8 @@ static void *listener(void *context)
     server_connection_state_t *scs = (server_connection_state_t *) context;
     int status = 0;
     char buffer[SHM_PAGE_SIZE]; // use for messages
+    fincomm_registration_confirmation conf;
+    unsigned index;
 
     assert(NULL != context);
     assert(scs->server_connection >= 0);
@@ -86,15 +88,15 @@ static void *listener(void *context)
     assert(status >= 0); // listen shouldn't fail
 
     while (scs->server_connection >= 0) {
-        client_connection_state_t *new_client = NULL;
+        connection_state_t *new_client = NULL;
         fincomm_registration_info *reg_info = (fincomm_registration_info *)reg_info;
         struct stat stat;
         
         if (NULL == new_client) {
-            new_client = (client_connection_state_t *)malloc(sizeof(client_connection_state_t));
+            new_client = (connection_state_t *)malloc(sizeof(connection_state_t));
         }
         assert(NULL != new_client);
-        memset(new_client, 0, sizeof(client_connection_state_t));
+        memset(new_client, 0, sizeof(connection_state_t));
 
         new_client->client_connection = accept(scs->server_connection, 0, 0);
         assert(new_client->client_connection >= 0);
@@ -119,15 +121,35 @@ static void *listener(void *context)
         new_client->client_shm = mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
         assert(NULL != new_client->client_shm);
 
+        // Prepare registration acknowledgment.
+        memset(&conf, 0, sizeof(conf));
+
+        conf.Result = 0;
+        uuid_copy(conf.ServerId, scs->server_uuid);
+        conf.ClientSharedMemSize = new_client->client_shm_size;
+
+
         // Insert into the table
-        for (unsigned index = 0; index < SHM_PAGE_COUNT; index++) {
+        for (index = 0; index < SHM_PAGE_COUNT; index++) {
             if (NULL == scs->client_connection_state_table[index]) {
                 scs->client_connection_state_table[index] = new_client;
-                new_client = NULL;
                 break;
             }
         }
-        assert(NULL == new_client); // otherwise we ran out of space in our table and need to fix this.
+        assert(index < SHM_PAGE_COUNT); // otherwise we ran out of space in our table and need to fix this.
+
+        if (SHM_PAGE_COUNT <= index) {
+            conf.Result = ENOMEM;
+        }
+
+        // Send client response
+        status = send(new_client->client_connection, &conf, sizeof(conf), 0);
+        assert(sizeof(conf) == status);
+
+        if (0 != conf.Result) {
+            teardown_client_connection(new_client);
+            new_client = NULL;
+        }
     }
 
     return (void *)0;
@@ -164,9 +186,7 @@ static int CheckForLiveServer(server_connection_state_t *scs)
             break; // 0 = does not exist
         }
 
-        // If we were able to connect, this is a duplicate server instance
-        close(client_sock);
-        status = EEXIST; // !0 = exists already
+        
 
     }
     
@@ -188,6 +208,9 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
             status = ENOMEM;
             break;
         }
+        memset(scs, 0, sizeof(server_connection_state_t));
+        uuid_generate(scs->server_uuid);
+
 
         dir = opendir(FINESSE_SERVICE_PREFIX);
 
@@ -201,8 +224,9 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
             break;
         }
 
-        snprintf(scs->server_connection_name, sizeof(scs->server_connection_name), "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
-
+        status = GenerateServerName(scs->server_connection_name, sizeof(scs->server_connection_name));
+        assert(0 == status);
+        
         status = CheckForLiveServer(scs);
         assert(0 == status);
 

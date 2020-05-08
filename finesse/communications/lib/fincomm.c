@@ -17,6 +17,9 @@
 #include <mqueue.h>
 #include <stddef.h>
 #include <pthread.h>
+#include "fincomm.h"
+
+#define FINESSE_SERVICE_NAME "Finesse-1.0"
 
 
 //
@@ -33,6 +36,31 @@
 //   the server as part of the start-up message.
 //
 //   
+
+int GenerateServerName(char *ServerName, size_t ServerNameLength)
+{
+    int status;
+
+    status = snprintf(ServerName, ServerNameLength, "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
+    if (status >= ServerNameLength) {
+        return EOVERFLOW;
+    }
+    return 0; // 0 == success
+}
+
+int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId)
+{
+    int status;
+    char uuid_string[40];
+
+    uuid_unparse(ClientId, uuid_string);
+    status = snprintf(SharedMemoryName, SharedMemoryNameLength, "%s-%lu", uuid_string, (unsigned long)time(NULL));
+
+    if (status >= SharedMemoryNameLength) {
+        return EOVERFLOW;
+    }
+    return 0; // 0 == success;
+}
 
 #if 0
 static int initialized = 0;
