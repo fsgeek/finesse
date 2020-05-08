@@ -73,6 +73,20 @@ test_client_connect(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_client_connect_without_server(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_client_handle_t fch;
+
+    status = FinesseStartClientConnection(&fch);
+    munit_assert(0 != status);
+
+    return MUNIT_OK;
+}
+
 
 #define TEST(_name, _func, _params)             \
     {                                           \
@@ -90,10 +104,11 @@ main(
     char **argv)
 {
     static MunitTest tests[] = {
-        TEST((char *)(uintptr_t)"/one", test_one, NULL),
+        TEST((char *)(uintptr_t)"/null", test_one, NULL),
         TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
+        TEST((char *)(uintptr_t)"/client/connect_without_server", test_client_connect_without_server, NULL),
         TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
-	TEST(NULL, NULL, NULL),
+    	TEST(NULL, NULL, NULL),
     };
     static const MunitSuite suite = {
         .prefix = (char *)(uintptr_t)"/finesse",

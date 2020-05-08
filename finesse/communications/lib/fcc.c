@@ -111,13 +111,13 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
         assert(0 == status);
 
         ccs->server_shm = mmap(NULL, ccs->server_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->server_shm_fd, 0);
-        assert(NULL != ccs->server_shm);
+        assert(MAP_FAILED != ccs->server_shm);
 
         ccs->server_sockaddr.sun_family = AF_UNIX;
         status = GenerateServerName(ccs->server_sockaddr.sun_path, sizeof(ccs->server_sockaddr.sun_path));
         assert(0 == status);
 
-        ccs->server_connection = socket(AF_UNIX, SOCK_DGRAM, 0);
+        ccs->server_connection = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         assert(ccs->server_connection >= 0);
 
         status = connect(ccs->server_connection, &ccs->server_sockaddr, sizeof(ccs->server_sockaddr));

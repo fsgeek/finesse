@@ -84,12 +84,9 @@ static void *listener(void *context)
     assert(NULL != context);
     assert(scs->server_connection >= 0);
 
-    status = listen(scs->server_connection, SHM_PAGE_COUNT);
-    assert(status >= 0); // listen shouldn't fail
-
     while (scs->server_connection >= 0) {
         connection_state_t *new_client = NULL;
-        fincomm_registration_info *reg_info = (fincomm_registration_info *)reg_info;
+        fincomm_registration_info *reg_info = (fincomm_registration_info *)buffer;
         struct stat stat;
         
         if (NULL == new_client) {
@@ -97,6 +94,9 @@ static void *listener(void *context)
         }
         assert(NULL != new_client);
         memset(new_client, 0, sizeof(connection_state_t));
+        new_client->aux_shm_fd = -1;
+        new_client->client_shm_fd = -1;
+        new_client->client_connection = -1;
 
         new_client->client_connection = accept(scs->server_connection, 0, 0);
         assert(new_client->client_connection >= 0);
@@ -110,7 +110,7 @@ static void *listener(void *context)
         assert(strlen(new_client->reg_info.ClientSharedMemPathName) == new_client->reg_info.ClientSharedMemPathNameLength);
 
         // map in the shared memory
-        new_client->client_shm_fd = open(new_client->reg_info.ClientSharedMemPathName, 0);
+        new_client->client_shm_fd = shm_open(new_client->reg_info.ClientSharedMemPathName, O_RDWR, 0600);
         assert(new_client->client_shm_fd >= 0);
 
         status = fstat(new_client->client_shm_fd, &stat);
@@ -119,7 +119,7 @@ static void *listener(void *context)
         new_client->client_shm_size = stat.st_size;
 
         new_client->client_shm = mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
-        assert(NULL != new_client->client_shm);
+        assert(MAP_FAILED != new_client->client_shm);
 
         // Prepare registration acknowledgment.
         memset(&conf, 0, sizeof(conf));
@@ -159,7 +159,7 @@ static int CheckForLiveServer(server_connection_state_t *scs)
 {
     int status = 0;
     struct stat scs_stat;
-    int client_sock;
+    int client_sock = -1;
     struct sockaddr_un server_addr;
 
     assert(NULL != scs);
@@ -174,7 +174,7 @@ static int CheckForLiveServer(server_connection_state_t *scs)
         }
 
         // let's see if we can connect to it.
-        client_sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+        client_sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         assert(client_sock >= 0);
         server_addr.sun_family = AF_UNIX;
         strncpy(server_addr.sun_path, scs->server_connection_name, sizeof(server_addr.sun_path));
@@ -186,8 +186,13 @@ static int CheckForLiveServer(server_connection_state_t *scs)
             break; // 0 = does not exist
         }
 
-        
+        // Done
+        break;
 
+    }
+
+    if (client_sock >= 0) {
+        close(client_sock);
     }
     
     return status;
@@ -211,7 +216,6 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
         memset(scs, 0, sizeof(server_connection_state_t));
         uuid_generate(scs->server_uuid);
 
-
         dir = opendir(FINESSE_SERVICE_PREFIX);
 
         if ((NULL == dir) && (ENOENT == errno)) {
@@ -231,7 +235,7 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
         assert(0 == status);
 
         // need a socket
-        scs->server_connection = socket(AF_UNIX, SOCK_DGRAM, 0);
+        scs->server_connection = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         if (scs->server_connection < 0) {
             status = errno;
             break;
@@ -246,9 +250,14 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
             break;
         }
 
+        status = listen(scs->server_connection, SHM_PAGE_COUNT);
+        assert(status >= 0); // listen shouldn't fail
+
         status = pthread_create(&scs->listener_thread, NULL, listener, scs);
         assert(0 == status);
 
+        // Done
+        break;
     }
 
     if (NULL != dir) {
@@ -264,6 +273,7 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 {
     server_connection_state_t *scs = (server_connection_state_t *) FinesseServerHandle;
     int status = 0;
+    void *result = NULL;
 
     assert(NULL != FinesseServerHandle);
 
@@ -271,6 +281,10 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
         status = pthread_cancel(scs->listener_thread);
         assert(0 == status);
     }
+
+    status = pthread_join(scs->listener_thread, &result);
+    assert(PTHREAD_CANCELED == result);
+    assert(0 == status);
 
     status = close(scs->server_connection);
     assert(0 == status);
