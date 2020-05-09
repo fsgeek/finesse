@@ -214,3 +214,66 @@ void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fi
         new_bitmap = (bitmap & ~(1<<index));
     }
 }
+
+int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
+{
+    pthread_mutexattr_t mattr;
+    pthread_condattr_t cattr;
+    int status;
+
+    assert(NULL != Fsmr);
+    uuid_generate(Fsmr->ClientId);
+    uuid_generate(Fsmr->ServerId);
+    Fsmr->RequestBitmap = 0;
+    Fsmr->ResponseBitmap = 0;
+    Fsmr->secondary_shm_path[0] = '\0';
+    memset(Fsmr->Data, 0, sizeof(Fsmr->Data));
+
+    status = pthread_mutexattr_init(&mattr);
+    assert(0 == status);
+    status = pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
+    assert(0 == status);
+    status = pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_ERRORCHECK_NP);
+    assert(0 == status);
+    status = pthread_mutex_init(&Fsmr->RequestMutex, &mattr);
+    assert(0 == status);
+    status = pthread_mutex_init(&Fsmr->ResponseMutex, &mattr);
+    assert(0 == status);
+    status = pthread_mutexattr_destroy(&mattr);
+    assert(0 == status);
+
+    status = pthread_condattr_init(&cattr);
+    assert(0 == status);
+    status = pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
+    assert(0 == status);
+    status = pthread_cond_init(&Fsmr->RequestPending, &cattr);
+    assert(0 == status);
+    status = pthread_cond_init(&Fsmr->ResponsePending, &cattr);
+    assert(0 == status);
+    status = pthread_condattr_destroy(&cattr);
+    assert(0 == status);
+
+    return status;
+}
+
+int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
+{
+    int status;
+
+    assert(NULL != Fsmr);
+
+    status = pthread_mutex_destroy(&Fsmr->RequestMutex);
+    assert(0 == status);
+
+    status = pthread_mutex_destroy(&Fsmr->ResponseMutex);
+    assert(0 == status);
+
+    status = pthread_cond_destroy(&Fsmr->RequestPending);
+    assert(0 == status);
+
+    status = pthread_cond_destroy(&Fsmr->ResponsePending);
+    assert(0 == status);
+
+    return status;
+}
+

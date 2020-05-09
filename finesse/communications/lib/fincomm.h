@@ -113,6 +113,7 @@ void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_m
 int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait);
 fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion);
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
-
+int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr);
+int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr);
 
 #endif // __FINESSE_FINCOMM_H__

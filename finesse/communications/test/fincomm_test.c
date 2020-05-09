@@ -46,41 +46,11 @@ typedef struct {
 
 static fincomm_shared_memory_region *CreateInMemoryRegion(void)
 {
-    pthread_mutexattr_t mattr;
-    pthread_condattr_t cattr;
     int status;
     fincomm_shared_memory_region *fsmr = (fincomm_shared_memory_region *)malloc(sizeof(fincomm_shared_memory_region));
     assert(NULL != fsmr);
 
-    uuid_generate(fsmr->ClientId);
-    uuid_generate(fsmr->ServerId);
-    fsmr->RequestBitmap = 0;
-    fsmr->ResponseBitmap = 0;
-    fsmr->secondary_shm_path[0] = '\0';
-    memset(fsmr->Data, 0, sizeof(fsmr->Data));
-
-    status = pthread_mutexattr_init(&mattr);
-    assert(0 == status);
-    status = pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
-    assert(0 == status);
-    status = pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_ERRORCHECK_NP);
-    assert(0 == status);
-    status = pthread_mutex_init(&fsmr->RequestMutex, &mattr);
-    assert(0 == status);
-    status = pthread_mutex_init(&fsmr->ResponseMutex, &mattr);
-    assert(0 == status);
-    status = pthread_mutexattr_destroy(&mattr);
-    assert(0 == status);
-
-    status = pthread_condattr_init(&cattr);
-    assert(0 == status);
-    status = pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
-    assert(0 == status);
-    status = pthread_cond_init(&fsmr->RequestPending, &cattr);
-    assert(0 == status);
-    status = pthread_cond_init(&fsmr->ResponsePending, &cattr);
-    assert(0 == status);
-    status = pthread_condattr_destroy(&cattr);
+    status = FinesseInitializeMemoryRegion(fsmr);
     assert(0 == status);
 
     return fsmr;
@@ -90,22 +60,12 @@ static void DestroyInMemoryRegion(fincomm_shared_memory_region *Fsmr)
 {
     int status;
 
-    assert(NULL != Fsmr);
-
-    status = pthread_mutex_destroy(&Fsmr->RequestMutex);
-    assert(0 == status);
-
-    status = pthread_mutex_destroy(&Fsmr->ResponseMutex);
-    assert(0 == status);
-
-    status = pthread_cond_destroy(&Fsmr->RequestPending);
-    assert(0 == status);
-
-    status = pthread_cond_destroy(&Fsmr->ResponsePending);
+    status = FinesseDestroyMemoryRegion(Fsmr);
     assert(0 == status);
 
     free(Fsmr);
 }
+
 #if 0
 //
 // This is the shared memory protocol:
