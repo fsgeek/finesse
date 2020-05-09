@@ -62,16 +62,14 @@ int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNa
     return 0; // 0 == success;
 }
 
-static u_int64_t RequestNumber = (uint64_t)(-10); // start just below zero to ensure we wrap properly
-static u_int64_t BufferAllocationBitmap;
 
-static u_int64_t get_request_number(void)
+static u_int64_t get_request_number(u_int64_t *RequestNumber)
 {
     u_int64_t request_number = 0;
 
     // request_number 0 is not valid
     while (0 == request_number) {
-        request_number = __sync_fetch_and_add(&RequestNumber, 1);
+        request_number = __sync_fetch_and_add(RequestNumber, 1);
     }
     assert(0 != request_number);
     return request_number;
@@ -81,25 +79,29 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
 {
     unsigned index;
     u_int64_t mask = 1;
-    u_int64_t bitmap = BufferAllocationBitmap;
-    u_int64_t new_bitmap = bitmap;
+    u_int64_t bitmap;
+    u_int64_t new_bitmap;
+    // static u_int64_t RequestNumber = (uint64_t)(-10); // start just below zero to ensure we wrap properly
+    // static u_int64_t BufferAllocationBitmap;
 
+    assert(NULL != RequestRegion);
+    new_bitmap = bitmap = RequestRegion->AllocationBitmap;
     index = (RequestRegion->LastBufferAllocated + 1) % SHM_MESSAGE_COUNT;
     _Static_assert(64 == SHM_MESSAGE_COUNT, "Check bit mask length");
     new_bitmap |= (1 << index);
 
-    if (!__sync_bool_compare_and_swap(&BufferAllocationBitmap, bitmap, new_bitmap)) {
+    if (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
         // This is the slow path, where we didn't get lucky, so we brute force scan
         for (index = 0; index < SHM_MESSAGE_COUNT; index++, mask = mask << 1) {
-            bitmap = BufferAllocationBitmap;
+            bitmap = RequestRegion->AllocationBitmap;
             new_bitmap = bitmap | mask;
-            if (__sync_bool_compare_and_swap(&BufferAllocationBitmap, bitmap, new_bitmap)) {
+            if (__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
                 // found our index
                 break;
             }
         }
     }
-    
+
     if (index < SHM_MESSAGE_COUNT) {
         // Note: this is "unsafe" but we're only using it as a hint
         // and thus even if we race, it should work properly.
@@ -116,17 +118,19 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
 {
     // So the message index can be computed
     unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
-    uint64_t request_id = get_request_number();
+    u_int64_t request_id = 0;
     assert(&RequestRegion->Messages[index] == Message);
 
-    Message->RequestId = request_id;
-    Message->Response = 0;
+    if (0 != (RequestRegion->AllocationBitmap & (1 << index))) {
+        request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
+        Message->Response = 0;
 
-    pthread_mutex_lock(&RequestRegion->RequestMutex);
-    assert(0 == (RequestRegion->RequestBitmap & (1<<index))); // this should NOT be set
-    RequestRegion->RequestBitmap |= (1<<index);
-    pthread_cond_signal(&RequestRegion->RequestPending);
-    pthread_mutex_unlock(&RequestRegion->RequestMutex);
+        pthread_mutex_lock(&RequestRegion->RequestMutex);
+        assert(0 == (RequestRegion->RequestBitmap & (1<<index))); // this should NOT be set
+        RequestRegion->RequestBitmap |= (1<<index);
+        pthread_cond_signal(&RequestRegion->RequestPending);
+        pthread_mutex_unlock(&RequestRegion->RequestMutex);
+    }
 
     return request_id;
 }
@@ -216,12 +220,20 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
 {
     unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
-    u_int64_t bitmap = BufferAllocationBitmap;
-    u_int64_t new_bitmap = (bitmap & ~(1<<index));
+    u_int64_t bitmap; // = AllocationBitmap;
+    u_int64_t new_bitmap; // = (bitmap & ~(1<<index));
+
+    assert(NULL != RequestRegion);
+    assert(index < SHM_MESSAGE_COUNT);
+
+    bitmap = RequestRegion->AllocationBitmap;
+    new_bitmap = bitmap & ~(1<<index);
+    assert(bitmap != new_bitmap); // freeing an unallocated message
+
     assert(&RequestRegion->Messages[index] == Message);
 
-    while (!__sync_bool_compare_and_swap(&BufferAllocationBitmap, bitmap, new_bitmap)) {
-        bitmap = BufferAllocationBitmap;
+    while (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
+        bitmap = RequestRegion->AllocationBitmap;
         new_bitmap = (bitmap & ~(1<<index));
     }
 }

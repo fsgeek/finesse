@@ -287,11 +287,40 @@ test_client_server(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_invalid_message_request(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    fincomm_shared_memory_region *fsmr;
+    fincomm_message message;
+    u_int64_t request_id;
+
+    fsmr = CreateInMemoryRegion();
+    munit_assert_not_null(fsmr);
+
+    message = FinesseGetRequestBuffer(fsmr);
+    munit_assert_not_null(message);
+
+    FinesseReleaseRequestBuffer(fsmr, message);
+
+    //   (3) client asks for server notification (FinesseRequestReady)
+    request_id = FinesseRequestReady(fsmr, message);
+    munit_assert(0 == request_id);
+
+    // cleanup
+    DestroyInMemoryRegion(fsmr);
+    fsmr = NULL;
+
+    return MUNIT_OK;
+}
+
 
 static MunitTest fincomm_tests[] = {
     TEST((char *)(uintptr_t)"/null", test_null, NULL),
     TEST((char *)(uintptr_t)"/simple", test_message, NULL),
     TEST((char *)(uintptr_t)"/client-server", test_client_server, NULL),
+    TEST((char *)(uintptr_t)"/invalid-message", test_invalid_message_request, NULL),
     TEST(NULL, NULL, NULL),
 };
 

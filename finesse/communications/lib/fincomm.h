@@ -82,12 +82,19 @@ typedef struct {
     u_char          align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     char            secondary_shm_path[MAX_SHM_PATH_NAME];
     unsigned        LastBufferAllocated; // allocation hint
-    u_char          Data[4096-((3*128)+sizeof(int))];
+    u_int64_t       AllocationBitmap;
+    u_int64_t       RequestId;
+    u_char          align2[64-(3 * sizeof(u_int64_t))];
+    u_char          Data[4096-(7*64)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
 
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, ResponseBitmap) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
+_Static_assert(0 == offsetof(fincomm_shared_memory_region, secondary_shm_path) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
+_Static_assert(0 == offsetof(fincomm_shared_memory_region, LastBufferAllocated) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
+_Static_assert(0 == offsetof(fincomm_shared_memory_region, Data) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
+_Static_assert(0 == offsetof(fincomm_shared_memory_region, Messages) % SHM_PAGE_SIZE, "Alignment wrong");
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % SHM_PAGE_SIZE, "Length Wrong");
 
 int GenerateServerName(char *ServerName, size_t ServerNameLength);
