@@ -64,7 +64,6 @@ int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNa
 
 static u_int64_t RequestNumber = (uint64_t)(-10); // start just below zero to ensure we wrap properly
 static u_int64_t BufferAllocationBitmap;
-static unsigned LastBufferAllocated;
 
 static u_int64_t get_request_number(void)
 {
@@ -85,7 +84,7 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     u_int64_t bitmap = BufferAllocationBitmap;
     u_int64_t new_bitmap = bitmap;
 
-    index = (LastBufferAllocated + 1) % SHM_MESSAGE_COUNT;
+    index = (RequestRegion->LastBufferAllocated + 1) % SHM_MESSAGE_COUNT;
     _Static_assert(64 == SHM_MESSAGE_COUNT, "Check bit mask length");
     new_bitmap |= (1 << index);
 
@@ -99,6 +98,12 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
                 break;
             }
         }
+    }
+    
+    if (index < SHM_MESSAGE_COUNT) {
+        // Note: this is "unsafe" but we're only using it as a hint
+        // and thus even if we race, it should work properly.
+        RequestRegion->LastBufferAllocated = (index + 1) % SHM_MESSAGE_COUNT;
     }
 
     // TODO: make this blocking?
@@ -171,13 +176,15 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
 {
     unsigned int index = SHM_MESSAGE_COUNT; // invalid value
     uint64_t mask = 1;
-    long int rnd = random() % SHM_MESSAGE_COUNT; 
+    long int rnd = random() % SHM_MESSAGE_COUNT;
+    unsigned i;
+
     pthread_mutex_lock(&RequestRegion->RequestMutex);
     while (SHM_MESSAGE_COUNT == index) {
         while (0 == RequestRegion->RequestBitmap) {
             pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
         }
-        for (unsigned i = 0; i < rnd; i++, mask = mask << 1) {
+        for (i = rnd, mask = 1 << rnd; i < SHM_MESSAGE_COUNT; i++, mask = mask << 1) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
                 RequestRegion->RequestBitmap &= ~mask; // clear the bit
@@ -185,10 +192,11 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
                 break;
             }
         }
-        if (index < SHM_MESSAGE_COUNT) {
+        if (i < SHM_MESSAGE_COUNT) {
+            index = i;
             break; // we already found one
         }
-        for (unsigned i = rnd; i < SHM_MESSAGE_COUNT; i++, mask = mask << 1) {
+        for (i = 0, mask = 1; i < rnd; i++, mask = mask << 1) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
                 RequestRegion->RequestBitmap &= ~mask; // clear the bit
@@ -196,7 +204,10 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
                 break;
             }
         }
-        assert(SHM_MESSAGE_COUNT != index);
+        if (i < rnd) {
+            index = i;
+            break;
+        }
     }
     pthread_mutex_unlock(&RequestRegion->RequestMutex);
     return &RequestRegion->Messages[index];

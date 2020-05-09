@@ -81,7 +81,8 @@ typedef struct {
     pthread_cond_t  ResponsePending;
     u_char          align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     char            secondary_shm_path[MAX_SHM_PATH_NAME];
-    u_char          Data[4096-(3*128)];
+    unsigned        LastBufferAllocated; // allocation hint
+    u_char          Data[4096-((3*128)+sizeof(int))];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
 
