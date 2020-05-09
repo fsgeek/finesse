@@ -74,7 +74,7 @@ static u_int64_t get_request_number(void)
     while (0 == request_number) {
         request_number = __sync_fetch_and_add(&RequestNumber, 1);
     }
-    assert(0 == request_number);
+    assert(0 != request_number);
     return request_number;
 }
 
@@ -163,6 +163,7 @@ int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_mess
         status = 1;
         RequestRegion->ResponseBitmap &= ~(1<<index); // clear the response pending bit
     }
+    pthread_mutex_unlock(&RequestRegion->ResponseMutex);
     return status;
 }
 

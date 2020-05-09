@@ -77,10 +77,9 @@ typedef struct {
     pthread_cond_t  RequestPending;
     u_char          align0[128-((2 * sizeof(uuid_t)) + sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     u_int64_t       ResponseBitmap;
-    u_int64_t       ResponseStatus;
     pthread_mutex_t ResponseMutex;
     pthread_cond_t  ResponsePending;
-    u_char          align1[128-(2 * sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
+    u_char          align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     char            secondary_shm_path[MAX_SHM_PATH_NAME];
     u_char          Data[4096-(3*128)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
