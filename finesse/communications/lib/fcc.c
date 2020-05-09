@@ -100,13 +100,10 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
         ccs->reg_info.ClientSharedMemPathNameLength = strlen(ccs->reg_info.ClientSharedMemPathName);
         assert(ccs->reg_info.ClientSharedMemPathNameLength > 0);
 
-        // Shared memory: shm_open (create/open), ftruncate/fstat (set length, get length), mmap/munmap, shm_unlink,
-        // Use restrictive permissions
-
         ccs->server_shm_fd = shm_open(ccs->reg_info.ClientSharedMemPathName, O_RDWR | O_CREAT | O_EXCL, 0600);
         assert(ccs->server_shm_fd >= 0);
 
-        ccs->server_shm_size = SHM_PAGE_SIZE * SHM_PAGE_COUNT;
+        ccs->server_shm_size = sizeof(fincomm_message_block) + (SHM_PAGE_SIZE * SHM_MESSAGE_COUNT);
         status = ftruncate(ccs->server_shm_fd, ccs->server_shm_size);
         assert(0 == status);
 

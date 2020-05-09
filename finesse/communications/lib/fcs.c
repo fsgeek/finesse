@@ -29,7 +29,7 @@ typedef struct server_connection_state {
     pthread_t                   listener_thread;
     uuid_t                      server_uuid;
     char                        server_connection_name[MAX_SHM_PATH_NAME];
-    connection_state_t * client_connection_state_table[SHM_PAGE_COUNT];
+    connection_state_t * client_connection_state_table[SHM_MESSAGE_COUNT];
 } server_connection_state_t;
 
 static void teardown_client_connection(connection_state_t *ccs)
@@ -130,15 +130,15 @@ static void *listener(void *context)
 
 
         // Insert into the table
-        for (index = 0; index < SHM_PAGE_COUNT; index++) {
+        for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
             if (NULL == scs->client_connection_state_table[index]) {
                 scs->client_connection_state_table[index] = new_client;
                 break;
             }
         }
-        assert(index < SHM_PAGE_COUNT); // otherwise we ran out of space in our table and need to fix this.
+        assert(index < SHM_MESSAGE_COUNT); // otherwise we ran out of space in our table and need to fix this.
 
-        if (SHM_PAGE_COUNT <= index) {
+        if (SHM_MESSAGE_COUNT <= index) {
             conf.Result = ENOMEM;
         }
 
@@ -250,7 +250,7 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
             break;
         }
 
-        status = listen(scs->server_connection, SHM_PAGE_COUNT);
+        status = listen(scs->server_connection, SHM_MESSAGE_COUNT);
         assert(status >= 0); // listen shouldn't fail
 
         status = pthread_create(&scs->listener_thread, NULL, listener, scs);
@@ -290,7 +290,7 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     assert(0 == status);
     scs->server_connection = -1;
 
-    for (unsigned index = 0; index < SHM_PAGE_COUNT; index++) {
+    for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (NULL != scs->client_connection_state_table[index]) {
             teardown_client_connection(scs->client_connection_state_table[index]);
             scs->client_connection_state_table[index] = NULL;

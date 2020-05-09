@@ -43,7 +43,7 @@ static void finesse_shutdown(void)
 }
 
 static MunitResult
-test_one(
+test_null(
     const MunitParameter params[] __notused,
     void *prv __notused)
 {
@@ -912,7 +912,7 @@ main(
     char **argv)
 {
     static MunitTest tests[] = {
-        TEST("/one", test_one, NULL),
+        TEST("/one", test_null, NULL),
         TEST("/open/dir", test_open_dir, open_params),
         TEST("/open/existing-files", test_open_existing_files, open_params),
         TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),

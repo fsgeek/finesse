@@ -80,67 +80,19 @@ test_client_connect_without_server(
     return MUNIT_OK;
 }
 
-static MunitTest fincomm_tests[] = {
-    TEST((char *)(uintptr_t)"/null", test_null, NULL),
-    TEST(NULL, NULL, NULL),
-};
+static const MunitTest finesse_tests[] = {
+        TEST((char *)(uintptr_t)"/null", test_null, NULL),
+        TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
+        TEST((char *)(uintptr_t)"/client/connect_without_server", test_client_connect_without_server, NULL),
+        TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
+    	TEST(NULL, NULL, NULL),
+    };
 
-
-const MunitSuite fincomm_suite = {
-    .prefix = (char *)(uintptr_t)"/fincomm",
-    .tests = fincomm_tests,
+const MunitSuite finesse_suite = {
+    .prefix = (char *)(uintptr_t)"/finesse",
+    .tests = (MunitTest *)(uintptr_t)finesse_tests,
     .suites = NULL,
     .iterations = 1,
     .options = MUNIT_SUITE_OPTION_NONE,
 };
 
-#if 0
-int
-main(
-    int argc,
-    char **argv)
-{
-    static MunitTest fincomm_tests[] = {
-        TEST((char *)(uintptr_t)"/null", test_null, NULL),
-    	TEST(NULL, NULL, NULL),
-    };
-
-    static const MunitSuite suite = {
-        .prefix = (char *)(uintptr_t)"/finesse",
-        .tests = finesse_tests,
-        .suites = NULL,
-        .iterations = 1,
-        .options = MUNIT_SUITE_OPTION_NONE,
-    };
-
-    static const MunitSuite fincomm_suite = {
-        .prefix = (char *)(uintptr_t)"/fincomm",
-        .tests = fincomm_tests,
-        .suites = NULL,
-        .iterations = 1,
-        .options = MUNIT_SUITE_OPTION_NONE,
-    };
-
-    int status;
-
-    status = munit_suite_main(&suite, NULL, argc, argv);
-
-    if (0 != status) {
-        exit(0);
-    }
-
-    status = munit_suite_main(&fincomm_suite, NULL, argc, argv);
-
-    return status;
-}
-#endif // 0
-
-/*
- * Local variables:
- * mode: C
- * c-file-style: "Linux"
- * c-basic-offset: 4
- * tab-width: 4
- * indent-tabs-mode: nil
- * End:
- */
