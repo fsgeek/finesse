@@ -152,7 +152,7 @@ struct cs_info {
     pthread_mutex_t               mutex;
     pthread_cond_t                cond;
     unsigned                      count;
-    int                           shutdown;
+    unsigned                      ready;
 };
 
 static void *server_thread(void *param)
@@ -174,10 +174,20 @@ static void *server_thread(void *param)
     status = pthread_mutex_unlock(&cs_info->mutex);
     assert(0 == status);
 
-    while((0 == cs_info->shutdown) && (count < cs_info->count)) {
+    for(;;) {
         message = FinesseGetReadyRequest(fsmr);
-        munit_assert_not_null(message);
-        munit_assert(0 == memcmp(cs_info->request_message, message->Data, sizeof(cs_info->request_message)));
+
+        if (NULL == message) {
+            // indicates a shutdown request
+            break;
+        }
+
+        munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), message);
+
+        if (0 != memcmp(cs_info->request_message, message->Data, sizeof(cs_info->request_message))) {
+            munit_errorf("Mismatched request data, got %s, expected %s\n", message->Data, cs_info->request_message);
+            munit_assert(0);
+        }
 
         memcpy(message->Data, cs_info->response_message, sizeof(cs_info->response_message));
         FinesseResponseReady(fsmr, message, 0);
@@ -202,14 +212,17 @@ static void *client_thread(void *param)
     // wait for the main thread to say it is ok to proceed
     status = pthread_mutex_lock(&cs_info->mutex);
     assert(0 == status);
-    status = pthread_cond_wait(&cs_info->cond, &cs_info->mutex);
-    assert(0 == status);
+    while (0 == cs_info->ready) {
+        status = pthread_cond_wait(&cs_info->cond, &cs_info->mutex);
+        assert(0 == status);
+    }
     status = pthread_mutex_unlock(&cs_info->mutex);
     assert(0 == status);
 
-    while((0 == cs_info->shutdown) && (count < cs_info->count)) {
+    while(count < cs_info->count) {
         message = FinesseGetRequestBuffer(fsmr);
         munit_assert_not_null(message);
+        munit_logf(MUNIT_LOG_INFO, "Client %lu has message at 0x%p\n", pthread_self(), message);
 
         memcpy(message->Data, cs_info->request_message, sizeof(cs_info->request_message));
 
@@ -253,30 +266,32 @@ test_client_server(
     assert(0 == status);
     status = pthread_cond_init(&cs_info.cond, NULL);
     assert(0 == status);
-    cs_info.shutdown = 0;
     cs_info.count = 1;
+    cs_info.ready = 0;
 
     status = pthread_create(&server, NULL, server_thread, &cs_info);
     assert(0 == status);
     sleep(1);
 
-    status = pthread_create(&client, NULL, client_thread, &cs_info);
-    assert(0 == status);
-    sleep(1);
-
-    // Tell the threads it's OK to proceed
     status = pthread_mutex_lock(&cs_info.mutex);
     assert(0 == status);
+
+    status = pthread_create(&client, NULL, client_thread, &cs_info);
+    assert(0 == status);
+
+    cs_info.ready = 1;
+
     status = pthread_cond_broadcast(&cs_info.cond);
     assert(0 == status);
+
     status = pthread_mutex_unlock(&cs_info.mutex);
     assert(0 == status);
+
+    sleep(1);
 
     // shutdown the threads
     // cs_info.shutdown = 1;
 
-    status = pthread_join(server, NULL);
-    assert(0 == status);
     status = pthread_join(client, NULL);
     assert(0 == status);
 
@@ -315,12 +330,72 @@ test_invalid_message_request(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_multi_client(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    struct cs_info cs_info;
+    fincomm_shared_memory_region *fsmr;
+    pthread_t server, clients[128];
+    int status;
+    unsigned client_count = 2;
+
+    memset(clients, 0, sizeof(clients));
+
+    fsmr = CreateInMemoryRegion();
+    munit_assert_not_null(fsmr);
+
+    strcpy(cs_info.request_message, "This is a request message");
+    strcpy(cs_info.response_message, "This is a response message");
+    cs_info.shared_mem = fsmr;
+    status = pthread_mutex_init(&cs_info.mutex, NULL);
+    assert(0 == status);
+    status = pthread_cond_init(&cs_info.cond, NULL);
+    assert(0 == status);
+    cs_info.count = 1;
+
+    status = pthread_create(&server, NULL, server_thread, &cs_info);
+    assert(0 == status);
+    sleep(1);
+
+    for (unsigned index = 0; index < client_count; index++) {
+        status = pthread_create(&clients[index], NULL, client_thread, &cs_info);
+        assert(0 == status);
+    }
+    sleep(1);
+
+    // Tell the threads it's OK to proceed
+    status = pthread_mutex_lock(&cs_info.mutex);
+    assert(0 == status);
+    status = pthread_cond_broadcast(&cs_info.cond);
+    assert(0 == status);
+    status = pthread_mutex_unlock(&cs_info.mutex);
+    assert(0 == status);
+
+    // shutdown the threads
+    // cs_info.shutdown = 1;
+
+    sleep(1);
+
+    for (unsigned index = 0; index < client_count; index++) {
+        status = pthread_join(clients[index], NULL);
+        assert(0 == status);
+    }
+
+    // cleanup
+    DestroyInMemoryRegion(fsmr);
+    fsmr = NULL;
+
+    return MUNIT_OK;
+}
 
 static MunitTest fincomm_tests[] = {
     TEST((char *)(uintptr_t)"/null", test_null, NULL),
     TEST((char *)(uintptr_t)"/simple", test_message, NULL),
     TEST((char *)(uintptr_t)"/client-server", test_client_server, NULL),
     TEST((char *)(uintptr_t)"/invalid-message", test_invalid_message_request, NULL),
+    TEST((char *)(uintptr_t)"/multi-client", test_multi_client, NULL),
     TEST(NULL, NULL, NULL),
 };
 

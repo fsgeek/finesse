@@ -73,9 +73,10 @@ typedef struct {
     uuid_t          ClientId;
     uuid_t          ServerId;
     u_int64_t       RequestBitmap;
+    u_int64_t       RequestWaiters;
     pthread_mutex_t RequestMutex;
     pthread_cond_t  RequestPending;
-    u_char          align0[128-((2 * sizeof(uuid_t)) + sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
+    u_char          align0[192-((2 * sizeof(uuid_t)) + (2*sizeof(u_int64_t)) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     u_int64_t       ResponseBitmap;
     pthread_mutex_t ResponseMutex;
     pthread_cond_t  ResponsePending;
@@ -84,8 +85,9 @@ typedef struct {
     unsigned        LastBufferAllocated; // allocation hint
     u_int64_t       AllocationBitmap;
     u_int64_t       RequestId;
-    u_char          align2[64-(3 * sizeof(u_int64_t))];
-    u_char          Data[4096-(7*64)];
+    u_int64_t       ShutdownRequested;
+    u_char          align2[64-(4 * sizeof(u_int64_t))];
+    u_char          Data[4096-(8*64)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
 

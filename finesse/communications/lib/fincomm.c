@@ -183,11 +183,24 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
     long int rnd = random() % SHM_MESSAGE_COUNT;
     unsigned i;
 
+    assert(rnd < SHM_MESSAGE_COUNT);
     pthread_mutex_lock(&RequestRegion->RequestMutex);
     while (SHM_MESSAGE_COUNT == index) {
-        while (0 == RequestRegion->RequestBitmap) {
+
+        // wait for notification that something is pending (or shutdown)
+        while ((0 == RequestRegion->RequestBitmap) && (0 == RequestRegion->ShutdownRequested)){
+            RequestRegion->RequestWaiters++;
             pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
+            RequestRegion->RequestWaiters--;
         }
+
+        // if shutdown requested, we're done
+        if (RequestRegion->ShutdownRequested) {
+            index = SHM_MESSAGE_COUNT; // no allocation in the shutdown path
+            break;
+        }
+
+        // start from the random value and start looking
         for (i = rnd, mask = 1 << rnd; i < SHM_MESSAGE_COUNT; i++, mask = mask << 1) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
@@ -200,6 +213,8 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
             index = i;
             break; // we already found one
         }
+
+        // now check from 0 to the random value
         for (i = 0, mask = 1; i < rnd; i++, mask = mask << 1) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
@@ -208,13 +223,22 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
                 break;
             }
         }
+
+        // If we found one, note which one and break out
         if (i < rnd) {
             index = i;
             break;
         }
+
+        // otherwise, we could have raced, so we loop again
     }
     pthread_mutex_unlock(&RequestRegion->RequestMutex);
-    return &RequestRegion->Messages[index];
+    if (index < SHM_MESSAGE_COUNT) {
+        return &RequestRegion->Messages[index];
+    }
+    else {
+        return NULL; // shutdown path.
+    }
 }
 
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
@@ -249,8 +273,13 @@ int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
     uuid_generate(Fsmr->ServerId);
     Fsmr->RequestBitmap = 0;
     Fsmr->ResponseBitmap = 0;
+    Fsmr->RequestWaiters = 0;
     Fsmr->secondary_shm_path[0] = '\0';
     memset(Fsmr->Data, 0, sizeof(Fsmr->Data));
+    Fsmr->AllocationBitmap = 0;
+    Fsmr->RequestId = (u_int64_t)(-10);
+    Fsmr->ShutdownRequested = 0;
+    Fsmr->LastBufferAllocated = SHM_MESSAGE_COUNT - 1; // so we start at 0
 
     status = pthread_mutexattr_init(&mattr);
     assert(0 == status);
@@ -284,6 +313,18 @@ int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
     int status;
 
     assert(NULL != Fsmr);
+    assert(0 == Fsmr->ShutdownRequested); // don't call twice!
+
+    Fsmr->ShutdownRequested = 1;
+    pthread_mutex_lock(&Fsmr->RequestMutex);
+    while (Fsmr->RequestWaiters > 0) {
+        pthread_mutex_unlock(&Fsmr->RequestMutex);
+        pthread_cond_broadcast(&Fsmr->RequestPending);
+        sleep(1);
+        pthread_mutex_lock(&Fsmr->RequestMutex);
+    }
+    pthread_mutex_unlock(&Fsmr->RequestMutex);
+
 
     status = pthread_mutex_destroy(&Fsmr->RequestMutex);
     assert(0 == status);
