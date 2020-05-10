@@ -107,7 +107,7 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     if (index < SHM_MESSAGE_COUNT) {
         // Note: this is "unsafe" but we're only using it as a hint
         // and thus even if we race, it should work properly.
-        RequestRegion->LastBufferAllocated = (index + 1) % SHM_MESSAGE_COUNT;
+        RequestRegion->LastBufferAllocated = index;
     }
 
     // TODO: make this blocking?

@@ -368,13 +368,11 @@ test_multi_client(
     // Tell the threads it's OK to proceed
     status = pthread_mutex_lock(&cs_info.mutex);
     assert(0 == status);
+    cs_info.ready = 1;
     status = pthread_cond_broadcast(&cs_info.cond);
     assert(0 == status);
     status = pthread_mutex_unlock(&cs_info.mutex);
     assert(0 == status);
-
-    // shutdown the threads
-    // cs_info.shutdown = 1;
 
     sleep(1);
 
