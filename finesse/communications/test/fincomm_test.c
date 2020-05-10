@@ -185,7 +185,7 @@ static void *server_thread(void *param)
         munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), message);
 
         if (0 != memcmp(cs_info->request_message, message->Data, sizeof(cs_info->request_message))) {
-            munit_errorf("Mismatched request data, got %s, expected %s\n", message->Data, cs_info->request_message);
+            munit_errorf("Mismatched request (0x%p) data, got %s, expected %s\n", message, message->Data, cs_info->request_message);
             munit_assert(0);
         }
 
@@ -353,7 +353,7 @@ test_multi_client(
     assert(0 == status);
     status = pthread_cond_init(&cs_info.cond, NULL);
     assert(0 == status);
-    cs_info.count = 1;
+    cs_info.count = 10;
 
     status = pthread_create(&server, NULL, server_thread, &cs_info);
     assert(0 == status);
