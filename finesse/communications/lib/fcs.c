@@ -45,6 +45,9 @@ static void teardown_client_connection(connection_state_t *ccs)
     }
 
     if (ccs->client_shm) {
+        // TODO: we might need to do further cleanup here
+        // before unmapping the memory, since there are
+        // blocking objects within that memory region.
         status = munmap(ccs->client_shm, ccs->client_shm_size);
         assert(0 == status);
         ccs->client_shm = (void *)0;
@@ -120,6 +123,10 @@ static void *listener(void *context)
 
         new_client->client_shm = mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
         assert(MAP_FAILED != new_client->client_shm);
+
+        // initialize the shared memory region
+        status = FinesseInitializeMemoryRegion(new_client->client_shm);
+        assert(0 == status);
 
         // Prepare registration acknowledgment.
         memset(&conf, 0, sizeof(conf));

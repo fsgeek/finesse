@@ -25,25 +25,6 @@
 #define __notused __attribute__((unused))
 #endif // 
 
-#if 0
-typedef struct {
-    uuid_t          ClientId;
-    uuid_t          ServerId;
-    u_int64_t       RequestBitmap;
-    pthread_mutex_t RequestMutex;
-    pthread_cond_t  RequestPending;
-    u_char          align0[128-((2 * sizeof(uuid_t)) + sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
-    u_int64_t       ResponseBitmap;
-    u_int64_t       ResponseStatus;
-    pthread_mutex_t ResponseMutex;
-    pthread_cond_t  ResponsePending;
-    u_char          align1[128-(2 * sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
-    char            secondary_shm_path[MAX_SHM_PATH_NAME];
-    u_char          Data[4096-(3*128)];
-    fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
-} fincomm_shared_memory_region;
-#endif // 0
-
 static fincomm_shared_memory_region *CreateInMemoryRegion(void)
 {
     int status;
@@ -65,31 +46,6 @@ static void DestroyInMemoryRegion(fincomm_shared_memory_region *Fsmr)
 
     free(Fsmr);
 }
-
-#if 0
-//
-// This is the shared memory protocol:
-//   (1) client allocates a request region (FinesseGetRequestBuffer)
-//   (2) client sets up the request (message->Data)
-//   (3) client asks for server notification (FinesseRequestReady)
-//   (4) server retrieves message (FinesseGetReadyRequest)
-//   (5) server constructs response in-place
-//   (6) server notifies client (FinesseResponseReady)
-//   (7) client can poll or block for response (FinesseGetResponse)
-//   (8) client frees the request region (FinesseReleaseRequestBuffer)
-//
-// The goal is, as much as possible, to avoid synchronization. While I'm using condition variables
-// now, I was thinking it might be better to use the IPC channel for sending messages, but
-// I'm not going to address that today.
-//
-fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion);
-u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
-void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, uint32_t Response);
-int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait);
-fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion);
-void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
-
-#endif // 0
 
 static MunitResult
 test_message(

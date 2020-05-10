@@ -1,7 +1,7 @@
 /*
  * (C) Copyright 2017 Tony Mason
  * All Rights Reserved
-*/
+ */
 
 #if !defined(__FINESSE_MSG_H__)
 #define __FINESSE_MSG_H__ (1)
