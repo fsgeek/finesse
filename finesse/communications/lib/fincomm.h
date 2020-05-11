@@ -55,7 +55,7 @@ typedef struct {
     u_int64_t   RequestId;
     u_int32_t   RequestType;
     u_int32_t   Response;
-    u_char      Data[4096-16];
+    u_int8_t    Data[4096-16];
 } fincomm_message_block;
 
 typedef fincomm_message_block *fincomm_message;
@@ -76,18 +76,18 @@ typedef struct {
     u_int64_t       RequestWaiters;
     pthread_mutex_t RequestMutex;
     pthread_cond_t  RequestPending;
-    u_char          align0[192-((2 * sizeof(uuid_t)) + (2*sizeof(u_int64_t)) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
+    u_int8_t        align0[192-((2 * sizeof(uuid_t)) + (2*sizeof(u_int64_t)) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     u_int64_t       ResponseBitmap;
     pthread_mutex_t ResponseMutex;
     pthread_cond_t  ResponsePending;
-    u_char          align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
+    u_int8_t        align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     char            secondary_shm_path[MAX_SHM_PATH_NAME];
     unsigned        LastBufferAllocated; // allocation hint
     u_int64_t       AllocationBitmap;
     u_int64_t       RequestId;
     u_int64_t       ShutdownRequested;
-    u_char          align2[64-(4 * sizeof(u_int64_t))];
-    u_char          Data[4096-(8*64)];
+    u_int8_t        align2[64-(4 * sizeof(u_int64_t))];
+    u_int8_t        Data[4096-(8*64)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
 
@@ -121,9 +121,11 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
 u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
 void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, uint32_t Response);
 int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait);
-fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion);
+int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_message *message);
+int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion);
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
 int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr);
 int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr);
 
 #endif // __FINESSE_FINCOMM_H__
+

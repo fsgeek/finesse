@@ -22,7 +22,9 @@
 #define FINESSE_SERVICE_NAME "Finesse-1.0"
 
 
+#if !defined(make_mask64)
 #define make_mask64(index) (((u_int64_t)1)<<index)
+#endif
 
 //
 // This is the common code for the finesse communications package, shared
@@ -178,28 +180,50 @@ int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_mess
     return status;
 }
 
-fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion)
+// Blocks until there's something waiting in the target region.
+// Returns 0 (success) or ENOTCONN (shutting down)
+int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion)
+{
+    int status = 0;
+    pthread_mutex_lock(&RequestRegion->RequestMutex);
+
+    while ((0 == RequestRegion->RequestBitmap) && (0 == RequestRegion->ShutdownRequested)){
+        RequestRegion->RequestWaiters++;
+        pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
+        RequestRegion->RequestWaiters--;
+    }
+
+    if (RequestRegion->ShutdownRequested) {
+        status = ENOTCONN;
+    }
+
+    return status;
+}
+
+// Returns a ready request; if there isn't one, it returns ENOENT.  ENOTCONN returned for shutdown.
+// DOES NOT BLOCK.
+int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_message *message)
 {
     unsigned int index = SHM_MESSAGE_COUNT; // invalid value
     u_int64_t mask = 1;
     long int rnd = random() % SHM_MESSAGE_COUNT;
     unsigned i;
     u_int64_t original_bitmap;
+    int status = EINVAL;
 
     assert(rnd < SHM_MESSAGE_COUNT);
     pthread_mutex_lock(&RequestRegion->RequestMutex);
     while (SHM_MESSAGE_COUNT == index) {
 
-        // wait for notification that something is pending (or shutdown)
-        while ((0 == RequestRegion->RequestBitmap) && (0 == RequestRegion->ShutdownRequested)){
-            RequestRegion->RequestWaiters++;
-            pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
-            RequestRegion->RequestWaiters--;
-        }
-
         // if shutdown requested, we're done
         if (RequestRegion->ShutdownRequested) {
             index = SHM_MESSAGE_COUNT; // no allocation in the shutdown path
+            status = ENOTCONN;
+            break;
+        }
+
+        if (0 == RequestRegion->RequestBitmap) {
+            status = ENOENT;
             break;
         }
 
@@ -217,6 +241,7 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
         }
         if (i < SHM_MESSAGE_COUNT) {
             index = i;
+            status = 0;
             break; // we already found one
         }
 
@@ -235,6 +260,7 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
         // If we found one, note which one and break out
         if (i < rnd) {
             index = i;
+            status = 0;
             break;
         }
 
@@ -245,13 +271,17 @@ fincomm_message FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
         assert(original_bitmap & make_mask64(index));
     }
     pthread_mutex_unlock(&RequestRegion->RequestMutex);
-    if (index < SHM_MESSAGE_COUNT) {
+    
+    if (0 == status) {
+        assert (index < SHM_MESSAGE_COUNT);        
         assert(0 != RequestRegion->Messages[index].RequestId);
-        return &RequestRegion->Messages[index];
+        *message = &RequestRegion->Messages[index];
     }
     else {
-        return NULL; // shutdown path.
+        assert(SHM_MESSAGE_COUNT == index);
+        *message = NULL;
     }
+    return status;
 }
 
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)

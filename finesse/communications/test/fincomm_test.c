@@ -75,7 +75,8 @@ test_message(
     munit_assert(0 != request_id);
 
     //   (4) server retrieves message (FinesseGetReadyRequest)
-    fm_server = FinesseGetReadyRequest(fsmr);
+    status = FinesseGetReadyRequest(fsmr, &fm_server);
+    munit_assert(0 == status);
     munit_assert_not_null(fm_server);
     munit_assert(fm == fm_server);
     munit_assert(0 == memcmp(test_message, fm_server->Data, sizeof(test_message)));
@@ -131,12 +132,14 @@ static void *server_thread(void *param)
     assert(0 == status);
 
     for(;;) {
-        message = FinesseGetReadyRequest(fsmr);
-
-        if (NULL == message) {
+        status = FinesseGetReadyRequest(fsmr, &message);
+        
+        if (ENOTCONN == status) {
             // indicates a shutdown request
             break;
         }
+
+        munit_assert(NULL != message);
 
         munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), message);
 

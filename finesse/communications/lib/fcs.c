@@ -12,6 +12,10 @@
 #include <dirent.h>
 #include <sys/mman.h>
 
+#if !defined(make_mask64)
+#define make_mask64(index) (((u_int64_t)1)<<index)
+#endif
+
 typedef struct connection_state {
     fincomm_registration_info       reg_info;
     int                             client_connection;
@@ -21,6 +25,8 @@ typedef struct connection_state {
     int                             aux_shm_fd;
     int                             aux_shm_size;
     void *                          aux_shm;
+    pthread_t                       monitor_thread;
+    uint8_t                         monitor_thread_active;
     char                            aux_shm_path[MAX_SHM_PATH_NAME];
 } connection_state_t;
 
@@ -28,15 +34,36 @@ typedef struct server_connection_state {
     int                         server_connection;
     pthread_t                   listener_thread;
     uuid_t                      server_uuid;
+    unsigned char               align0[32];
+    pthread_mutex_t             monitor_mutex;
+    uint64_t                    waiting_client_request_bitmap;
+    unsigned char               align1[64-(sizeof(pthread_mutex_t)+sizeof(uint64_t))];
+    pthread_cond_t              monitor_cond; // threads monitor for refresh needed
+    unsigned char               align2[64-(sizeof(pthread_cond_t))];
+    pthread_cond_t              server_cond; // server thread monitors for refresh
+    unsigned char               align3[64-(sizeof(pthread_cond_t))];
     char                        server_connection_name[MAX_SHM_PATH_NAME];
     connection_state_t * client_connection_state_table[SHM_MESSAGE_COUNT];
 } server_connection_state_t;
+
+_Static_assert(0 == (offsetof(server_connection_state_t, monitor_mutex) % 64), "Misaligned");
+_Static_assert(0 == (offsetof(server_connection_state_t, monitor_cond) % 64), "Misaligned");
+_Static_assert(0 == (offsetof(server_connection_state_t, server_connection_name) % 64), "Misaligned");
+
 
 static void teardown_client_connection(connection_state_t *ccs)
 {
     int status;
 
     assert(NULL != ccs);
+
+    if (ccs->monitor_thread_active) {
+        status = pthread_cancel(ccs->monitor_thread);
+        assert(0 == status);
+        // status = pthread_join(ccs->monitor_thread, NULL);
+        // assert(ECANCELED == status);
+        ccs->monitor_thread_active = 0;
+    }
 
     if (ccs->client_connection >= 0) {
         status = close(ccs->client_connection);
@@ -74,6 +101,58 @@ static void teardown_client_connection(connection_state_t *ccs)
     }
 
     free(ccs);
+}
+
+typedef struct _inbound_request_worker_info {
+    unsigned index;
+    server_connection_state_t *Scs;
+} inbound_request_worker_info;
+
+// This worker thread monitors inbound requests from the client
+static void *inbound_request_worker(void *context)
+{
+    inbound_request_worker_info *irwi = (inbound_request_worker_info *)context;
+    server_connection_state_t *scs;
+    connection_state_t *ccs;
+    uint64_t pending_bit = make_mask64(irwi->index);
+    int status;
+
+    assert(NULL != context);
+    scs = irwi->Scs;
+    assert(NULL != scs);
+    assert(0 == (scs->waiting_client_request_bitmap & pending_bit)); // can't be set yet!
+    ccs = scs->client_connection_state_table[irwi->index];
+    assert(0 != ccs);
+
+    // This is trying to be clever, so it is likely wrong
+    // We start with the bit clear (see the assert above)
+    // (1) We block until something is waiting
+    // (2) We grab the lock and signal the main server loop so it looks
+    // (3) The mains server loop can drain requests directly
+    // (4) When the main server loop finds no more entries, it can kick us to look again.
+    // (5) This thread only holds the lock when setting (or clearing) the bit.
+    //
+    // note: the SERVER or this monitor CAN clear that bit.  This code should work either
+    // way.
+    for (;;) {
+        // Block until something is available - do NOT hold the lock!
+        status = FinesseReadyRequestWait(ccs->client_shm);
+        if (ENOTCONN == status) {
+            // shutdown;
+            break;
+        }
+        pthread_mutex_lock(&scs->monitor_mutex);
+        scs->waiting_client_request_bitmap |= pending_bit; // turn on bit - something waiting
+        pthread_cond_signal(&scs->server_cond); // notify server we've turned on a bit
+        pthread_cond_wait(&scs->monitor_cond, &scs->monitor_mutex); // wait for server to tell us to look again
+        scs->waiting_client_request_bitmap &= ~pending_bit; // turn off bit (we need to check again)
+        pthread_mutex_unlock(&scs->monitor_mutex);
+    }
+
+    free(irwi);
+    irwi = NULL;
+
+    return NULL;
 }
 
 static void *listener(void *context) 
@@ -139,7 +218,14 @@ static void *listener(void *context)
         // Insert into the table
         for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
             if (NULL == scs->client_connection_state_table[index]) {
+                inbound_request_worker_info *irwi = (inbound_request_worker_info *)malloc(sizeof(inbound_request_worker_info));
+                assert(NULL != irwi);
+                irwi->index = index;
+                irwi->Scs = scs;
                 scs->client_connection_state_table[index] = new_client;
+                status = pthread_create(&new_client->monitor_thread, NULL, inbound_request_worker, irwi);
+                assert(0 == status);
+                new_client->monitor_thread_active = 1;
                 break;
             }
         }
@@ -308,6 +394,189 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     assert(0 == status);
 
     free(scs);
+
+    return status;
+}
+
+int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen)
+{
+    int status = 0;
+    server_connection_state_t *scs = (server_connection_state_t *)FinesseServerHandle;
+
+    assert(NULL != scs);
+    assert(NULL != ClientUuid);
+    assert(NULL != Response);
+    assert(0 == ResponseLen);
+
+#if 0
+    client_mq_connection_state_t *ccs = NULL;
+
+    (void)FinesseServerHandle;
+
+    ccs = get_client_mq_connection(ClientUuid);
+    if (NULL == ccs)
+    {
+        return -EMFILE;
+    }
+
+    status = mq_send(ccs->queue_descriptor, Response, ResponseLen, 0);
+
+    release_client_mq_connection(ccs);
+#endif // 0
+
+    return status;
+}
+
+//
+// Local helper function
+//
+// scans index values in [start,end) for the client connections in the given server connection state
+// structure.  The passed in bitmap is also updated.  If a message is found, it is returned as well
+// ENOENT = nothing found. Internally, ENOTCONN is handled by removing the (now stale) entry from
+// the table.
+//
+// Yes, this is an ugly subroutine.
+// 
+static int scan_for_request(unsigned start, unsigned end, server_connection_state_t *scs, uint64_t *bitmap, fincomm_message *message, unsigned *index)
+{
+    int status = ENOENT;
+
+    *index = end;
+
+    // We need to scan across the connected clients to find a message
+    for (unsigned i = start; i < end; i++) {
+
+        // ignore empty table entries
+        if (NULL == scs->client_connection_state_table[i]) {
+            assert(0 == ((*bitmap) & make_mask64(i))); // shouldn't be set!
+            continue; // no client
+        }
+
+        // if the bit is set, let's see if we can get a message
+        if ((*bitmap) & make_mask64(i)) {
+            status = FinesseGetReadyRequest(scs->client_connection_state_table[i]->client_shm, message);
+            if (0 == status) {
+                // we found one - capture it and break
+                *index = i;
+                break;
+            }
+            if (ENOTCONN == status) {
+                // This client has disconnected
+                teardown_client_connection(scs->client_connection_state_table[i]);
+                scs->client_connection_state_table[i] = NULL;
+                status = ENOENT;
+                continue; // try the next client
+            }
+            assert(ENOENT == status); // otherwise, this logic is broken
+            // We clear the bit
+            (*bitmap) &= ~make_mask64(i);
+            continue; // try the next client
+        }
+    }
+    return status;
+}
+
+//
+// This gets another request for the Finesse server to process.
+//
+//  This routine is expected to be called from multiple service threads (though that's not required).
+//  It handles requests for all inbound clients to this server (subject to the limit we've coded into
+//  this prototype.)
+//
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen)
+{
+    int status = 0;
+    server_connection_state_t *scs = (server_connection_state_t *)FinesseServerHandle;
+    fincomm_message message = NULL;
+    long int rnd = random() % SHM_MESSAGE_COUNT;
+    unsigned index = SHM_MESSAGE_COUNT;
+    u_int64_t captured_bitmap = 0;
+
+    assert(NULL != FinesseServerHandle);
+    assert(NULL != Request);
+    assert(NULL != RequestLen);
+
+    // this operation blocks until it finds a request to return to the caller.
+    for(;;) {
+        int found = 0;
+
+        // Let's check and see if there are any connected clients at this point
+        for (unsigned i = rnd; i < SHM_MESSAGE_COUNT; i++) {
+            if (NULL != scs->client_connection_state_table[i]) {
+                found = 1;
+                break;
+            }
+        }
+        if (0 == found) {
+            status = ENOTCONN; // there aren't any connected clients!
+            break;
+        }
+
+        // We're going to wake up the secondary threads, so they can
+        // check if there are messages waiting.  I really wish I didn't
+        // need secondary threads, but there's no simple way for us to
+        // block on multiple condition variables; I'd need to use some
+        // other mechanism and for now, this is sufficient.
+        // TODO: review if there's not a better way to monitor for state
+        // changes without multiple threads.
+        captured_bitmap = 0;
+
+        // First thing to do is kick the secondary threads to update
+        // state.  Note that if there's already work to do, this
+        // won't actually wake up the monitor threads.  If there
+        // isn't work to do, it wakes up those threads and asks
+        // them to continue.
+        //
+        // Since the monitor operation is a broadcast, it will
+        // get all the threads to run and update their respective
+        // bits.  Since the mutex lock is held across the broadcast
+        // they can't proceed until after we've gone into the wait
+        // on the condition, so this should avoid the lost signal
+        // problem. We could broadcast more aggressively, but I
+        // don't see a benefit to it.
+        //
+        // Monitor threads that don't have any activity will block
+        // and wait for activity to happen and when it does, they'll
+        // update the bitmap.
+        // 
+        pthread_mutex_lock(&scs->monitor_mutex);
+        while (0 == scs->waiting_client_request_bitmap) {
+            pthread_cond_broadcast(&scs->monitor_cond); // wake up the monitor threads
+            pthread_cond_wait(&scs->server_cond, &scs->monitor_mutex); // wait for a monitor thread wake this thread up
+        }
+        captured_bitmap = scs->waiting_client_request_bitmap;
+        pthread_mutex_unlock(&scs->monitor_mutex);
+        assert(0 != captured_bitmap);
+
+        // I randomize the starting point to try and ensure fair
+        // servicing of operations.
+
+        // scan across the second part of the range
+        status = scan_for_request(rnd, SHM_MESSAGE_COUNT, scs, &captured_bitmap, &message, &index);
+
+        if (index < SHM_MESSAGE_COUNT) {
+            // we found one, so we're done
+            assert(0 == status);
+            break;
+        }
+        assert(ENOENT == status);
+
+        // scan across the first part of the range
+        status = scan_for_request(0, rnd, scs, &captured_bitmap, &message, &index);
+
+        if (index < rnd) {
+            // we found one, so we're done
+            assert(0 == status);
+            break;
+        }
+        assert(ENOENT == status);
+
+        // At this point we will try again, as perhaps the state of the world has changed for us.
+
+    }
+
+    *Request = message;
+    *RequestLen = sizeof(fincomm_message);
 
     return status;
 }

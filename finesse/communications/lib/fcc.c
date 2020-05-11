@@ -48,6 +48,11 @@ static void CleanupClientConnectionState(connection_state_t *ccs)
 
     if ((NULL != ccs->server_shm) &&
         (ccs->server_shm_size > 0)) {
+        // Shutdown the shared memory region - note the server may have threads
+        // blocked, but this should terminate them so the shared memory region
+        // can be disconnected.
+        FinesseDestroyMemoryRegion(ccs->server_shm);
+
         status = munmap(ccs->server_shm, ccs->server_shm_size);
         assert(0 == status);
         ccs->server_shm = NULL;
@@ -152,9 +157,27 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
 {
     int status = 0;
-    (void) FinesseClientHandle;
+    connection_state_t *ccs = NULL;
+
+    CleanupClientConnectionState(ccs);
 
     return status;
+}
+
+
+void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request)
+{
+    assert(NULL != FinesseServerHandle);
+    assert(NULL != Request);
+
+#if 0
+    (void)FinesseServerHandle;
+    if (NULL != Request)
+    {
+        free(Request);
+    }
+#endif // 0
+
 }
 
 #if 0
