@@ -122,7 +122,12 @@ static void *inbound_request_worker(void *context)
     assert(NULL != scs);
     assert(0 == (scs->waiting_client_request_bitmap & pending_bit)); // can't be set yet!
     ccs = scs->client_connection_state_table[irwi->index];
-    assert(0 != ccs);
+    if (NULL == ccs) {
+        // Race: this can happen when shutdown gets called before we've finished init.
+        // Better fix would be to make startup wait until we're in a "safe" state, but
+        // for now, this is good enough.
+        return NULL;
+    }
 
     // This is trying to be clever, so it is likely wrong
     // We start with the bit clear (see the assert above)
@@ -148,7 +153,8 @@ static void *inbound_request_worker(void *context)
         scs->waiting_client_request_bitmap &= ~pending_bit; // turn off bit (we need to check again)
         pthread_mutex_unlock(&scs->monitor_mutex);
     }
-
+    ccs->monitor_thread_active = 0;
+    
     free(irwi);
     irwi = NULL;
 
@@ -581,7 +587,27 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Reques
     return status;
 }
 
+
 #if 0
+// This doesn't make sense for the server now since there's no allocation
+// Plus, if it is a server function, it should be in fcs.c not here.
+
+void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request)
+{
+
+    fincomm_message message = (fincomm_message) Request;
+    assert(NULL != FinesseServerHandle);
+    assert(NULL != Request);
+}
+#endif // 0
+
+
+
+#if 0
+//
+// These are the functions that I previously defined.  Look at implementing them in the new communications
+// model - possibly in separate files?
+//
 int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen);
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen);
 void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request);

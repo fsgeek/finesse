@@ -74,25 +74,29 @@ test_message(
     request_id = FinesseRequestReady(fsmr, fm);
     munit_assert(0 != request_id);
 
-    //   (4) server retrieves message (FinesseGetReadyRequest)
+    //   (4) server waits until there's a response to process
+    status = FinesseReadyRequestWait(fsmr);
+    munit_assert(0 == status);
+
+    //   (5) server retrieves message (FinesseGetReadyRequest) - note this is non-blocking!
     status = FinesseGetReadyRequest(fsmr, &fm_server);
     munit_assert(0 == status);
     munit_assert_not_null(fm_server);
     munit_assert(fm == fm_server);
     munit_assert(0 == memcmp(test_message, fm_server->Data, sizeof(test_message)));
 
-    //   (5) server constructs response in-place
+    //   (6) server constructs response in-place
     memcpy(fm_server->Data, test_response, sizeof(test_response));
 
-    //   (6) server notifies client (FinesseResponseReady)
+    //   (7) server notifies client (FinesseResponseReady)
     FinesseResponseReady(fsmr, fm_server, 0);
 
-    //   (7) client can poll or block for response (FinesseGetResponse)
+    //   (8) client can poll or block for response (FinesseGetResponse)
     status = FinesseGetResponse(fsmr, fm, 1);
     munit_assert(0 != status); // boolean response
     munit_assert(0 == memcmp(test_response, fm->Data, sizeof(test_response)));
 
-    //   (8) client frees the request region (FinesseReleaseRequestBuffer)
+    //   (9) client frees the request region (FinesseReleaseRequestBuffer)
     FinesseReleaseRequestBuffer(fsmr, fm);
 
     // cleanup
@@ -132,11 +136,20 @@ static void *server_thread(void *param)
     assert(0 == status);
 
     for(;;) {
-        status = FinesseGetReadyRequest(fsmr, &message);
-        
+
+        // Wait for a request to process
+        status = FinesseReadyRequestWait(fsmr);
+
         if (ENOTCONN == status) {
             // indicates a shutdown request
             break;
+        }
+
+        // Get the request
+        status = FinesseGetReadyRequest(fsmr, &message);
+        
+        if (0 != status) {
+            munit_logf(MUNIT_LOG_ERROR, "FinesseGetReadyRequest returned 0x%x (%d)", status, status);
         }
 
         munit_assert(NULL != message);
@@ -365,46 +378,6 @@ const MunitSuite fincomm_suite = {
     .options = MUNIT_SUITE_OPTION_NONE,
 };
 
-#if 0
-int
-main(
-    int argc,
-    char **argv)
-{
-    static MunitTest fincomm_tests[] = {
-        TEST((char *)(uintptr_t)"/null", test_null, NULL),
-    	TEST(NULL, NULL, NULL),
-    };
-
-    static const MunitSuite suite = {
-        .prefix = (char *)(uintptr_t)"/finesse",
-        .tests = finesse_tests,
-        .suites = NULL,
-        .iterations = 1,
-        .options = MUNIT_SUITE_OPTION_NONE,
-    };
-
-    static const MunitSuite fincomm_suite = {
-        .prefix = (char *)(uintptr_t)"/fincomm",
-        .tests = fincomm_tests,
-        .suites = NULL,
-        .iterations = 1,
-        .options = MUNIT_SUITE_OPTION_NONE,
-    };
-
-    int status;
-
-    status = munit_suite_main(&suite, NULL, argc, argv);
-
-    if (0 != status) {
-        exit(0);
-    }
-
-    status = munit_suite_main(&fincomm_suite, NULL, argc, argv);
-
-    return status;
-}
-#endif // 0
 
 /*
  * Local variables:

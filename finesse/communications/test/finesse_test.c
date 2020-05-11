@@ -57,8 +57,14 @@ test_client_connect(
     status = FinesseStartClientConnection(&fch);
     munit_assert(0 == status);
 
+    // There is a race condition between start and stop.
+    // So for now, I'll just add a sleep
+    // TODO: fix the race.
+    sleep(1); 
+
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
+    
 
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);

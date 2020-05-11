@@ -192,6 +192,7 @@ int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion)
         pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
         RequestRegion->RequestWaiters--;
     }
+    pthread_mutex_unlock(&RequestRegion->RequestMutex);
 
     if (RequestRegion->ShutdownRequested) {
         status = ENOTCONN;
@@ -357,6 +358,7 @@ int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
 int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
 {
     int status;
+    unsigned retry = 0;
 
     assert(NULL != Fsmr);
     assert(0 == Fsmr->ShutdownRequested); // don't call twice!
@@ -368,6 +370,13 @@ int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
         pthread_cond_broadcast(&Fsmr->RequestPending);
         sleep(1);
         pthread_mutex_lock(&Fsmr->RequestMutex);
+        if (retry++ > 5) {
+            // Server side can cause this to hang.
+            // Should find some way to fix this.
+            // TODO: deal with this since it could
+            // crash the server.
+            break;
+        }
     }
     pthread_mutex_unlock(&Fsmr->RequestMutex);
 
