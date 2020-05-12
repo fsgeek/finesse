@@ -16,21 +16,8 @@
 #define make_mask64(index) (((u_int64_t)1)<<index)
 #endif
 
-typedef struct connection_state {
-    fincomm_registration_info       reg_info;
-    int                             client_connection;
-    int                             client_shm_fd;
-    size_t                          client_shm_size;
-    void *                          client_shm;
-    int                             aux_shm_fd;
-    int                             aux_shm_size;
-    void *                          aux_shm;
-    pthread_t                       monitor_thread;
-    uint8_t                         monitor_thread_active;
-    char                            aux_shm_path[MAX_SHM_PATH_NAME];
-} connection_state_t;
 
-typedef struct server_connection_state {
+typedef struct server_internal_connection_state {
     int                         server_connection;
     pthread_t                   listener_thread;
     uuid_t                      server_uuid;
@@ -43,15 +30,15 @@ typedef struct server_connection_state {
     pthread_cond_t              server_cond; // server thread monitors for refresh
     unsigned char               align3[64-(sizeof(pthread_cond_t))];
     char                        server_connection_name[MAX_SHM_PATH_NAME];
-    connection_state_t * client_connection_state_table[SHM_MESSAGE_COUNT];
-} server_connection_state_t;
+    server_connection_state_t * client_server_connection_state_table[SHM_MESSAGE_COUNT];
+} server_internal_connection_state_t;
 
-_Static_assert(0 == (offsetof(server_connection_state_t, monitor_mutex) % 64), "Misaligned");
-_Static_assert(0 == (offsetof(server_connection_state_t, monitor_cond) % 64), "Misaligned");
-_Static_assert(0 == (offsetof(server_connection_state_t, server_connection_name) % 64), "Misaligned");
+_Static_assert(0 == (offsetof(server_internal_connection_state_t, monitor_mutex) % 64), "Misaligned");
+_Static_assert(0 == (offsetof(server_internal_connection_state_t, monitor_cond) % 64), "Misaligned");
+_Static_assert(0 == (offsetof(server_internal_connection_state_t, server_connection_name) % 64), "Misaligned");
 
 
-static void teardown_client_connection(connection_state_t *ccs)
+static void teardown_client_connection(server_connection_state_t *ccs)
 {
     int status;
 
@@ -105,15 +92,15 @@ static void teardown_client_connection(connection_state_t *ccs)
 
 typedef struct _inbound_request_worker_info {
     unsigned index;
-    server_connection_state_t *Scs;
+    server_internal_connection_state_t *Scs;
 } inbound_request_worker_info;
 
 // This worker thread monitors inbound requests from the client
 static void *inbound_request_worker(void *context)
 {
     inbound_request_worker_info *irwi = (inbound_request_worker_info *)context;
-    server_connection_state_t *scs;
-    connection_state_t *ccs;
+    server_internal_connection_state_t *scs;
+    server_connection_state_t *ccs;
     uint64_t pending_bit = make_mask64(irwi->index);
     int status;
 
@@ -121,7 +108,7 @@ static void *inbound_request_worker(void *context)
     scs = irwi->Scs;
     assert(NULL != scs);
     assert(0 == (scs->waiting_client_request_bitmap & pending_bit)); // can't be set yet!
-    ccs = scs->client_connection_state_table[irwi->index];
+    ccs = scs->client_server_connection_state_table[irwi->index];
     if (NULL == ccs) {
         // Race: this can happen when shutdown gets called before we've finished init.
         // Better fix would be to make startup wait until we're in a "safe" state, but
@@ -154,7 +141,7 @@ static void *inbound_request_worker(void *context)
         pthread_mutex_unlock(&scs->monitor_mutex);
     }
     ccs->monitor_thread_active = 0;
-    
+
     free(irwi);
     irwi = NULL;
 
@@ -163,7 +150,7 @@ static void *inbound_request_worker(void *context)
 
 static void *listener(void *context) 
 {
-    server_connection_state_t *scs = (server_connection_state_t *) context;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *) context;
     int status = 0;
     char buffer[SHM_PAGE_SIZE]; // use for messages
     fincomm_registration_confirmation conf;
@@ -173,15 +160,15 @@ static void *listener(void *context)
     assert(scs->server_connection >= 0);
 
     while (scs->server_connection >= 0) {
-        connection_state_t *new_client = NULL;
+        server_connection_state_t *new_client = NULL;
         fincomm_registration_info *reg_info = (fincomm_registration_info *)buffer;
         struct stat stat;
         
         if (NULL == new_client) {
-            new_client = (connection_state_t *)malloc(sizeof(connection_state_t));
+            new_client = (server_connection_state_t *)malloc(sizeof(server_connection_state_t));
         }
         assert(NULL != new_client);
-        memset(new_client, 0, sizeof(connection_state_t));
+        memset(new_client, 0, sizeof(server_connection_state_t));
         new_client->aux_shm_fd = -1;
         new_client->client_shm_fd = -1;
         new_client->client_connection = -1;
@@ -223,12 +210,12 @@ static void *listener(void *context)
 
         // Insert into the table
         for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
-            if (NULL == scs->client_connection_state_table[index]) {
+            if (NULL == scs->client_server_connection_state_table[index]) {
                 inbound_request_worker_info *irwi = (inbound_request_worker_info *)malloc(sizeof(inbound_request_worker_info));
                 assert(NULL != irwi);
                 irwi->index = index;
                 irwi->Scs = scs;
-                scs->client_connection_state_table[index] = new_client;
+                scs->client_server_connection_state_table[index] = new_client;
                 status = pthread_create(&new_client->monitor_thread, NULL, inbound_request_worker, irwi);
                 assert(0 == status);
                 new_client->monitor_thread_active = 1;
@@ -254,7 +241,7 @@ static void *listener(void *context)
     return (void *)0;
 }
 
-static int CheckForLiveServer(server_connection_state_t *scs)
+static int CheckForLiveServer(server_internal_connection_state_t *scs)
 {
     int status = 0;
     struct stat scs_stat;
@@ -301,18 +288,18 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
 {
     int status = 0;
     DIR *dir = NULL;
-    server_connection_state_t *scs = NULL;
+    server_internal_connection_state_t *scs = NULL;
     struct sockaddr_un server_saddr;
 
 
     while (NULL == dir) {
 
-        scs = malloc(sizeof(server_connection_state_t));
+        scs = malloc(sizeof(server_internal_connection_state_t));
         if (NULL == scs) {
             status = ENOMEM;
             break;
         }
-        memset(scs, 0, sizeof(server_connection_state_t));
+        memset(scs, 0, sizeof(server_internal_connection_state_t));
         uuid_generate(scs->server_uuid);
 
         dir = opendir(FINESSE_SERVICE_PREFIX);
@@ -370,7 +357,7 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
 
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 {
-    server_connection_state_t *scs = (server_connection_state_t *) FinesseServerHandle;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *) FinesseServerHandle;
     int status = 0;
     void *result = NULL;
 
@@ -390,9 +377,9 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     scs->server_connection = -1;
 
     for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
-        if (NULL != scs->client_connection_state_table[index]) {
-            teardown_client_connection(scs->client_connection_state_table[index]);
-            scs->client_connection_state_table[index] = NULL;
+        if (NULL != scs->client_server_connection_state_table[index]) {
+            teardown_client_connection(scs->client_server_connection_state_table[index]);
+            scs->client_server_connection_state_table[index] = NULL;
         }
     }
 
@@ -407,7 +394,7 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen)
 {
     int status = 0;
-    server_connection_state_t *scs = (server_connection_state_t *)FinesseServerHandle;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
 
     assert(NULL != scs);
     assert(NULL != ClientUuid);
@@ -415,7 +402,7 @@ int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_
     assert(0 == ResponseLen);
 
 #if 0
-    client_mq_connection_state_t *ccs = NULL;
+    client_mq_server_connection_state_t *ccs = NULL;
 
     (void)FinesseServerHandle;
 
@@ -443,7 +430,7 @@ int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_
 //
 // Yes, this is an ugly subroutine.
 // 
-static int scan_for_request(unsigned start, unsigned end, server_connection_state_t *scs, uint64_t *bitmap, fincomm_message *message, unsigned *index)
+static int scan_for_request(unsigned start, unsigned end, server_internal_connection_state_t *scs, uint64_t *bitmap, fincomm_message *message, unsigned *index)
 {
     int status = ENOENT;
 
@@ -453,14 +440,14 @@ static int scan_for_request(unsigned start, unsigned end, server_connection_stat
     for (unsigned i = start; i < end; i++) {
 
         // ignore empty table entries
-        if (NULL == scs->client_connection_state_table[i]) {
+        if (NULL == scs->client_server_connection_state_table[i]) {
             assert(0 == ((*bitmap) & make_mask64(i))); // shouldn't be set!
             continue; // no client
         }
 
         // if the bit is set, let's see if we can get a message
         if ((*bitmap) & make_mask64(i)) {
-            status = FinesseGetReadyRequest(scs->client_connection_state_table[i]->client_shm, message);
+            status = FinesseGetReadyRequest(scs->client_server_connection_state_table[i]->client_shm, message);
             if (0 == status) {
                 // we found one - capture it and break
                 *index = i;
@@ -468,8 +455,8 @@ static int scan_for_request(unsigned start, unsigned end, server_connection_stat
             }
             if (ENOTCONN == status) {
                 // This client has disconnected
-                teardown_client_connection(scs->client_connection_state_table[i]);
-                scs->client_connection_state_table[i] = NULL;
+                teardown_client_connection(scs->client_server_connection_state_table[i]);
+                scs->client_server_connection_state_table[i] = NULL;
                 status = ENOENT;
                 continue; // try the next client
             }
@@ -492,7 +479,7 @@ static int scan_for_request(unsigned start, unsigned end, server_connection_stat
 int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen)
 {
     int status = 0;
-    server_connection_state_t *scs = (server_connection_state_t *)FinesseServerHandle;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
     fincomm_message message = NULL;
     long int rnd = random() % SHM_MESSAGE_COUNT;
     unsigned index = SHM_MESSAGE_COUNT;
@@ -508,7 +495,7 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Reques
 
         // Let's check and see if there are any connected clients at this point
         for (unsigned i = rnd; i < SHM_MESSAGE_COUNT; i++) {
-            if (NULL != scs->client_connection_state_table[i]) {
+            if (NULL != scs->client_server_connection_state_table[i]) {
                 found = 1;
                 break;
             }
@@ -587,19 +574,16 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Reques
     return status;
 }
 
-
-#if 0
 // This doesn't make sense for the server now since there's no allocation
 // Plus, if it is a server function, it should be in fcs.c not here.
-
 void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request)
 {
-
-    fincomm_message message = (fincomm_message) Request;
     assert(NULL != FinesseServerHandle);
     assert(NULL != Request);
+
+    // Nothing to do now, since we don't allocate memory
+    return;
 }
-#endif // 0
 
 
 
@@ -608,9 +592,6 @@ void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Reque
 // These are the functions that I previously defined.  Look at implementing them in the new communications
 // model - possibly in separate files?
 //
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen);
-int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen);
-void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request);
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);

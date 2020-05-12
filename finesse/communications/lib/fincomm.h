@@ -24,6 +24,16 @@
 #include <stddef.h>
 #include <pthread.h>
 #include <uuid/uuid.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <finesse.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <dirent.h>
+#include <sys/mman.h>
+#include <finesse_fuse_msg.h>
+
 
 #define FINESSE_SERVICE_PREFIX "/tmp/finesse"
 
@@ -101,6 +111,35 @@ _Static_assert(0 == sizeof(fincomm_shared_memory_region) % SHM_PAGE_SIZE, "Lengt
 
 int GenerateServerName(char *ServerName, size_t ServerNameLength);
 int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId);
+
+
+typedef struct _client_connection_state {
+    fincomm_registration_info       reg_info;
+    int                             server_connection;
+    struct sockaddr_un              server_sockaddr;
+    int                             server_shm_fd;
+    size_t                          server_shm_size;
+    void *                          server_shm;
+    int                             aux_shm_fd;
+    int                             aux_shm_size;
+    void *                          aux_shm;
+    char                            aux_shm_path[MAX_SHM_PATH_NAME];
+} client_connection_state_t;
+
+typedef struct server_connection_state {
+    fincomm_registration_info       reg_info;
+    int                             client_connection;
+    int                             client_shm_fd;
+    size_t                          client_shm_size;
+    void *                          client_shm;
+    int                             aux_shm_fd;
+    int                             aux_shm_size;
+    void *                          aux_shm;
+    pthread_t                       monitor_thread;
+    uint8_t                         monitor_thread_active;
+    char                            aux_shm_path[MAX_SHM_PATH_NAME];
+} server_connection_state_t;
+
 
 //
 // This is the shared memory protocol:

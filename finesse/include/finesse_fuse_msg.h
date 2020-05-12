@@ -86,7 +86,8 @@ typedef enum {
 } FINESSE_FUSE_RSP_TYPE;
 
 typedef struct {
-    FINESSE_FUSE_REQ_TYPE Type;
+    FINESSE_FUSE_REQ_TYPE Type; // Message type
+    u_int16_t             Size; // Message size
     union {
         struct {
 

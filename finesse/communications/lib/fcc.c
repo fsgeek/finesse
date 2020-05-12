@@ -4,28 +4,7 @@
 */
 
 #include "fincomm.h"
-#include <finesse.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <dirent.h>
-#include <sys/mman.h>
-
-typedef struct connection_state {
-    fincomm_registration_info       reg_info;
-    int                             server_connection;
-    struct sockaddr_un              server_sockaddr;
-    int                             server_shm_fd;
-    size_t                          server_shm_size;
-    void *                          server_shm;
-    int                             aux_shm_fd;
-    int                             aux_shm_size;
-    void *                          aux_shm;
-    char                            aux_shm_path[MAX_SHM_PATH_NAME];
-} connection_state_t;
-
-static void CleanupClientConnectionState(connection_state_t *ccs)
+static void CleanupClientConnectionState(client_connection_state_t *ccs)
 {
     int status;
 
@@ -88,16 +67,16 @@ static void CleanupClientConnectionState(connection_state_t *ccs)
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 {
     int status = 0;
-    connection_state_t *ccs = NULL;
+    client_connection_state_t *ccs = NULL;
     fincomm_registration_confirmation conf;
 
     while (0 == status) {
-        ccs = (connection_state_t *)malloc(sizeof(connection_state_t));
+        ccs = (client_connection_state_t *)malloc(sizeof(client_connection_state_t));
         if (NULL == ccs) {
             status = ENOMEM;
             break;
         }
-        memset(ccs, 0, sizeof(connection_state_t));
+        memset(ccs, 0, sizeof(client_connection_state_t));
 
         uuid_generate(ccs->reg_info.ClientId);
         status = GenerateClientSharedMemoryName(ccs->reg_info.ClientSharedMemPathName, sizeof(ccs->reg_info.ClientSharedMemPathName), ccs->reg_info.ClientId);
@@ -157,7 +136,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
 {
     int status = 0;
-    connection_state_t *ccs = FinesseClientHandle;
+    client_connection_state_t *ccs = FinesseClientHandle;
     assert(NULL != ccs);
 
     CleanupClientConnectionState(ccs);

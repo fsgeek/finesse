@@ -95,7 +95,7 @@ static const MunitTest finesse_tests[] = {
     };
 
 const MunitSuite finesse_suite = {
-    .prefix = (char *)(uintptr_t)"/finesse",
+    .prefix = (char *)(uintptr_t)"/api",
     .tests = (MunitTest *)(uintptr_t)finesse_tests,
     .suites = NULL,
     .iterations = 1,
