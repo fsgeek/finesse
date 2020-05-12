@@ -115,7 +115,7 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     // TODO: make this blocking?
     // In either case, index indicates the allocated message buffer.  Out of range = alloc failure
     // TODO: should I initialize this region?
-    return (index < SHM_MESSAGE_COUNT) ? &RequestRegion->Messages[index] : NULL;
+    return (index < SHM_MESSAGE_COUNT) ? (fincomm_message)&RequestRegion->Messages[index] : NULL;
 }
 
 u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
@@ -127,7 +127,6 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
 
     if (0 != (RequestRegion->AllocationBitmap & make_mask64(index))) {
         request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
-        Message->Response = 0;
 
         pthread_mutex_lock(&RequestRegion->RequestMutex);
         assert(0 == (RequestRegion->RequestBitmap & make_mask64(index))); // this should NOT be set
@@ -143,11 +142,11 @@ void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_m
 {
     unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
     assert(&RequestRegion->Messages[index] == Message);
+    (void) Response; // not used
 
     pthread_mutex_lock(&RequestRegion->ResponseMutex);
     assert(0 == (RequestRegion->ResponseBitmap & make_mask64(index))); // this should NOT be set
     RequestRegion->ResponseBitmap |= make_mask64(index);
-    Message->Response = Response;
     pthread_cond_broadcast(&RequestRegion->ResponsePending);
     pthread_mutex_unlock(&RequestRegion->ResponseMutex);
 }

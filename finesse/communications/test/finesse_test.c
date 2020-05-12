@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <finesse.h>
 #include "finesse_test.h"
+#include "fincomm.h"
 
 
 #if !defined(__notused)
@@ -86,6 +87,52 @@ test_client_connect_without_server(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_msg_test(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_server_handle_t fsh;
+    finesse_client_handle_t fch;
+    uint64_t requestid;
+    fincomm_message message;
+    size_t messageLength;
+    finesse_fuse_msg *ffm;
+
+    status = FinesseStartServerConnection(&fsh);
+    munit_assert(0 == status);
+
+    status = FinesseStartClientConnection(&fch);
+    munit_assert(0 == status);
+
+    status = FinesseSendTestRequest(fch, &requestid);
+    munit_assert(0 == status);
+
+    status = FinesseGetRequest(&fsh, (void **)&message, &messageLength);
+    munit_assert(0 == status);
+    assert(FINESSE_FUSE_REQ_TEST == message->OperationType);
+    assert(0 != message->RequestId); // invalid request ID
+    ffm = (finesse_fuse_msg *)message->Data;
+    assert(FINESSE_FUSE_VERSION == ffm->Version);
+    assert(FINESSE_FUSE_MSG_REQUEST == ffm->MessageType);
+    assert(FINESSE_FUSE_REQ_TEST == ffm->Message.Request.Type);
+
+    status = FinesseSendResponse(fsh, NULL, message, sizeof(finesse_fuse_msg));
+    assert(0 == status);
+
+    status = FinesseGetTestResponse(fch, requestid);
+    assert(0 == status);
+
+    // cleanup    
+    status = FinesseStopClientConnection(fch);
+    munit_assert(0 == status);
+    
+    status = FinesseStopServerConnection(fsh);
+    munit_assert(0 == status);
+
+    return MUNIT_OK;
+}
 static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/null", test_null, NULL),
         TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
