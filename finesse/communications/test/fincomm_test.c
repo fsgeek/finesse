@@ -19,7 +19,7 @@
 #include <errno.h>
 #include <finesse.h>
 #include "finesse_test.h"
-#include "../lib/fincomm.h"
+#include "fincomm.h"
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))

@@ -32,7 +32,6 @@
 #include <sys/un.h>
 #include <dirent.h>
 #include <sys/mman.h>
-#include <finesse_fuse_msg.h>
 
 
 #define FINESSE_SERVICE_PREFIX "/tmp/finesse"
@@ -61,7 +60,7 @@ typedef struct {
 //
 // Each shared memory region consists of a set of communications blocks
 //
-typedef struct {
+typedef struct _fincomm_message_block {
     u_int64_t   RequestId;
     u_int32_t   RequestType;
     u_int32_t   Response;

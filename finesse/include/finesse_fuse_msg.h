@@ -5,7 +5,16 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <finesse.h>
+#if !defined(FUSE_USE_VERSION)
+#define FUSE_USE_VERSION FUSE_VERSION
+#endif
+#include <fuse_lowlevel.h>
+#include "fincomm.h"
+
+#if !defined(MAX_SHM_PATH_NAME)
+#define MAX_SHM_PATH_NAME (128)
+#endif // MAX_SHM_PATH_NAME
 
 #if !defined(__FINESSE_FUSE_REQ_H__)
 #define __FINESSE_FUSE_REQ_H__
@@ -90,171 +99,271 @@ typedef struct {
     u_int16_t             Size; // Message size
     union {
         struct {
-
+            uuid_t  Parent;
+            char Name[0];
         } Lookup;
+
         struct {
-            
+            uuid_t Inode;
+            uint64_t Nlookup;
         } Forget;
+
         struct {
-            
+            uuid_t Inode;
         } GetAttr;
-        struct {
 
+        struct {
+            uuid_t Inode;
+            struct stat Attr;
+            int ToSet;
         } SetAttr;
-        struct {
 
+        struct {
+            uuid_t Inode;
         } ReadLink;
 
         struct {
-
+            uuid_t Parent;
+            mode_t Mode;
+            dev_t  Dev;
+            char Name[0];
         } Mknod;
 
         struct {
-
+            uuid_t Parent;
+            mode_t mode;
+            char Name[0];
         } Mkdir;
 
         struct {
-
+            uuid_t Parent;
+            char Name[0];
         } Unlink;
 
         struct {
-
+            uuid_t Parent;
+            char Name[0];
         } Rmdir;
 
         struct {
-
+            uuid_t Symlink;
+            // Pair of null terminated strings
+            char LinkAndName[0];
         } Symlink;
 
         struct {
-
+            uuid_t Parent;
+            uuid_t NewParent;
+            unsigned int flags;
+            // Pair of null terminated strings
+            char OldAndNewName[0];
         } Rename;
 
         struct {
-
+            uuid_t Inode;
+            uuid_t NewParent;
+            char NewName[0];
         } Link;
 
         struct {
-
+            uuid_t Inode;
+            int Flags;
         } Open;
 
         struct {
-
+            uuid_t Inode;
+            size_t Size;
+            off_t  Offset;
         } Read;
 
         struct {
-
-        } Write;
+            uuid_t Inode;
+            size_t Size;
+            off_t  Offset;
+            char SharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeRead;
 
         struct {
+            uuid_t   Inode;
+            uint16_t Size;
+            off_t    Offset;
+            char Buffer[0];
+        } SmallWrite;
 
+        struct {
+            uuid_t   Inode;
+            uint64_t Size;
+            off_t    Offset;
+            char SharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeWrite;
+
+        struct {
+            uuid_t  Inode;
         } Flush;
 
         struct {
-
+            uuid_t Inode;
         } Release;
 
         struct {
-
+            uuid_t Inode;
+            int    DataSync;
         } Fsync;
 
         struct {
-
+            uuid_t Inode;
         } Opendir;
 
         struct {
-
+            uuid_t Inode;
+            uint16_t Size;
+            off_t    Offset;
         } Readdir;
 
         struct {
-
+            uuid_t Inode;
         } Releasedir;
 
         struct {
-
+            uuid_t Inode;
+            int DataSync;
         } Fsyncdir;
 
         struct {
-
+            uuid_t Inode;
         } Statfs;
 
         struct {
-
+            uuid_t Inode;
+            uint16_t Size;
+            int      Flags;
+            // two null-terminated strings
+            char NameAndValue[0];
         } Setxattr;
 
         struct {
-
+            uuid_t Inode;
+            char Name;
+            size_t MaxSize;
         } Getxattr;
 
         struct {
-
+            uuid_t Inode;
+            size_t MaxSize;
         } Listxattr;
 
         struct {
-
+            uuid_t Inode;
+            char Name[0];
         } Removexattr;
 
         struct {
-
+            uuid_t Inode;
+            int Mask;
         } Access;
 
         struct {
-
+            uuid_t Parent;
+            mode_t Mode;
+            char Name[0];
         } Create;
 
         struct {
-
+            uuid_t Inode;
         } GetLk;
 
         struct {
-
+            uuid_t Inode;
+            struct flock Lock;
+            int Sleep;
         } SetLk;
 
         struct {
-
+            uuid_t Inode;
+            size_t BlockSize;
         } Bmap;
 
         struct {
-
-        } Ioctl;
+            uuid_t Inode;
+            int    Command;
+            unsigned Flags;
+            uint16_t InputSize;
+            uint16_t  OutputSize;
+            char     InputBuffer[0];
+        } SmallIoctl;
 
         struct {
+            uuid_t Inode;
+            int    Command;
+            unsigned Flags;
+            size_t InputSize;
+            size_t OutputSize;
+            char InputSharedMemoryName[MAX_SHM_PATH_NAME+1];
+            char OutputSharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeIoctl;
 
+        struct {
+            uuid_t Inode;
         } Poll;
         
         struct {
-
+            uuid_t Inode;
         } WriteBuf;
 
         struct {
-            
+            uuid_t Inode;
+            uintptr_t   Cookie;
+            off_t Offset;
         } RetrieveReply;
 
         struct {
-
+            uint16_t Count;
+            uuid_t   Inodes[192];
         } ForgetMulti;
 
         struct {
-
+            uuid_t  Inode;
+            int     Operation;
         } Flock;
 
         struct {
-            
+            uuid_t  Inode;
+            int     Mode;
+            off_t   Offset;
+            off_t   Length;
         } Fallocate;
 
         struct {
-
-        } Readdirplus;
+            uuid_t Inode;
+            uint16_t Size;
+            off_t    Offset;
+        } SmallReaddirplus;
 
         struct {
+            uuid_t   Inode;
+            uint16_t Size;
+            off_t    Offset;
+            char SharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeReaddirplus;
 
+        struct {
+            uuid_t  InputInode;
+            off_t   InputOffset;
+            uuid_t  OutputInode;
+            off_t   OutputOffset;
+            size_t  Length;
+            int     Flags;            
         } CopyFileRange;
 
         struct {
-
+            uuid_t Inode;
+            off_t  Offset;
+            int    Whence;
         } Lseek;
 
         struct {
-            
+            uuid_t  Inode;
+            char    Name[0];
         } Map;
 
         struct {
@@ -264,11 +373,87 @@ typedef struct {
     } Request;
 } finesse_fuse_request;
 
+_Static_assert(sizeof(finesse_fuse_request) <= sizeof(struct _fincomm_message_block) - offsetof(struct _fincomm_message_block, Data), "Bad size");
+
 typedef struct {
     FINESSE_FUSE_RSP_TYPE Type;
     union {
         struct {
+            int Err;
+        } ReplyErr;
+
+        struct {
+            struct fuse_entry_param EntryParam;
+        } EntryParam;
+
+        struct {
+            struct fuse_entry_param EntryParam;
+            struct fuse_file_info FileInfo;
+        } Create;
+
+        struct {
+            struct stat Attr;
+            double AttrTimeout;
+        } Attr;
+
+        struct {
+            char Link[0];
+        } ReadLink;
+
+        struct {
+            struct fuse_file_info FileInfo;
+        } Open;
+
+        struct {
+            size_t Count;
+        } Write;
+
+        struct {
+            uint16_t Size;
+            char Buffer[0];
+        } SmallBuffer;
+
+        struct {
+            // Use this when what's being returned
+            // won't fit.
+            size_t Size;
+            char SharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeBuffer;
+
+        struct {
+            struct statvfs StatBuffer;
+        } StatFs;
+
+        struct {
+            uint16_t Size;
+            char Data[0];
+        } Xattr;
+
+        struct flock Flock;
+
+        struct {
+            int Result;
+            uint16_t Size;
+            char Buffer[0];
+        } Ioctl;
+
+        struct {
+            int Result;
+            size_t Size;
+            char SharedMemoryName[MAX_SHM_PATH_NAME+1];
+        } LargeIoctl;
+
+        struct {
+            unsigned Revents;
+        } Poll;
+
+        struct {
+            off_t Offset;
+        } Lseek;
+
+        struct {
             uint64_t Version;
+
         } Test;
     } Response;
 } finesse_fuse_response;
