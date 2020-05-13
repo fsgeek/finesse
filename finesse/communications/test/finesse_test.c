@@ -98,7 +98,7 @@ test_msg_test(
     uint64_t requestid;
     fincomm_message message;
     size_t messageLength;
-    finesse_fuse_msg *ffm;
+    finesse_msg *ffm;
 
     status = FinesseStartServerConnection(&fsh);
     munit_assert(0 == status);
@@ -111,18 +111,18 @@ test_msg_test(
 
     status = FinesseGetRequest(&fsh, (void **)&message, &messageLength);
     munit_assert(0 == status);
-    assert(FINESSE_FUSE_REQ_TEST == message->OperationType);
-    assert(0 != message->RequestId); // invalid request ID
-    ffm = (finesse_fuse_msg *)message->Data;
-    assert(FINESSE_FUSE_VERSION == ffm->Version);
-    assert(FINESSE_FUSE_MSG_REQUEST == ffm->MessageType);
-    assert(FINESSE_FUSE_REQ_TEST == ffm->Message.Request.Type);
+    munit_assert(FINESSE_REQUEST == message->MessageType);
+    munit_assert(0 != message->RequestId); // invalid request ID
+    ffm = (finesse_msg *)message->Data;
+    munit_assert(FINESSE_MESSAGE_VERSION == ffm->Version);
+    munit_assert(FINESSE_NATIVE_MESSAGE == ffm->MessageClass);
+    munit_assert(FINESSE_NATIVE_REQ_TEST == ffm->Message.Native.Request.NativeRequestType);
 
-    status = FinesseSendResponse(fsh, NULL, message, sizeof(finesse_fuse_msg));
-    assert(0 == status);
+    status = FinesseSendTestResponse(fsh, NULL, (uint64_t)message, 0);
+    munit_assert(0 == status);
 
     status = FinesseGetTestResponse(fch, requestid);
-    assert(0 == status);
+    munit_assert(0 == status);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);

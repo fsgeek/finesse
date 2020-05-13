@@ -61,10 +61,15 @@ typedef struct {
     u_int32_t   Result;
 } fincomm_registration_confirmation;
 
-typedef enum {
-    FINESSE_FUSE_MSG_REQUEST  = 241,
-    FINESSE_FUSE_MSG_RESPONSE = 242,
-} FINESSE_FUSE_MSG_TYPE;
+typedef enum _FINESSE_MESSAGE_TYPE {
+    FINESSE_REQUEST = 241,
+    FINESSE_RESPONSE,
+ } FINESSE_MESSAGE_TYPE;
+
+typedef enum _FINESSE_MESSAGE_CLASS {
+    FINESSE_FUSE_MESSAGE=251,
+    FINESSE_NATIVE_MESSAGE,
+} FINESSE_MESSAGE_CLASS;
 
 
 //
@@ -73,7 +78,7 @@ typedef enum {
 typedef struct _fincomm_message_block {
     u_int64_t               RequestId;
     u_int32_t               Result;
-    FINESSE_FUSE_MSG_TYPE   OperationType;
+    FINESSE_MESSAGE_TYPE    MessageType;
     u_int8_t                Data[SHM_PAGE_SIZE-16];
 } fincomm_message_block;
 
@@ -103,21 +108,19 @@ typedef struct {
     pthread_mutex_t ResponseMutex;
     pthread_cond_t  ResponsePending;
     u_int8_t        align1[128-(sizeof(u_int64_t) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
-    char            secondary_shm_path[MAX_SHM_PATH_NAME];
     unsigned        LastBufferAllocated; // allocation hint
     u_int64_t       AllocationBitmap;
     u_int64_t       RequestId;
     u_int64_t       ShutdownRequested;
     u_int8_t        align2[64-(4 * sizeof(u_int64_t))];
-    u_int8_t        Data[4096-(8*64)];
+    u_int8_t        UnusedRegion[4096-(6*64)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
 
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, ResponseBitmap) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
-_Static_assert(0 == offsetof(fincomm_shared_memory_region, secondary_shm_path) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, LastBufferAllocated) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
-_Static_assert(0 == offsetof(fincomm_shared_memory_region, Data) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
+_Static_assert(0 == offsetof(fincomm_shared_memory_region, UnusedRegion) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, Messages) % SHM_PAGE_SIZE, "Alignment wrong");
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % SHM_PAGE_SIZE, "Length Wrong");
 
@@ -153,7 +156,7 @@ typedef struct server_connection_state {
 } server_connection_state_t;
 
 // This declares the operations that correspond to various message types
-typedef enum {
+typedef enum _FINESSE_FUSE_REQ_TYPE {
     FINESSE_FUSE_REQ_LOOKUP = 42,
     FINESSE_FUSE_REQ_FORGET = 43,
     FINESSE_FUSE_REQ_GETATTR = 44,
@@ -196,11 +199,9 @@ typedef enum {
     FINESSE_FUSE_REQ_READDIRPLUS = 81,
     FINESSE_FUSE_REQ_COPY_FILE_RANGE = 82,
     FINESSE_FUSE_REQ_LSEEK = 83,
-    FINESSE_FUSE_REQ_MAP = 128,
-    FINESSE_FUSE_REQ_TEST = 129,
 } FINESSE_FUSE_REQ_TYPE;
 
-typedef enum {
+typedef enum _FINESSE_FUSE_RSP_TYPE {
     FINESSE_FUSE_RSP_NONE = 512,
     FINESSE_FUSE_RSP_ERR,
     FINESSE_FUSE_RSP_ENTRY,
@@ -226,6 +227,18 @@ typedef enum {
     FINESSE_FUSE_RSP_NOTIFY_STORE,
     FINESSE_FUSE_RSP_NOTIFY_RETRIEVE,
 } FINESSE_FUSE_RSP_TYPE;
+
+typedef enum {
+    FINESSE_NATIVE_REQ_TEST = 1024,
+    FINESSE_NATIVE_REQ_MAP,
+    FINESSE_NATIVE_REQ_MAP_RELEASE,
+} FINESSE_NATIVE_REQ_TYPE;
+
+typedef enum {
+    FINESSE_NATIVE_RSP_TEST = 1152,
+    FINESSE_NATIVE_RSP_MAP,
+    FINESSE_NATIVE_RSP_MAP_RELEASE,
+} FINESSE_NATIVE_RSP_TYPE;
 
 typedef struct {
     FINESSE_FUSE_REQ_TYPE Type; // Message type
@@ -493,16 +506,7 @@ typedef struct {
             int    Whence;
         } Lseek;
 
-        struct {
-            uuid_t  Inode;
-            char    Name[0];
-        } Map;
-
-        struct {
-            uint64_t Version;
-        } Test;
-
-    } Request;
+    } Parameters;
 } finesse_fuse_request;
 
 typedef struct {
@@ -580,28 +584,72 @@ typedef struct {
         struct {
             off_t Offset;
         } Lseek;
+    } Parameters;
+} finesse_fuse_response;
+
+typedef struct {
+    FINESSE_NATIVE_REQ_TYPE NativeRequestType;
+
+    union {
+        struct {
+            uuid_t  Parent; // if NULL , Name is absolute
+            char    Name[0];
+        } Map;
+
+        struct {
+            uuid_t  Key;
+        } MapRelease;
 
         struct {
             uint64_t Version;
-
         } Test;
-    } Response;
-} finesse_fuse_response;
+    } Parameters;
+} finesse_native_request;
 
-// This is the base fuse message type
-typedef struct _finesse_fuse_msg {
-    uint64_t                Version;
-    FINESSE_FUSE_MSG_TYPE   MessageType;
+typedef struct {
+    FINESSE_NATIVE_RSP_TYPE NativeResponseType;
     union {
-        finesse_fuse_request  Request;
-        finesse_fuse_response Response;
+        struct {
+            int     Result;
+            uuid_t  Key;
+        } Map;
+
+        struct {
+            int     Result;
+        } MapRelease;
+
+        struct {
+            uint64_t Version;
+        } Test;
+    } Parameters;
+} finesse_native_response;
+
+// Each shared memory block indicates if the block is being used for
+// a request or a response.  Each block then contains a message
+// (the structure following this block).  That indicates what class
+// of message this is (current "native" or "fuse").  Each class
+// then has a request or response block, and each of those is just 
+// a union of different types of messages, identified by the first
+// field in the respective request/response structure.
+typedef struct _finesse_message {
+    uint64_t                Version;
+    FINESSE_MESSAGE_CLASS   MessageClass;
+    union {
+        union {
+            finesse_fuse_request    Request;
+            finesse_fuse_response   Response;
+        } Fuse;
+        union {
+            finesse_native_request  Request;
+            finesse_native_response Response;
+        } Native;
     } Message;
-} finesse_fuse_msg;
+} finesse_msg;
 
 // Make sure this all fits.
-_Static_assert(sizeof(finesse_fuse_msg) <= (sizeof(fincomm_message_block)-offsetof(fincomm_message_block,Data)), "finesse_fuse_msg is too big to fit");
+_Static_assert(sizeof(finesse_msg) <= (sizeof(fincomm_message_block)-offsetof(fincomm_message_block,Data)), "finesse_msg is too big to fit");
 
-#define FINESSE_FUSE_VERSION (0xbeefbeefbeefbeef)
+#define FINESSE_MESSAGE_VERSION (0xbeefbeefbeefbeef)
 
 
 //

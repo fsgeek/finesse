@@ -320,8 +320,7 @@ int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
     Fsmr->RequestBitmap = 0;
     Fsmr->ResponseBitmap = 0;
     Fsmr->RequestWaiters = 0;
-    Fsmr->secondary_shm_path[0] = '\0';
-    memset(Fsmr->Data, 0, sizeof(Fsmr->Data));
+    memset(Fsmr->UnusedRegion, 0, sizeof(Fsmr->UnusedRegion));
     Fsmr->AllocationBitmap = 0;
     Fsmr->RequestId = (u_int64_t)(-10);
     Fsmr->ShutdownRequested = 0;
