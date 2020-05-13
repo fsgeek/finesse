@@ -3,7 +3,7 @@
  * All Rights Reserved
 */
 
-#include "fincomm.h"
+#include <finesse.h>
 
 // This is the replacement implementation that uses the
 // shared memory message exchange API.

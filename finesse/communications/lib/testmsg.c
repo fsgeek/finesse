@@ -4,7 +4,7 @@
  * All Rights Reserved
 */
 
-#include "fincomm.h"
+#include <finesse.h>
 
 #define TEST_VERSION (0x10)
 
@@ -36,29 +36,28 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t
     return status;
 }
 
-int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result)
+int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
 {
     int status = 0;
     server_connection_state_t *scs = FinesseServerHandle;
-    fincomm_message_block *message = (fincomm_message_block *)(uintptr_t)RequestId;
     finesse_msg *ffm;
 
     assert(NULL != scs);
-    assert(NULL != ClientUuid);
-    assert(0 != RequestId);
-    assert(FINESSE_REQUEST == message->MessageType);
+    assert(NULL != Client);
+    assert(0 != Message);
+    assert(FINESSE_REQUEST == Message->MessageType);
     
-    message->Result = Result;
-    message->MessageType = FINESSE_RESPONSE;
+    Message->Result = Result;
+    Message->MessageType = FINESSE_RESPONSE;
 
-    ffm = (finesse_msg *)message->Data;
+    ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_NATIVE_MESSAGE;
     ffm->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_TEST;
     ffm->Message.Native.Response.Parameters.Test.Version = TEST_VERSION;
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, message, 0);
+    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
 
     return status;
 }

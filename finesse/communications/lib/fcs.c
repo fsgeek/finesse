@@ -457,7 +457,7 @@ static int scan_for_request(unsigned start, unsigned end, server_internal_connec
 //  It handles requests for all inbound clients to this server (subject to the limit we've coded into
 //  this prototype.)
 //
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  void **Request)
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request)
 {
     int status = 0;
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;

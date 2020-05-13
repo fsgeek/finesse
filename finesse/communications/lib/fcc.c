@@ -3,7 +3,8 @@
  * All Rights Reserved
 */
 
-#include "fincomm.h"
+#include <finesse.h>
+
 static void CleanupClientConnectionState(client_connection_state_t *ccs)
 {
     int status;

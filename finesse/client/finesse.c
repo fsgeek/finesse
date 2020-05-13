@@ -24,9 +24,8 @@ void FinesseServerGetRequest(finesse_server_handle_t ServerHandle);
 
 void FinesseServerGetRequest(finesse_server_handle_t ServerHandle)
 {
-    void *request;
+    fincomm_message request;
     void *client;
-    Finesse__FinesseRequest *finesse_req;
     int status;
 
     status = FinesseGetRequest(ServerHandle, &client, &request);

@@ -100,7 +100,8 @@ test_msg_test(
     uint64_t requestid = 0;
     finesse_msg *test_message = NULL;
     fincomm_message fm_server = NULL;
-    void *client, *request;
+    void *client;
+    fincomm_message request;
 
     status = FinesseStartServerConnection(&fsh);
     munit_assert(0 == status);
@@ -128,7 +129,7 @@ test_msg_test(
     munit_assert(TEST_VERSION == test_message->Message.Native.Request.Parameters.Test.Version);
 
     // server responds
-    status = FinesseSendTestResponse(fsh, NULL, (uint64_t)fm_server, 0);
+    status = FinesseSendTestResponse(fsh, client, fm_server, 0);
     munit_assert(0 == status);
 
     // client gets the response

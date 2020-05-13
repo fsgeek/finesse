@@ -249,6 +249,7 @@ static void generate_files(const char *test_dir, const char *base_file_name, uns
     test_files = file_list;
 }
 
+#if 0
 static void cleanup_files(void)
 {
     unsigned index;
@@ -265,6 +266,7 @@ static void cleanup_files(void)
         test_files = NULL;
     }
 }
+#endif // 0
 
 static void setup_test(const MunitParameter params[])
 {
@@ -301,6 +303,7 @@ static void setup_test(const MunitParameter params[])
 
 static void cleanup_test(const MunitParameter params[])
 {
+    (void) params;
 #if 0
     const char *dir;
     int enabled = get_finesse_option(params);

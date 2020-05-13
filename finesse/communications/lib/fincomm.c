@@ -17,7 +17,7 @@
 #include <mqueue.h>
 #include <stddef.h>
 #include <pthread.h>
-#include "fincomm.h"
+#include <finesse.h>
 
 #define FINESSE_SERVICE_NAME "Finesse-1.0"
 

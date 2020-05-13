@@ -3,10 +3,10 @@
  * All Rights Reserved
 */
 
+#include <fincomm.h>
 #include <uuid/uuid.h>
 #include <stdint.h>
 #include <sys/statvfs.h>
-#include <fincomm.h>
 
 typedef void *finesse_server_handle_t;
 typedef void *finesse_client_handle_t;
@@ -14,7 +14,7 @@ typedef uint64_t fuse_ino_t;
 
 int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle);
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle);
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  void **Request);
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request);
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
 void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request);
 
@@ -25,7 +25,8 @@ int FinesseGetClientResponse(finesse_client_handle_t FinesseClientHandle, void *
 void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, void *Response);
 
 int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t *RequestId);
-int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result);
+int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
+
 int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
 
 int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, uint64_t *RequestId);

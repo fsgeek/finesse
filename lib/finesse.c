@@ -62,20 +62,24 @@ struct finesse_req
     /* finesse specific routing information */
 };
 
+#if 0
 static void list_init_req(struct fuse_req *req)
 {
     req->next = req;
     req->prev = req;
 }
+#endif // 0
 
 static void list_del_req(struct fuse_req *req)
 {
+    assert(0);
     struct fuse_req *prev = req->prev;
     struct fuse_req *next = req->next;
     prev->next = next;
     next->prev = prev;
 }
 
+#if 0
 static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
 {
     struct fuse_req *req;
@@ -95,6 +99,7 @@ static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
     }
     return req;
 }
+#endif // 0
 
 static void destroy_req(fuse_req_t req)
 {
@@ -405,6 +410,7 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
 //
 // TODO: this is currently hacked to work with passthrough
 //
+#if 0
 static char *find_file_in_path(struct fuse_session *session, char *file, char **paths, unsigned path_count)
 {
     char *path_found = NULL;
@@ -413,7 +419,6 @@ static char *find_file_in_path(struct fuse_session *session, char *file, char **
     (void)file;
     (void)paths;
     (void)path_count;
-#if 0
     unsigned path_index;
     struct fuse_req *req = finesse_alloc_req(session);
     size_t bufsize = 512;
@@ -531,11 +536,12 @@ static char *find_file_in_path(struct fuse_session *session, char *file, char **
         finesse_free_req(req);
         req = NULL;
     }
-#endif // 0
 
     return path_found;
 }
+#endif // 0
 
+#if 0
 static char *find_files_in_paths(struct fuse_session *session, char **file, unsigned file_count, char **paths, unsigned path_count)
 {
     char *found = NULL;
@@ -545,16 +551,15 @@ static char *find_files_in_paths(struct fuse_session *session, char **file, unsi
     (void) paths;
     (void) path_count;
 
-#if 0
     unsigned file_index;
 
     for (file_index = 0; (NULL == found) && (file_index < file_count); file_index++)
     {
         found = find_file_in_path(session, file[file_index], paths, path_count);
     }
-#endif // 0
     return found;
 }
+#endif // 0
 
 static int handle_fuse_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
 {
@@ -624,6 +629,7 @@ static int handle_fuse_request(finesse_server_handle_t Fsh, void *Client, fincom
 static int handle_native_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
 {
     finesse_msg *fmsg = NULL;
+    int status = EINVAL;
 
     assert(NULL != Fsh);
     assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
@@ -634,7 +640,16 @@ static int handle_native_request(finesse_server_handle_t Fsh, void *Client, finc
 
     // Now the big long switch statement
     switch (fmsg->Message.Native.Request.NativeRequestType) {
-        case FINESSE_NATIVE_REQ_TEST:
+        case FINESSE_NATIVE_REQ_TEST: {
+            status = FinesseSendTestResponse(Fsh, Client, Message, 0);
+            if (0 > status)
+            {
+                perror("FinesseSendTestResponse");
+            }
+            break;
+
+        }
+        break;
         case FINESSE_NATIVE_REQ_MAP:
         case FINESSE_NATIVE_REQ_MAP_RELEASE:
         default:
@@ -668,7 +683,7 @@ static void *finesse_process_request_worker(void *arg)
         status = FinesseGetRequest(fsh, &client, &request);
         assert(0 == status);
         assert(NULL != request);
-        assert((unsigned)client < SHM_MESSAGE_COUNT);
+        assert((uintptr_t)client < SHM_MESSAGE_COUNT);
         assert(0 != request->RequestId); // invalid request number
 
         assert(FINESSE_REQUEST == request->MessageType); // nothing else makes sense here

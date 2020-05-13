@@ -26,7 +26,6 @@
 #include <uuid/uuid.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <finesse.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/un.h>
