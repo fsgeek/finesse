@@ -227,7 +227,8 @@ typedef enum {
 } FINESSE_NATIVE_REQ_TYPE;
 
 typedef enum {
-    FINESSE_NATIVE_RSP_TEST = 1152,
+    FINESSE_NATIVE_RSP_ERR = 1152,
+    FINESSE_NATIVE_RSP_TEST,
     FINESSE_NATIVE_RSP_MAP,
     FINESSE_NATIVE_RSP_MAP_RELEASE,
 } FINESSE_NATIVE_RSP_TYPE;
@@ -601,6 +602,9 @@ typedef struct {
 typedef struct {
     FINESSE_NATIVE_RSP_TYPE NativeResponseType;
     union {
+        struct {
+            int Result;
+        } Err;
         struct {
             int     Result;
             uuid_t  Key;

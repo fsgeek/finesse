@@ -6,6 +6,7 @@
 #include <uuid/uuid.h>
 #include <stdint.h>
 #include <sys/statvfs.h>
+#include <fincomm.h>
 
 typedef void *finesse_server_handle_t;
 typedef void *finesse_client_handle_t;

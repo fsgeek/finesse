@@ -556,6 +556,153 @@ static char *find_files_in_paths(struct fuse_session *session, char **file, unsi
     return found;
 }
 
+static int handle_fuse_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
+{
+    finesse_msg *fmsg = NULL;
+
+    assert(NULL != Fsh);
+    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
+    assert(NULL != Message);
+    fmsg = (finesse_msg *)Message->Data;
+    assert(NULL != fmsg);
+    assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
+
+    // Now the big long switch statement
+    switch (fmsg->Message.Fuse.Request.Type) {
+        case FINESSE_FUSE_REQ_LOOKUP:
+        case FINESSE_FUSE_REQ_FORGET:
+        case FINESSE_FUSE_REQ_GETATTR:
+        case FINESSE_FUSE_REQ_SETATTR:
+        case FINESSE_FUSE_REQ_READLINK:
+        case FINESSE_FUSE_REQ_MKNOD:
+        case FINESSE_FUSE_REQ_MKDIR:
+        case FINESSE_FUSE_REQ_UNLINK:
+        case FINESSE_FUSE_REQ_RMDIR:
+        case FINESSE_FUSE_REQ_SYMLINK:
+        case FINESSE_FUSE_REQ_RENAME:
+        case FINESSE_FUSE_REQ_LINK:
+        case FINESSE_FUSE_REQ_OPEN:
+        case FINESSE_FUSE_REQ_READ:
+        case FINESSE_FUSE_REQ_WRITE:
+        case FINESSE_FUSE_REQ_FLUSH:
+        case FINESSE_FUSE_REQ_RELEASE:
+        case FINESSE_FUSE_REQ_FSYNC:
+        case FINESSE_FUSE_REQ_OPENDIR:
+        case FINESSE_FUSE_REQ_READDIR:
+        case FINESSE_FUSE_REQ_RELEASEDIR:
+        case FINESSE_FUSE_REQ_FSYNCDIR:
+        case FINESSE_FUSE_REQ_STATFS:
+        case FINESSE_FUSE_REQ_SETXATTR:
+        case FINESSE_FUSE_REQ_GETXATTR:
+        case FINESSE_FUSE_REQ_LISTXATTR:
+        case FINESSE_FUSE_REQ_REMOVEXATTR:
+        case FINESSE_FUSE_REQ_ACCESS:
+        case FINESSE_FUSE_REQ_CREATE:
+        case FINESSE_FUSE_REQ_GETLK:
+        case FINESSE_FUSE_REQ_SETLK:
+        case FINESSE_FUSE_REQ_BMAP:
+        case FINESSE_FUSE_REQ_IOCTL:
+        case FINESSE_FUSE_REQ_POLL:
+        case FINESSE_FUSE_REQ_WRITE_BUF:
+        case FINESSE_FUSE_REQ_RETRIEVE_REPLY:
+        case FINESSE_FUSE_REQ_FORGET_MULTI:
+        case FINESSE_FUSE_REQ_FLOCK:
+        case FINESSE_FUSE_REQ_FALLOCATE:
+        case FINESSE_FUSE_REQ_READDIRPLUS:
+        case FINESSE_FUSE_REQ_COPY_FILE_RANGE:
+        case FINESSE_FUSE_REQ_LSEEK:
+        default:
+            fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
+            fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err = ENOTSUP;
+            FinesseSendResponse(Fsh, Client, Message);
+            break;
+    }
+
+    return 0;
+}
+
+static int handle_native_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
+{
+    finesse_msg *fmsg = NULL;
+
+    assert(NULL != Fsh);
+    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
+    assert(NULL != Message);
+    fmsg = (finesse_msg *)Message->Data;
+    assert(NULL != fmsg);
+    assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
+
+    // Now the big long switch statement
+    switch (fmsg->Message.Native.Request.NativeRequestType) {
+        case FINESSE_NATIVE_REQ_TEST:
+        case FINESSE_NATIVE_REQ_MAP:
+        case FINESSE_NATIVE_REQ_MAP_RELEASE:
+        default:
+            fmsg->Message.Native.Response.NativeResponseType = FINESSE_FUSE_RSP_ERR;
+            fmsg->Message.Native.Response.Parameters.Err.Result = ENOTSUP;
+            FinesseSendResponse(Fsh, Client, Message);
+            break;
+    }
+
+    return 0;
+}
+
+static void *finesse_process_request_worker(void *arg)
+{
+    struct fuse_session *se = (struct fuse_session *)arg;
+    finesse_server_handle_t fsh = NULL;
+
+    while (NULL != se->server_handle)
+    {
+        int status;
+        void *client;
+        fincomm_message request;
+        finesse_msg *fmsg = NULL;
+  
+        if (NULL == fsh) {
+            status = FinesseStartServerConnection(&fsh);
+            assert(0 == status);
+            assert(NULL != fsh);
+        }
+
+        status = FinesseGetRequest(fsh, &client, &request);
+        assert(0 == status);
+        assert(NULL != request);
+        assert((unsigned)client < SHM_MESSAGE_COUNT);
+        assert(0 != request->RequestId); // invalid request number
+
+        assert(FINESSE_REQUEST == request->MessageType); // nothing else makes sense here
+        fmsg = (finesse_msg *) request->Data;
+        assert(NULL != fmsg);
+
+        status = EINVAL;
+        switch (fmsg->MessageClass) {
+            default: {
+                assert(0); // this shouldn't be happening.
+            }
+            break;
+
+            case FINESSE_FUSE_MESSAGE: {
+                status = handle_fuse_request(fsh, client, request);
+            }
+            break;
+            
+            case FINESSE_NATIVE_MESSAGE: {
+                status = handle_native_request(fsh, client, request);
+            }
+            break;
+        }
+        assert(0 == status); // shouldn't be failing
+    }
+
+    if (NULL != fsh) {
+        FinesseStopServerConnection(fsh);
+        fsh = NULL;
+    }
+
+    return NULL;
+}
+
 #if 0
 static void *finesse_mq_worker(void *arg)
 {
@@ -709,53 +856,6 @@ static void *finesse_mq_worker(void *arg)
 }
 #endif // 0
 
-#if 0
-	FUSE_LOOKUP	   = 1,
-	FUSE_FORGET	   = 2,  /* no reply */
-	FUSE_GETATTR	   = 3,
-	FUSE_SETATTR	   = 4,
-	FUSE_READLINK	   = 5,
-	FUSE_SYMLINK	   = 6,
-	FUSE_MKNOD	   = 8,
-	FUSE_MKDIR	   = 9,
-	FUSE_UNLINK	   = 10,
-	FUSE_RMDIR	   = 11,
-	FUSE_RENAME	   = 12,
-	FUSE_LINK	   = 13,
-	FUSE_OPEN	   = 14,
-	FUSE_READ	   = 15,
-	FUSE_WRITE	   = 16,
-	FUSE_STATFS	   = 17,
-	FUSE_RELEASE       = 18,
-	FUSE_FSYNC         = 20,
-	FUSE_SETXATTR      = 21,
-	FUSE_GETXATTR      = 22,
-	FUSE_LISTXATTR     = 23,
-	FUSE_REMOVEXATTR   = 24,
-	FUSE_FLUSH         = 25,
-	FUSE_INIT          = 26,
-	FUSE_OPENDIR       = 27,
-	FUSE_READDIR       = 28,
-	FUSE_RELEASEDIR    = 29,
-	FUSE_FSYNCDIR      = 30,
-	FUSE_GETLK         = 31,
-	FUSE_SETLK         = 32,
-	FUSE_SETLKW        = 33,
-	FUSE_ACCESS        = 34,
-	FUSE_CREATE        = 35,
-	FUSE_INTERRUPT     = 36,
-	FUSE_BMAP          = 37,
-	FUSE_DESTROY       = 38,
-	FUSE_IOCTL         = 39,
-	FUSE_POLL          = 40,
-	FUSE_NOTIFY_REPLY  = 41,
-	FUSE_BATCH_FORGET  = 42,
-	FUSE_FALLOCATE     = 43,
-	FUSE_READDIRPLUS   = 44,
-	FUSE_RENAME2       = 45,
-	FUSE_LSEEK         = 46,
-
-#endif // 0
 
 void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count)
 {
@@ -947,17 +1047,15 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
 
         uuid_generate_time_safe(finesse_server_uuid);
 
-#if 0
         /* TODO: start worker thread(s) */
         for (unsigned int index = 0; index < FINESSE_MAX_THREADS; index++)
         {
-            status = pthread_create(&finesse_threads[index], &finesse_mq_thread_attr, finesse_mq_worker, se);
+            status = pthread_create(&finesse_threads[index], &finesse_mq_thread_attr, finesse_process_request_worker, se);
             if (status < 0)
             {
                 fprintf(stderr, "finesse (fuse): pthread_create failed: %s\n", strerror(errno));
             }
         }
-#endif // 0
 
         /* done */
         break;
