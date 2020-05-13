@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2017 Tony Mason
+ * (C) Copyright 2017-2020 Tony Mason
  * All Rights Reserved
 */
 
@@ -13,8 +13,8 @@ typedef uint64_t fuse_ino_t;
 
 int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle);
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle);
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen);
-int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen);
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  void **Request);
+int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
 void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request);
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);

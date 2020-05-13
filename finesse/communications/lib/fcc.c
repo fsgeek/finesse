@@ -44,20 +44,6 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
         ccs->server_shm_fd = -1;
     }
 
-    if (ccs->aux_shm_fd >= 0) {
-        status = close(ccs->aux_shm_fd);
-        assert(0 == status);
-        ccs->aux_shm_fd = -1;
-    }
-
-    if ((NULL != ccs->aux_shm) && 
-        (ccs->aux_shm_size)) {
-        status = munmap(ccs->aux_shm, ccs->aux_shm_size);
-        assert(0 == status);
-        ccs->aux_shm = NULL;
-        ccs->aux_shm_size = 0;
-    }
-
     free(ccs);
     ccs = NULL;
 

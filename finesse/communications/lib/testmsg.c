@@ -29,15 +29,9 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t
     fmsg->Message.Native.Request.Parameters.Test.Version = TEST_VERSION;
 
     status = FinesseRequestReady(fsmr, message);
-
-    if (0 == status) {
-        // It would be better to use an abstraction layer here, but for now, this
-        // is good enough.
-        *RequestId = (uint64_t)(uintptr_t)message;
-    }
-    else {
-        FinesseReleaseRequestBuffer(fsmr, message);
-    }
+    assert(0 != status); // invalid request ID
+    *RequestId = (uint64_t)(uintptr_t)message;
+    status = 0;
 
     return status;
 }

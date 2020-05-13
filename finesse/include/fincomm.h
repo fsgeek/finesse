@@ -135,10 +135,6 @@ typedef struct _client_connection_state {
     int                             server_shm_fd;
     size_t                          server_shm_size;
     void *                          server_shm;
-    int                             aux_shm_fd;
-    int                             aux_shm_size;
-    void *                          aux_shm;
-    char                            aux_shm_path[MAX_SHM_PATH_NAME];
 } client_connection_state_t;
 
 typedef struct server_connection_state {
@@ -147,12 +143,8 @@ typedef struct server_connection_state {
     int                             client_shm_fd;
     size_t                          client_shm_size;
     void *                          client_shm;
-    int                             aux_shm_fd;
-    int                             aux_shm_size;
-    void *                          aux_shm;
     pthread_t                       monitor_thread;
     uint8_t                         monitor_thread_active;
-    char                            aux_shm_path[MAX_SHM_PATH_NAME];
 } server_connection_state_t;
 
 // This declares the operations that correspond to various message types

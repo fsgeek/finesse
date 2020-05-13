@@ -11,11 +11,11 @@ testfuse_sources = common_sources + ['testfuse.c']
 executable('testfinesse', 
             testfinesse_sources,
             dependencies: [deps, librt, libuuid, protoc_c_lib, libfuse], 
-            include_directories: include_dirs, 
+            include_directories: [include_dirs, finesse_inc_dirs], 
             link_with : [libfinesse])
 
 executable('testfuse',
             testfuse_sources,
             dependencies: [deps, librt, libuuid, protoc_c_lib],
-            include_directories: include_dirs,
+            include_directories: [include_dirs, finesse_inc_dirs], 
             link_with : [libfinesse])

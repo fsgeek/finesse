@@ -74,19 +74,6 @@ static void teardown_client_connection(server_connection_state_t *ccs)
         ccs->client_shm_fd = -1;
     }
 
-    if (NULL != ccs->aux_shm) {
-        status = munmap(ccs->aux_shm, ccs->aux_shm_size);
-        assert(0 == status);
-        ccs->aux_shm = (void *)0;
-        ccs->aux_shm_size = 0;
-    }
-
-    if (ccs->aux_shm_fd >= 0) {
-        status = close(ccs->aux_shm_fd);
-        assert(0 == status);
-        ccs->aux_shm_fd = -1;
-    }
-
     free(ccs);
 }
 
@@ -169,7 +156,6 @@ static void *listener(void *context)
         }
         assert(NULL != new_client);
         memset(new_client, 0, sizeof(server_connection_state_t));
-        new_client->aux_shm_fd = -1;
         new_client->client_shm_fd = -1;
         new_client->client_connection = -1;
 
@@ -391,31 +377,26 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     return status;
 }
 
-int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, const uuid_t *ClientUuid, void *Response, size_t ResponseLen)
+int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response)
 {
     int status = 0;
-    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
+    server_internal_connection_state_t *sics = (server_internal_connection_state_t *)FinesseServerHandle;
+    unsigned index = (unsigned)(uintptr_t)Client; //
+    server_connection_state_t *scs = NULL;
 
-    assert(NULL != scs);
-    assert(NULL != ClientUuid);
+    assert(NULL != sics);
     assert(NULL != Response);
-    assert(0 == ResponseLen);
+    assert(index < SHM_MESSAGE_COUNT);
+    scs = sics->client_server_connection_state_table[index];
 
-#if 0
-    client_mq_server_connection_state_t *ccs = NULL;
-
-    (void)FinesseServerHandle;
-
-    ccs = get_client_mq_connection(ClientUuid);
-    if (NULL == ccs)
-    {
-        return -EMFILE;
+    if (NULL == scs) {
+        // client has disconnected.
+        status = ENOTCONN;
     }
-
-    status = mq_send(ccs->queue_descriptor, Response, ResponseLen, 0);
-
-    release_client_mq_connection(ccs);
-#endif // 0
+    else {
+        FinesseResponseReady(scs->client_shm, Response, 0);
+        status = 0;
+    }
 
     return status;
 }
@@ -476,10 +457,11 @@ static int scan_for_request(unsigned start, unsigned end, server_internal_connec
 //  It handles requests for all inbound clients to this server (subject to the limit we've coded into
 //  this prototype.)
 //
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Request, size_t *RequestLen)
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  void **Request)
 {
     int status = 0;
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
+    client_connection_state_t *ccs = NULL;
     fincomm_message message = NULL;
     long int rnd = random() % SHM_MESSAGE_COUNT;
     unsigned index = SHM_MESSAGE_COUNT;
@@ -487,7 +469,6 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Reques
 
     assert(NULL != FinesseServerHandle);
     assert(NULL != Request);
-    assert(NULL != RequestLen);
 
     // this operation blocks until it finds a request to return to the caller.
     for(;;) {
@@ -568,9 +549,14 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Reques
 
     }
 
+    *Client = ccs;
     *Request = message;
-    *RequestLen = sizeof(fincomm_message);
-
+    if (NULL == Request) {
+        *Client = (void *)SHM_MESSAGE_COUNT;
+    }
+    else {
+        *Client = (void *)(uintptr_t)index;
+    }
     return status;
 }
 

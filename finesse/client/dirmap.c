@@ -113,7 +113,7 @@ int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, uuid_
         packed_buffer_len = finesse__finesse_response__pack(&rsp, (uint8_t *)buffer);
         assert(buffer_len == packed_buffer_len);
 
-        status = FinesseSendResponse(FinesseServerHandle, ClientUuid, buffer, buffer_len);
+        status = FinesseSendResponse(FinesseServerHandle, ClientUuid, buffer);
 
         break;
     }

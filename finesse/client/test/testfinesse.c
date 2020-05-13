@@ -2,7 +2,7 @@
  * Copyright (c) 2017, Tony Mason. All rights reserved.
  */
 
-#include "../finesse.h"
+#include "finesse.h"
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -34,6 +34,7 @@ test_one(
     return MUNIT_OK;
 }
 
+#if 0
 static MunitResult
 test_server_connect(
     const MunitParameter params[] __notused,
@@ -490,6 +491,7 @@ test_message_fstatfs(
     
     return MUNIT_OK;
 }
+#endif // 0
 
 #define TEST(_name, _func, _params)             \
     {                                           \
@@ -508,6 +510,7 @@ main(
 {
     static MunitTest tests[] = {
         TEST((char *)(uintptr_t)"/one", test_one, NULL),
+#if 0
         TEST((char *)(uintptr_t)"/server/connect", test_server_connect, NULL),
         TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
         TEST((char *)(uintptr_t)"/connect", test_full_connect, NULL),
@@ -515,7 +518,8 @@ main(
         TEST((char *)(uintptr_t)"/message/name_map", test_message_name_map, NULL),
         TEST((char *)(uintptr_t)"/message/search_path", test_message_search_path, NULL),
         TEST((char *)(uintptr_t)"/message/fstatfs", test_message_fstatfs, NULL),
-	TEST(NULL, NULL, NULL),
+#endif // 0
+	    TEST(NULL, NULL, NULL),
     };
     static const MunitSuite suite = {
         .prefix = (char *)(uintptr_t)"/finesse",

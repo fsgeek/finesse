@@ -14,23 +14,23 @@ assert(r.returncode() == 0, 'Failed to generate protobuf code correctly')
 
 
 
-libfinesse_sources = ['dirmap.c',
+libfinesse_sources = [ #'dirmap.c',
                       'fdmgr.c',
                       'finesse.c',
                       # 'finesse-fuse.c',
                       'finesse-lookup.c',
                       # 'finesse-search.c',
                       'init.c',
-                      'mqcomm.c',
-                      'name_map.c',
+                      #'mqcomm.c',
+                      #'name_map.c',
                       'openclose.c',
-                      'pathsearch.c', 
-                      'test.c',
-                      'mkdir.c',
-                      'unlink.c',
-            		      'statfs.c',
-                      'finesse.pb-c.c',
-                      'finesse.pb-c.h',
+                      #'pathsearch.c', 
+                      #'test.c',
+                      #'mkdir.c',
+                      #'unlink.c',
+            		    #'statfs.c',
+                      #'finesse.pb-c.c',
+                      #'finesse.pb-c.h',
                       ]
 
 # source - https://stackoverflow.com/questions/13939904/how-to-use-protocol-buffers-with-autoconf-automake
@@ -55,9 +55,11 @@ libpthread = cc.find_library('pthread')
 libfinesse = library('finesse', libfinesse_sources, 
                 version: meson.project_version(),
                 soversion: '3', 
-                include_directories: include_dirs,
+                include_directories: [include_dirs, finesse_inc_dirs],
                 dependencies: [deps, libpthread, librt, libuuid, protoc_c_lib, libfuse], 
                 install: true,
-                c_args: [ '-DFUSE_USE_VERSION=34', protoc_c_cflags])
+                c_args: [ '-DFUSE_USE_VERSION=39', protoc_c_cflags],
+                link_with: finesscommunications
+ )
 
 subdir('test')

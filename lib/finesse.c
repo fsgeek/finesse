@@ -39,6 +39,8 @@
 #define container_of(ptr, type, member) ((type *)(((char *)ptr) - offset_of(type, member)))
 #endif // container_of
 
+
+
 typedef struct finesse_lookup_info
 {
     int status;
@@ -406,6 +408,12 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
 static char *find_file_in_path(struct fuse_session *session, char *file, char **paths, unsigned path_count)
 {
     char *path_found = NULL;
+    
+    (void)session;
+    (void)file;
+    (void)paths;
+    (void)path_count;
+#if 0
     unsigned path_index;
     struct fuse_req *req = finesse_alloc_req(session);
     size_t bufsize = 512;
@@ -523,36 +531,45 @@ static char *find_file_in_path(struct fuse_session *session, char *file, char **
         finesse_free_req(req);
         req = NULL;
     }
+#endif // 0
 
     return path_found;
 }
 
 static char *find_files_in_paths(struct fuse_session *session, char **file, unsigned file_count, char **paths, unsigned path_count)
 {
-    unsigned file_index;
     char *found = NULL;
+    (void) session;
+    (void) file;
+    (void) file_count;
+    (void) paths;
+    (void) path_count;
+
+#if 0
+    unsigned file_index;
 
     for (file_index = 0; (NULL == found) && (file_index < file_count); file_index++)
     {
         found = find_file_in_path(session, file[file_index], paths, path_count);
     }
-
+#endif // 0
     return found;
 }
 
+#if 0
 static void *finesse_mq_worker(void *arg)
 {
     struct fuse_session *se = (struct fuse_session *)arg;
     void *request;
-    size_t request_length;
     Finesse__FinesseRequest *finesse_req;
+    void *client;
     int status;
     size_t mp_length = strlen(se->mountpoint);
 
     while ((0 < mp_length) && (NULL != se->server_handle))
     {
 
-        status = FinesseGetRequest(se->server_handle, &request, &request_length);
+        status = FinesseGetRequest(se->server_handle, &client, &request);
 
         if (0 > status)
         {
@@ -560,7 +577,7 @@ static void *finesse_mq_worker(void *arg)
             break;
         }
 
-        finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
+        finesse_req = finesse__finesse_request__unpack(NULL, 0, request);
 
         switch (finesse_req->header->op)
         {
@@ -690,6 +707,7 @@ static void *finesse_mq_worker(void *arg)
     return NULL;
     (void)finesse_alloc_req(NULL);
 }
+#endif // 0
 
 #if 0
 	FUSE_LOOKUP	   = 1,
@@ -929,6 +947,7 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
 
         uuid_generate_time_safe(finesse_server_uuid);
 
+#if 0
         /* TODO: start worker thread(s) */
         for (unsigned int index = 0; index < FINESSE_MAX_THREADS; index++)
         {
@@ -938,6 +957,7 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
                 fprintf(stderr, "finesse (fuse): pthread_create failed: %s\n", strerror(errno));
             }
         }
+#endif // 0
 
         /* done */
         break;

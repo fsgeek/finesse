@@ -38,12 +38,12 @@ endif
 
 fusermount_path = join_paths(get_option('prefix'), get_option('bindir'))
 libfuse = library('fuse3', libfuse_sources, version: meson.project_version(),
-                  soversion: '3', include_directories: include_dirs,
-                  dependencies: deps, install: true,
+                  soversion: '3', include_directories: [include_dirs, finesse_inc_dirs],
+                  dependencies: [deps, ], install: true,
                   link_depends: 'fuse_versionscript',
                   c_args: [ '-DFUSE_USE_VERSION=35',
                             '-DFUSERMOUNT_DIR="@0@"'.format(fusermount_path) ],
-                  link_with : [libfinesse], 
+                  link_with : [libfinesse, finesscommunications], 
                   link_args: ['-Wl,--version-script,' + meson.current_source_dir()
                               + '/fuse_versionscript' ])
 

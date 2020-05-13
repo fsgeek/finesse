@@ -24,7 +24,9 @@
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
-#endif // 
+#endif //
+
+#define TEST_VERSION (0x10)
 
 static MunitResult
 test_server_connect(
@@ -95,32 +97,41 @@ test_msg_test(
     int status;
     finesse_server_handle_t fsh;
     finesse_client_handle_t fch;
-    uint64_t requestid;
-    fincomm_message message;
-    size_t messageLength;
-    finesse_msg *ffm;
+    uint64_t requestid = 0;
+    finesse_msg *test_message = NULL;
+    fincomm_message fm_server = NULL;
+    void *client, *request;
 
     status = FinesseStartServerConnection(&fsh);
     munit_assert(0 == status);
+    munit_assert(NULL != fsh);
 
     status = FinesseStartClientConnection(&fch);
     munit_assert(0 == status);
+    munit_assert(NULL != fch);
 
+    // client sends request
     status = FinesseSendTestRequest(fch, &requestid);
     munit_assert(0 == status);
 
-    status = FinesseGetRequest(&fsh, (void **)&message, &messageLength);
-    munit_assert(0 == status);
-    munit_assert(FINESSE_REQUEST == message->MessageType);
-    munit_assert(0 != message->RequestId); // invalid request ID
-    ffm = (finesse_msg *)message->Data;
-    munit_assert(FINESSE_MESSAGE_VERSION == ffm->Version);
-    munit_assert(FINESSE_NATIVE_MESSAGE == ffm->MessageClass);
-    munit_assert(FINESSE_NATIVE_REQ_TEST == ffm->Message.Native.Request.NativeRequestType);
+    // server gets a request
+    status = FinesseGetRequest(fsh, &client, &request);
+    assert(0 == status);
+    assert(NULL != client);
+    assert(NULL != request);
+    fm_server = (fincomm_message)request;
+    munit_assert(FINESSE_REQUEST == fm_server->MessageType);
+    test_message = (finesse_msg *)fm_server->Data;
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
+    munit_assert(FINESSE_NATIVE_MESSAGE == test_message->MessageClass);
+    munit_assert(FINESSE_NATIVE_REQ_TEST == test_message->Message.Native.Request.NativeRequestType);
+    munit_assert(TEST_VERSION == test_message->Message.Native.Request.Parameters.Test.Version);
 
-    status = FinesseSendTestResponse(fsh, NULL, (uint64_t)message, 0);
+    // server responds
+    status = FinesseSendTestResponse(fsh, NULL, (uint64_t)fm_server, 0);
     munit_assert(0 == status);
 
+    // client gets the response
     status = FinesseGetTestResponse(fch, requestid);
     munit_assert(0 == status);
 
@@ -133,11 +144,14 @@ test_msg_test(
 
     return MUNIT_OK;
 }
+
+
 static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/null", test_null, NULL),
         TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
         TEST((char *)(uintptr_t)"/client/connect_without_server", test_client_connect_without_server, NULL),
         TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
+        TEST((char *)(uintptr_t)"/client/test_msg", test_msg_test, NULL),
     	TEST(NULL, NULL, NULL),
     };
 
