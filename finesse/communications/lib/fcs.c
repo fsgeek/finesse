@@ -46,7 +46,7 @@ static void teardown_client_connection(server_connection_state_t *ccs)
     if (ccs->monitor_thread_active) {
         status = pthread_cancel(ccs->monitor_thread);
         assert(0 == status);
-        // status = pthread_join(ccs->monitor_thread, NULL);
+        status = pthread_join(ccs->monitor_thread, NULL);
         // assert(ECANCELED == status);
         ccs->monitor_thread_active = 0;
     }
@@ -89,6 +89,7 @@ static void *inbound_request_worker(void *context)
     server_connection_state_t *ccs;
     uint64_t pending_bit = make_mask64(irwi->index);
     int status;
+    unsigned locked_count = 0;
 
     assert(NULL != context);
     scs = irwi->Scs;
@@ -120,6 +121,7 @@ static void *inbound_request_worker(void *context)
             break;
         }
         pthread_mutex_lock(&scs->monitor_mutex);
+        locked_count++; // debug
         scs->waiting_client_request_bitmap |= pending_bit; // turn on bit - something waiting
         pthread_cond_signal(&scs->server_cond); // notify server we've turned on a bit
         pthread_cond_wait(&scs->monitor_cond, &scs->monitor_mutex); // wait for server to tell us to look again

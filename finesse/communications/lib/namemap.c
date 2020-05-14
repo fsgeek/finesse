@@ -3,7 +3,7 @@
  * All Rights Reserved
 */
 
-#include <finesse.h>
+#include <fcinternal.h>
 
 // This is the replacement implementation that uses the
 // shared memory message exchange API.
@@ -14,7 +14,7 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     fincomm_shared_memory_region *fsmr;
     fincomm_message message = NULL;
     finesse_msg *fmsg = NULL;
-    size_t nameLength;
+    size_t nameLength, bufSize;
 
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
@@ -29,13 +29,17 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     assert(NULL != NameToMap);
 
     nameLength = strlen(NameToMap);
-    assert(nameLength < nameLength);
-    strncpy(fmsg->Message.Native.Request.Parameters.Map.Name, NameToMap, sizeof(fmsg->Message.Native.Request.Parameters.Map.Name));
-    memset(fmsg->Message.Native.Request.Parameters.Map.Parent, 0, sizeof(fmsg->Message.Native.Request.Parameters.Map.Parent));
-    status = FinesseRequestReady(fsmr, message);
-    assert(0 == status);
+    bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Request.Parameters.Map.Name);
 
+    assert(nameLength < bufSize);
+    strncpy(fmsg->Message.Native.Request.Parameters.Map.Name, NameToMap, bufSize);
+    assert(strlen(fmsg->Message.Native.Request.Parameters.Map.Name) == nameLength);
+    memset(fmsg->Message.Native.Request.Parameters.Map.Parent, 0, sizeof(fmsg->Message.Native.Request.Parameters.Map.Parent));
+
+    status = FinesseRequestReady(fsmr, message);
+    assert(0 != status); // invalid request ID
     *Message = message;
+    status = 0;
 
     return status;
 }
@@ -43,17 +47,19 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
 int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *MapKey, int Result)
 {
     int status = 0;
-    server_connection_state_t *scs = FinesseServerHandle;
+    fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *ffm;
+    unsigned index = (unsigned)(uintptr_t)Client;
 
-    assert(NULL != scs);
-    assert(NULL != Client);
+    fsmr = FcGetSharedMemoryRegion(FinesseServerHandle, index);
+    assert(NULL != fsmr);
+    assert (index < SHM_MESSAGE_COUNT);
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
-    
+
     Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
-
+    
     ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
@@ -63,7 +69,7 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void
     assert(Result == ffm->Message.Native.Response.Parameters.Map.Result); // ensure no loss of data
     memcpy(&ffm->Message.Native.Response.Parameters.Map.Key, MapKey, sizeof(uuid_t));
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
+    FinesseResponseReady(fsmr, Message, 0);
 
     return status;
 }
@@ -83,11 +89,12 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, finco
     // This is a blocking get
     status = FinesseGetResponse(fsmr, Message, 1);
 
-    assert(0 == status);
+    assert(0 != status);
     assert(FINESSE_RESPONSE == Message->MessageType);
     assert(0 == Message->Result);
+    status = 0; // FinesseGetResponse is a boolean return function
     fmsg = (finesse_msg *)Message->Data;
-
+    
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_NATIVE_RSP_MAP == fmsg->Message.Native.Response.NativeResponseType);
     assert(0 == fmsg->Message.Native.Response.Parameters.Map.Result);
@@ -119,7 +126,7 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
     memcpy(&fmsg->Message.Native.Request.Parameters.MapRelease.Key, MapKey, sizeof(uuid_t));
 
     status = FinesseRequestReady(fsmr, message);
-    assert(0 == status);
+    assert(0 != status);
 
     *Message = message;
 
@@ -129,25 +136,27 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
 int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
 {
     int status = 0;
-    server_connection_state_t *scs = FinesseServerHandle;
+    fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *ffm;
+    unsigned index = (unsigned)(uintptr_t)Client;
 
-    assert(NULL != scs);
-    assert(NULL != Client);
+    fsmr = FcGetSharedMemoryRegion(FinesseServerHandle, index);
+    assert(NULL != fsmr);
+    assert (index < SHM_MESSAGE_COUNT);
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
-    
-    Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
+    Message->Result = Result;
 
     ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
+    ffm->MessageClass = FINESSE_RESPONSE;
     ffm->MessageClass = FINESSE_NATIVE_MESSAGE;
     ffm->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_MAP_RELEASE;
-    ffm->Message.Native.Response.Parameters.Map.Result = (int)Result;
+    ffm->Message.Native.Response.Parameters.MapRelease.Result = (int)Result;
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
+    FinesseResponseReady(fsmr, Message, 0);
 
     return status;
 }

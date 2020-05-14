@@ -145,6 +145,94 @@ test_msg_test(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_msg_namemap (
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_server_handle_t fsh;
+    finesse_client_handle_t fch;
+    fincomm_message message1, message2;
+    finesse_msg *test_message1 = NULL;
+    finesse_msg *test_message2 = NULL;
+    fincomm_message fm_server1 = NULL;
+    fincomm_message fm_server2 = NULL;
+    void *client1;
+    void *client2;
+    fincomm_message request1, request2;
+    char *name1 = (char *)(uintptr_t)"/foo";
+    char *name2 = (char *)(uintptr_t)"/bar";
+    uuid_t key1, key2;
+    uuid_t out_key1, out_key2;
+    
+    status = FinesseStartServerConnection(&fsh);
+    munit_assert(0 == status);
+    munit_assert(NULL != fsh);
+
+    status = FinesseStartClientConnection(&fch);
+    munit_assert(0 == status);
+    munit_assert(NULL != fch);
+
+    // client sends requests
+    status = FinesseSendNameMapRequest(fch, name1, &message1);
+    munit_assert(0 == status);
+    status = FinesseSendNameMapRequest(fch, name2, &message2);
+    munit_assert(0 == status);
+
+    // server gets requests
+    status = FinesseGetRequest(fsh, &client1, &request1);
+    assert(0 == status);
+    assert(NULL != request1);
+    fm_server1 = (fincomm_message)request1;
+    munit_assert(FINESSE_REQUEST == fm_server1->MessageType);
+    test_message1 = (finesse_msg *)fm_server1->Data;
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message1->Version);
+    munit_assert(FINESSE_NATIVE_MESSAGE == test_message1->MessageClass);
+    munit_assert(FINESSE_NATIVE_REQ_MAP == test_message1->Message.Native.Request.NativeRequestType);
+    munit_assert((0 == strcmp(name1, test_message1->Message.Native.Request.Parameters.Map.Name)) ||
+                 (0 == strcmp(name2, test_message1->Message.Native.Request.Parameters.Map.Name)));
+
+    status = FinesseGetRequest(fsh, &client2, &request2);
+    assert(0 == status);
+    assert(NULL != request2);
+    fm_server2 = (fincomm_message)request2;
+    munit_assert(FINESSE_REQUEST == fm_server2->MessageType);
+    test_message2 = (finesse_msg *)fm_server2->Data;
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message2->Version);
+    munit_assert(FINESSE_NATIVE_MESSAGE == test_message2->MessageClass);
+    munit_assert(FINESSE_NATIVE_REQ_MAP == test_message2->Message.Native.Request.NativeRequestType);
+    munit_assert((0 == strcmp(name1, test_message2->Message.Native.Request.Parameters.Map.Name)) ||
+                 (0 == strcmp(name2, test_message2->Message.Native.Request.Parameters.Map.Name)));
+
+    // server responds
+    uuid_generate(key2);
+    status = FinesseSendNameMapResponse(fsh, client2, fm_server2, &key2, 0);
+    munit_assert(0 == status);
+    uuid_generate(key1);
+    status = FinesseSendNameMapResponse(fsh, client1, fm_server1, &key1, 0);
+    munit_assert(0 == status);
+
+    // client gets the response (for message 2)
+    status = FinesseGetNameMapResponse(fch, message2, &out_key2);
+    munit_assert(0 == status);
+    munit_assert(0 == uuid_compare(key2, out_key2));    
+
+    // client gets the response (for message 1)
+    status = FinesseGetNameMapResponse(fch, message1, &out_key1);
+    munit_assert(0 == status);
+    munit_assert(0 == uuid_compare(key1, out_key1));
+
+    // cleanup    
+    status = FinesseStopClientConnection(fch);
+    munit_assert(0 == status);
+    
+    status = FinesseStopServerConnection(fsh);
+    munit_assert(0 == status);
+
+    return MUNIT_OK;
+}
+
 
 static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/null", test_null, NULL),
@@ -152,6 +240,7 @@ static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/client/connect_without_server", test_client_connect_without_server, NULL),
         TEST((char *)(uintptr_t)"/client/connect", test_client_connect, NULL),
         TEST((char *)(uintptr_t)"/client/test_msg", test_msg_test, NULL),
+        TEST((char *)(uintptr_t)"/client/test_map", test_msg_namemap, NULL),
     	TEST(NULL, NULL, NULL),
     };
 
