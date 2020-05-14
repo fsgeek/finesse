@@ -97,7 +97,7 @@ test_msg_test(
     int status;
     finesse_server_handle_t fsh;
     finesse_client_handle_t fch;
-    uint64_t requestid = 0;
+    fincomm_message message;
     finesse_msg *test_message = NULL;
     fincomm_message fm_server = NULL;
     void *client;
@@ -112,7 +112,7 @@ test_msg_test(
     munit_assert(NULL != fch);
 
     // client sends request
-    status = FinesseSendTestRequest(fch, &requestid);
+    status = FinesseSendTestRequest(fch, &message);
     munit_assert(0 == status);
 
     // server gets a request
@@ -133,7 +133,7 @@ test_msg_test(
     munit_assert(0 == status);
 
     // client gets the response
-    status = FinesseGetTestResponse(fch, requestid);
+    status = FinesseGetTestResponse(fch, message);
     munit_assert(0 == status);
 
     // cleanup    

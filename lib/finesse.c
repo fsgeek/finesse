@@ -62,13 +62,11 @@ struct finesse_req
     /* finesse specific routing information */
 };
 
-#if 0
 static void list_init_req(struct fuse_req *req)
 {
     req->next = req;
     req->prev = req;
 }
-#endif // 0
 
 static void list_del_req(struct fuse_req *req)
 {
@@ -79,7 +77,6 @@ static void list_del_req(struct fuse_req *req)
     next->prev = prev;
 }
 
-#if 0
 static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
 {
     struct fuse_req *req;
@@ -99,7 +96,6 @@ static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
     }
     return req;
 }
-#endif // 0
 
 static void destroy_req(fuse_req_t req)
 {
@@ -138,7 +134,7 @@ static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name);
 static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     /* TODO: add to lookup table? */
     return finesse_original_ops->lookup(req, parent, name);
 }
@@ -152,7 +148,7 @@ static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);
 static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     /* TODO: remove from lookup table? */
     return finesse_original_ops->forget(req, ino, nlookup);
 }
@@ -175,7 +171,7 @@ static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->opendir(req, ino, fi);
 }
 
@@ -219,7 +215,7 @@ static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     }
 
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->release(req, ino, fi);
 }
 
@@ -227,7 +223,7 @@ static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_
 static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->releasedir(req, ino, fi);
 }
 
@@ -274,7 +270,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
                           size_t size, off_t off, struct fuse_file_info *fi) 
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->write(req, nodeid, buf, size, off, fi);
 }
 
@@ -282,7 +278,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
 //static void finesse_fuse_statfs(fuse_req_t req, const char *path) 
 //{
 //    finesse_set_provider(req, 0);
-//    req->finesse_notify = 1;
+//    req->finesse.notify = 1;
 //   return finesse_original_ops->statfs(req, path);
 //}
 
@@ -290,7 +286,7 @@ static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
 static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid) 
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->statfs(req, nodeid);
 }
 
@@ -361,17 +357,17 @@ void finesse_set_provider(fuse_req_t req, int finesse)
 {
     if (finesse)
     {
-        req->finesse = 1;
+        req->finesse.allocated = 1;
     }
     else
     {
-        req->finesse = 0;
+        req->finesse.allocated = 0;
     }
 }
 
 int finesse_get_provider(fuse_req_t req)
 {
-    return req->finesse;
+    return req->finesse.allocated;
 }
 
 #undef fuse_session_new
@@ -561,11 +557,15 @@ static char *find_files_in_paths(struct fuse_session *session, char **file, unsi
 }
 #endif // 0
 
-static int handle_fuse_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
+static int handle_fuse_request(struct fuse_session *se, void *Client, fincomm_message Message)
 {
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
     finesse_msg *fmsg = NULL;
 
-    assert(NULL != Fsh);
+    if (NULL == fsh) {
+        return ENOTCONN;
+    }
+
     assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
     assert(NULL != Message);
     fmsg = (finesse_msg *)Message->Data;
@@ -619,19 +619,84 @@ static int handle_fuse_request(finesse_server_handle_t Fsh, void *Client, fincom
         default:
             fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
             fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err = ENOTSUP;
-            FinesseSendResponse(Fsh, Client, Message);
+            FinesseSendResponse(fsh, Client, Message);
             break;
     }
 
     return 0;
 }
 
-static int handle_native_request(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
+static int handle_native_name_map_request(struct fuse_session *se, void *Client, fincomm_message Message)
+{
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
+    static uuid_t null_uuid;
+    struct fuse_req *fuse_request;
+    finesse_msg *fmsg = (finesse_msg *)Message->Data;
+    int status = 0;
+    size_t mp_length = strlen(se->mountpoint);
+
+    if (NULL == fsh) {
+        return ENOTCONN;
+    }
+
+    // Presently, we don't handle openat
+    if (!uuid_is_null(fmsg->Message.Native.Request.Parameters.Map.Parent)) {
+        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOTSUP);
+    }
+
+
+    if (0 != strcmp(fmsg->Message.Native.Request.Parameters.Map.Name, se->mountpoint)) {
+        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOTDIR);      
+    }
+
+    // We need to do a lookup here
+    fuse_request = finesse_alloc_req(se);
+
+    if (NULL == fuse_request) {
+        fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
+        // TODO: fix this function's prototype
+        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOMEM);      
+    }
+
+    fuse_request->finesse.message = Message;
+    fuse_request->finesse.client = Client;
+    finesse_original_ops->lookup(fuse_request, FUSE_ROOT_ID, &fmsg->Message.Native.Request.Parameters.Map.Name[mp_length]);
+
+    return status;
+ 
+}
+
+static int handle_native_name_map_release_request(struct fuse_session *se, void *Client, fincomm_message Message)
+{
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
+    finesse_object_t *object = NULL;
+    finesse_msg *fmsg = (finesse_msg *)Message->Data;
+    int status = 0;
+
+    object = finesse_object_lookup_by_uuid(&fmsg->Message.Native.Request.Parameters.MapRelease.Key);
+    if (NULL != object) {
+        finesse_object_release(object);
+    }
+
+    if (NULL != fsh) {
+        // TODO: fix this function prototype/call
+        status = FinesseSendNameMapReleaseResponse(fsh, Client, Message, 0);
+    }
+
+    return status;
+}
+
+
+static int handle_native_request(struct fuse_session *se, void *Client, fincomm_message Message)
 {
     finesse_msg *fmsg = NULL;
     int status = EINVAL;
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
 
-    assert(NULL != Fsh);
+    if (NULL == fsh) {
+        return ENOTCONN;
+    }
+
     assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
     assert(NULL != Message);
     fmsg = (finesse_msg *)Message->Data;
@@ -641,7 +706,7 @@ static int handle_native_request(finesse_server_handle_t Fsh, void *Client, finc
     // Now the big long switch statement
     switch (fmsg->Message.Native.Request.NativeRequestType) {
         case FINESSE_NATIVE_REQ_TEST: {
-            status = FinesseSendTestResponse(Fsh, Client, Message, 0);
+            status = FinesseSendTestResponse(fsh, Client, Message, 0);
             if (0 > status)
             {
                 perror("FinesseSendTestResponse");
@@ -650,12 +715,21 @@ static int handle_native_request(finesse_server_handle_t Fsh, void *Client, finc
 
         }
         break;
-        case FINESSE_NATIVE_REQ_MAP:
-        case FINESSE_NATIVE_REQ_MAP_RELEASE:
+        
+        case FINESSE_NATIVE_REQ_MAP: {
+            status = handle_native_name_map_request(se, Client, Message);
+        }
+        break;
+        
+        case FINESSE_NATIVE_REQ_MAP_RELEASE: {
+            status = handle_native_name_map_release_request(se, Client, Message);
+        }
+        break;
+
         default:
             fmsg->Message.Native.Response.NativeResponseType = FINESSE_FUSE_RSP_ERR;
             fmsg->Message.Native.Response.Parameters.Err.Result = ENOTSUP;
-            FinesseSendResponse(Fsh, Client, Message);
+            FinesseSendResponse(fsh, Client, Message);
             break;
     }
 
@@ -665,9 +739,9 @@ static int handle_native_request(finesse_server_handle_t Fsh, void *Client, finc
 static void *finesse_process_request_worker(void *arg)
 {
     struct fuse_session *se = (struct fuse_session *)arg;
-    finesse_server_handle_t fsh = NULL;
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
 
-    while (NULL != se->server_handle)
+    while (fsh)
     {
         int status;
         void *client;
@@ -698,12 +772,12 @@ static void *finesse_process_request_worker(void *arg)
             break;
 
             case FINESSE_FUSE_MESSAGE: {
-                status = handle_fuse_request(fsh, client, request);
+                status = handle_fuse_request(se, client, request);
             }
             break;
             
             case FINESSE_NATIVE_MESSAGE: {
-                status = handle_native_request(fsh, client, request);
+                status = handle_native_request(se, client, request);
             }
             break;
         }
@@ -935,7 +1009,6 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
 int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req)
 {
     struct fuse_out_header out;
-    Finesse__FinesseRequest *finesse_request = NULL;
     struct fuse_entry_out *arg = NULL;
 
     if (error <= -1000 || error > 0)
@@ -966,7 +1039,7 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
             break;
         case FUSE_LOOKUP + 128: // TODO - make this a manifest constant
         {
-            finesse_lookup_info_t *lookup_info = (finesse_lookup_info_t *)req->finesse_lookup_info;
+            finesse_lookup_info_t *lookup_info = (finesse_lookup_info_t *)req->finesse.lookup_info;
 
             // this is the "lookup for path search" code
             free_req = 0; // do not free this request - it gets reused
@@ -992,33 +1065,17 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     }
     else
     {
-        switch (finesse_request->header->op)
-        {
-        default:
-            // don't know what is being asked here, so abort
-            assert(0);
-            break;
-
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP:
-        {
-            finesse_object_t *nobj = finesse_object_create((ino_t)arg->nodeid, NULL);
-
-            error = FinesseSendNameMapResponse(req->se->server_handle, (uuid_t *)finesse_request->clientuuid.data,
-                                               finesse_request->header->messageid, &nobj->uuid, 0);
-
-            finesse_object_release(nobj);
-        }
-        break;
-        }
+        // don't know what is being asked here, so abort
+        assert(0);
     }
 
     // cleanup
     if (NULL != req)
     {
-        if (NULL != req->finesse_req)
+        if (NULL != req->finesse.message)
         {
-            FinesseFreeRequest(req->se->server_handle, req->finesse_req);
-            req->finesse_req = NULL;
+            FinesseFreeRequest(req->se->server_handle, req->finesse.message);
+            req->finesse.message = NULL;
         }
 
         if (free_req)

@@ -7,7 +7,7 @@
 
 // This is the replacement implementation that uses the
 // shared memory message exchange API.
-int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, uint64_t *RequestId)
+int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -35,27 +35,26 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     status = FinesseRequestReady(fsmr, message);
     assert(0 == status);
 
-    *RequestId = (uint64_t)(uintptr_t)message;
+    *Message = message;
 
     return status;
 }
 
-int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, uuid_t *MapKey, int64_t Result)
+int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *MapKey, int Result)
 {
     int status = 0;
     server_connection_state_t *scs = FinesseServerHandle;
-    fincomm_message_block *message = (fincomm_message_block *)(uintptr_t)RequestId;
     finesse_msg *ffm;
 
     assert(NULL != scs);
-    assert(NULL != ClientUuid);
-    assert(0 != RequestId);
-    assert(FINESSE_REQUEST == message->MessageType);
+    assert(NULL != Client);
+    assert(0 != Message);
+    assert(FINESSE_REQUEST == Message->MessageType);
     
-    message->Result = Result;
-    message->MessageType = FINESSE_RESPONSE;
+    Message->Result = Result;
+    Message->MessageType = FINESSE_RESPONSE;
 
-    ffm = (finesse_msg *)message->Data;
+    ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_NATIVE_MESSAGE;
@@ -64,33 +63,30 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, uuid
     assert(Result == ffm->Message.Native.Response.Parameters.Map.Result); // ensure no loss of data
     memcpy(&ffm->Message.Native.Response.Parameters.Map.Key, MapKey, sizeof(uuid_t));
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, message, 0);
+    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
 
     return status;
 }
 
-int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, uuid_t *MapKey)
+int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, uuid_t *MapKey)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr = NULL;
-    fincomm_message_block *message = NULL;
     finesse_msg *fmsg = NULL;
 
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    assert(0 != RequestId);
-    message = (fincomm_message_block *)RequestId;
-    assert(NULL != message);
+    assert(NULL != Message);
 
     // This is a blocking get
-    status = FinesseGetResponse(fsmr, message, 1);
+    status = FinesseGetResponse(fsmr, Message, 1);
 
     assert(0 == status);
-    assert(FINESSE_RESPONSE == message->MessageType);
-    assert(0 == message->Result);
-    fmsg = (finesse_msg *)message->Data;
+    assert(FINESSE_RESPONSE == Message->MessageType);
+    assert(0 == Message->Result);
+    fmsg = (finesse_msg *)Message->Data;
 
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_NATIVE_RSP_MAP == fmsg->Message.Native.Response.NativeResponseType);
@@ -101,7 +97,7 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint6
 
 }
 
-int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *MapKey, uint64_t *RequestId)
+int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *MapKey, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -125,39 +121,38 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
     status = FinesseRequestReady(fsmr, message);
     assert(0 == status);
 
-    *RequestId = (uint64_t)(uintptr_t)message;
+    *Message = message;
 
     return status;
 }
 
-int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result)
+int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
 {
     int status = 0;
     server_connection_state_t *scs = FinesseServerHandle;
-    fincomm_message_block *message = (fincomm_message_block *)(uintptr_t)RequestId;
     finesse_msg *ffm;
 
     assert(NULL != scs);
-    assert(NULL != ClientUuid);
-    assert(0 != RequestId);
-    assert(FINESSE_REQUEST == message->MessageType);
+    assert(NULL != Client);
+    assert(0 != Message);
+    assert(FINESSE_REQUEST == Message->MessageType);
     
-    message->Result = Result;
-    message->MessageType = FINESSE_RESPONSE;
+    Message->Result = Result;
+    Message->MessageType = FINESSE_RESPONSE;
 
-    ffm = (finesse_msg *)message->Data;
+    ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_NATIVE_MESSAGE;
     ffm->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_MAP_RELEASE;
     ffm->Message.Native.Response.Parameters.Map.Result = (int)Result;
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, message, 0);
+    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
 
     return status;
 }
 
-int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId)
+int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
 {
     int status = 0;
 
@@ -169,17 +164,15 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    assert(0 != RequestId);
-    message = (fincomm_message_block *)RequestId;
-    assert(NULL != message);
+    assert(0 != Message);
 
     // This is a blocking get
     status = FinesseGetResponse(fsmr, message, 1);
     assert(0 == status);
 
-    assert(FINESSE_RESPONSE == message->MessageType);
-    assert(0 == message->Result);
-    fmsg = (finesse_msg *)message->Data;
+    assert(FINESSE_RESPONSE == Message->MessageType);
+    assert(0 == Message->Result);
+    fmsg = (finesse_msg *)Message->Data;
 
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_NATIVE_RSP_MAP_RELEASE == fmsg->Message.Native.Response.NativeResponseType);
@@ -191,7 +184,7 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
 
 
 #if 0
-int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t *RequestId)
+int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -222,7 +215,7 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t
     return status;
 }
 
-int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result)
+int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int64_t Result)
 {
     int status = 0;
     server_connection_state_t *scs = FinesseServerHandle;
@@ -247,7 +240,7 @@ int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, uuid_t 
     return status;
 }
 
-int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId)
+int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;

@@ -8,7 +8,7 @@
 
 #define TEST_VERSION (0x10)
 
-int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t *RequestId)
+int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -30,7 +30,7 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID
-    *RequestId = (uint64_t)(uintptr_t)message;
+    *Message = message;
     status = 0;
 
     return status;
@@ -62,27 +62,24 @@ int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *C
     return status;
 }
 
-int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId)
+int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr = NULL;
-    fincomm_message_block *message = NULL;
     finesse_msg *fmsg = NULL;
 
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    assert(0 != RequestId);
-    message = (fincomm_message_block *)RequestId;
-    assert(NULL != message);
+    assert(0 != Message);
 
     // This is a blocking get
-    status = FinesseGetResponse(fsmr, message, 1);
+    status = FinesseGetResponse(fsmr, Message, 1);
 
     assert(0 == status);
-    assert(FINESSE_RESPONSE == message->MessageType);
-    fmsg = (finesse_msg *)message->Data;
+    assert(FINESSE_RESPONSE == Message->MessageType);
+    fmsg = (finesse_msg *)Message->Data;
 
     assert(TEST_VERSION == fmsg->Message.Native.Response.Parameters.Test.Version);
 

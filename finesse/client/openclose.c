@@ -212,11 +212,11 @@ int finesse_close(int fd)
 int finesse_map_name(const char *mapfile_name, uuid_t *uuid)
 {
     int status;
-    uint64_t req_id;
+    fincomm_message message;
 
-    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)mapfile_name, &req_id);
+    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)mapfile_name, &message);
     while (0 == status) {
-        status = FinesseGetNameMapResponse(finesse_client_handle, req_id, uuid);
+        status = FinesseGetNameMapResponse(finesse_client_handle, message, uuid);
         break;
     }
 
@@ -228,11 +228,11 @@ void *finesse_map_name_async(void *args)
 {
     struct map_name_args *parsed_args = (struct map_name_args *) args;  
     int status;
-    uint64_t req_id;
+    fincomm_message message;
 
-    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)parsed_args->mapfile_name, &req_id);
+    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)parsed_args->mapfile_name, &message);
     while (0 == status) {
-        status = FinesseGetNameMapResponse(finesse_client_handle, req_id, parsed_args->uuid);
+        status = FinesseGetNameMapResponse(finesse_client_handle, message, parsed_args->uuid);
         break;
     }
     *(parsed_args->status) = status;
