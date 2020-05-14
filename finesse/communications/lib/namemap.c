@@ -129,6 +129,7 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
     assert(0 != status);
 
     *Message = message;
+    status = 0; // request ready returns the request ID
 
     return status;
 }
@@ -167,7 +168,6 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
 
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr = NULL;
-    fincomm_message_block *message = NULL;
     finesse_msg *fmsg = NULL;
 
     assert(NULL != ccs);
@@ -176,8 +176,9 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
     assert(0 != Message);
 
     // This is a blocking get
-    status = FinesseGetResponse(fsmr, message, 1);
-    assert(0 == status);
+    status = FinesseGetResponse(fsmr, Message, 1);
+    assert(0 != status); // boolean return
+    status = 0;
 
     assert(FINESSE_RESPONSE == Message->MessageType);
     assert(0 == Message->Result);
