@@ -3,8 +3,7 @@
  * All Rights Reserved
 */
 
-#include "fincomm.h"
-#include <finesse.h>
+#include "fcinternal.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -475,7 +474,7 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
         int found = 0;
 
         // Let's check and see if there are any connected clients at this point
-        for (unsigned i = rnd; i < SHM_MESSAGE_COUNT; i++) {
+        for (unsigned i = 0; i < SHM_MESSAGE_COUNT; i++) {
             if (NULL != scs->client_server_connection_state_table[i]) {
                 found = 1;
                 break;
@@ -571,6 +570,14 @@ void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Reque
     return;
 }
 
+fincomm_shared_memory_region *FcGetSharedMemoryRegion(finesse_server_handle_t ServerHandle, unsigned Index)
+{
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)ServerHandle;
+    assert(NULL != scs);
+    assert(Index < SHM_MESSAGE_COUNT);
+    assert(NULL != scs->client_server_connection_state_table[Index]);
+    return (fincomm_shared_memory_region *)scs->client_server_connection_state_table[Index]->client_shm;
+}
 
 
 #if 0

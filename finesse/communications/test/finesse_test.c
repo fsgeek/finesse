@@ -118,7 +118,6 @@ test_msg_test(
     // server gets a request
     status = FinesseGetRequest(fsh, &client, &request);
     assert(0 == status);
-    assert(NULL != client);
     assert(NULL != request);
     fm_server = (fincomm_message)request;
     munit_assert(FINESSE_REQUEST == fm_server->MessageType);

@@ -4,7 +4,7 @@
  * All Rights Reserved
 */
 
-#include <finesse.h>
+#include <fcinternal.h>
 
 #define TEST_VERSION (0x10)
 
@@ -39,11 +39,13 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_
 int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
 {
     int status = 0;
-    server_connection_state_t *scs = FinesseServerHandle;
+    fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *ffm;
+    unsigned index = (unsigned)(uintptr_t)Client;
 
-    assert(NULL != scs);
-    assert(NULL != Client);
+    fsmr = FcGetSharedMemoryRegion(FinesseServerHandle, index);
+    assert(NULL != fsmr);
+    assert (index < SHM_MESSAGE_COUNT);
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
     
@@ -57,7 +59,7 @@ int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *C
     ffm->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_TEST;
     ffm->Message.Native.Response.Parameters.Test.Version = TEST_VERSION;
 
-    FinesseResponseReady((fincomm_shared_memory_region *)scs->client_shm, Message, 0);
+    FinesseResponseReady(fsmr, Message, 0);
 
     return status;
 }
@@ -77,11 +79,11 @@ int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_
     // This is a blocking get
     status = FinesseGetResponse(fsmr, Message, 1);
 
-    assert(0 == status);
+    assert(0 != status);
+    status = 0; // FinesseGetResponse is a boolean return function
     assert(FINESSE_RESPONSE == Message->MessageType);
     fmsg = (finesse_msg *)Message->Data;
 
     assert(TEST_VERSION == fmsg->Message.Native.Response.Parameters.Test.Version);
-
     return status;
 }
