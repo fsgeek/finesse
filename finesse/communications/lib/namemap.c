@@ -104,6 +104,11 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, finco
 
 }
 
+void FinesseFreeNameMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
+}
+
 int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *MapKey, fincomm_message *Message)
 {
     int status = 0;
@@ -189,4 +194,9 @@ int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle
     assert(0 == fmsg->Message.Native.Response.Parameters.MapRelease.Result);
 
     return status;
+}
+
+void FinesseFreeNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
 }

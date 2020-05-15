@@ -135,9 +135,8 @@ test_msg_test(
     status = FinesseGetTestResponse(fch, message);
     munit_assert(0 == status);
 
-
     // Free the buffer
-    FinesseFreeClientResponse(fch, message);
+    FinesseFreeTestResponse(fch, message);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);
@@ -221,13 +220,13 @@ test_msg_namemap (
     status = FinesseGetNameMapResponse(fch, message2, &out_key2);
     munit_assert(0 == status);
     munit_assert(0 == uuid_compare(key2, out_key2));  
-    FinesseFreeClientResponse(fch, message2);  
+    FinesseFreeNameMapResponse(fch, message2);
 
     // client gets the response (for message 1)
     status = FinesseGetNameMapResponse(fch, message1, &out_key1);
     munit_assert(0 == status);
     munit_assert(0 == uuid_compare(key1, out_key1));
-    FinesseFreeClientResponse(fch, message1);
+    FinesseFreeNameMapResponse(fch, message1);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);
@@ -288,7 +287,7 @@ test_msg_namemaprelease (
     munit_assert(0 == status);
 
     // Release the message
-    FinesseFreeClientResponse(fch, message);
+    FinesseFreeNameMapReleaseResponse(fch, message);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);
@@ -355,7 +354,7 @@ test_msg_statfs (
     munit_assert(0 == memcmp(&vfs, &vfs2, sizeof(vfs)));
 
     // Release the message
-    FinesseFreeClientResponse(fch, message);
+    FinesseFreeStatfsResponse(fch, message);
 
     // Now check the inode based approach, albeit with a fake inode
     uuid_generate(key);
@@ -380,16 +379,16 @@ test_msg_statfs (
     munit_assert(0 == status);
 
     // server responds
-    status = FinesseSendFstatfsResponse(fsh, client, fm_server, &vfs, 0);
+    FinesseSendFstatfsResponse(fsh, client, fm_server, &vfs, 0);
     munit_assert(0 == status);
 
     // client gets the response
-    status = FinesseGetFstatfsResponse(fch, message, &vfs2);
+    FinesseGetFstatfsResponse(fch, message, &vfs2);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&vfs, &vfs2, sizeof(vfs)));
 
     // Release the message
-    FinesseFreeClientResponse(fch, message);
+    FinesseFreeFstatfsResponse(fch, message);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);
@@ -453,7 +452,7 @@ test_msg_unlink (
     munit_assert(0 == status);
 
     // Release the message
-    FinesseFreeClientResponse(fch, message);
+    FinesseFreeUnlinkMapResponse(fch, message);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);

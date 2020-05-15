@@ -99,6 +99,12 @@ int FinesseGetStatfsResponse(finesse_client_handle_t FinesseClientHandle, fincom
 
 }
 
+void FinesseFreeStatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
+}
+
+
 int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message)
 {
     int status = 0;
@@ -131,7 +137,19 @@ int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_
 
 }
 
-// same exact function
-int (*FinesseSendFstatfsResponse)(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result) = FinesseSendStatfsResponse;
-int (*FinesseGetFstatfsResponse)(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf) = FinesseGetStatfsResponse;
+int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result)
+{
+    return FinesseSendStatfsResponse(FinesseServerHandle, Client, Message, buf, Result);
+}
 
+
+int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf)
+{
+    return FinesseGetStatfsResponse(FinesseClientHandle, Message, buf);
+}
+
+void FinesseFreeFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
+}
+ 

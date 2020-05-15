@@ -6,9 +6,14 @@
 
 #include <fcinternal.h>
 
-int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Parent, const char *NameToUnlink, fincomm_message *Message)
+int FinesseSendPathSearchRequest(finesse_client_handle_t FinesseClientHandle, char **Files, char **Paths, fincomm_message *Message)
 {
-    int status = 0;
+    int status = ENOTSUP;
+    (void) FinesseClientHandle;
+    (void) Files;
+    (void) Paths;
+    *Message = NULL;
+#if 0
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr;
     fincomm_message message = NULL;
@@ -36,13 +41,20 @@ int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     assert(0 != status); // invalid request ID
     *Message = message;
     status = 0;
+#endif // 0
 
     return status;
 }
 
-int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int64_t Result)
+int FinesseSendPathSearchResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, char *Path, int Result)
 {
-    int status = 0;
+    int status = ENOTSUP;
+    (void) FinesseServerHandle;
+    (void) Client;
+    (void) Message;
+    (void) Path;
+    (void) Result;
+#if 0
     fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *ffm;
     unsigned index = (unsigned)(uintptr_t)Client;
@@ -63,13 +75,17 @@ int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void 
     ffm->Message.Fuse.Response.Parameters.ReplyErr.Err = Result;
 
     FinesseResponseReady(fsmr, Message, 0);
-
+#endif
     return status;
 }
 
-int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
+int FinesseGetPathSearchResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, char **Path)
 {
-    int status = 0;
+    int status = ENOTSUP;
+    (void) FinesseClientHandle;
+    (void) Message;
+    (void) Path;
+#if 0
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *fmsg = NULL;
@@ -89,12 +105,35 @@ int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincom
     assert(FINESSE_MESSAGE_VERSION == fmsg->Version);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_FUSE_RSP_ERR == fmsg->Message.Fuse.Response.Type);
-
+#endif
     return status;
 
 }
 
-void FinesseFreeUnlinkMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+void FinesseFreePathSearchResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
 {
+    // TODO: this may need to do secondary shm cleanup
     FinesseFreeClientResponse(FinesseClientHandle, Response);
 }
+
+/*
+int FinesseSendPathSearchRequest(finesse_client_handle_t FinesseClientHandle, char **Files, char **Paths, fincomm_message *Message);
+int FinesseSendPathSearchResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, char *Path, int Result);
+int FinesseGetPathSearchResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, char **Path);
+void FinesseFreePathSearchResponse(finesse_client_handle_t FinesseClientHandle, char *PathToFree);
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

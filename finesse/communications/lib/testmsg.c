@@ -87,3 +87,8 @@ int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_
     assert(TEST_VERSION == fmsg->Message.Native.Response.Parameters.Test.Version);
     return status;
 }
+
+void FinesseFreeTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
+}
