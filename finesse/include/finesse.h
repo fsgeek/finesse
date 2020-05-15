@@ -45,8 +45,8 @@ int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, fincom
 int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, char *Path, int Result);
 int FinesseGetDirMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
 
-int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, const char *NameToUnlink, fincomm_message *Message);
-int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
+int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Parent, const char *NameToUnlink, fincomm_message *Message);
+int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int64_t Result);
 int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
 
 int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const char *path, fincomm_message *Message);

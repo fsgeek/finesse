@@ -401,6 +401,70 @@ test_msg_statfs (
     return MUNIT_OK;
 }
 
+static MunitResult
+test_msg_unlink (
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_server_handle_t fsh;
+    finesse_client_handle_t fch;
+    fincomm_message message;
+    finesse_msg *test_message = NULL;
+    fincomm_message fm_server = NULL;
+    void *client;
+    fincomm_message request;
+    uuid_t key;
+
+    status = FinesseStartServerConnection(&fsh);
+    munit_assert(0 == status);
+    munit_assert(NULL != fsh);
+
+    status = FinesseStartClientConnection(&fch);
+    munit_assert(0 == status);
+    munit_assert(NULL != fch);
+
+    // client sends request
+    memset(&key, 0, sizeof(key));
+    status = FinesseSendUnlinkRequest(fch, key, "foo", &message);
+    munit_assert(0 == status);
+
+    // server gets a request
+    status = FinesseGetRequest(fsh, &client, &request);
+    assert(0 == status);
+    assert(NULL != request);
+    fm_server = (fincomm_message)request;
+    munit_assert(FINESSE_REQUEST == fm_server->MessageType);
+    test_message = (finesse_msg *)fm_server->Data;
+
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
+    munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
+    munit_assert(FINESSE_FUSE_REQ_UNLINK == test_message->Message.Fuse.Request.Type);
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Unlink.Parent));
+    munit_assert(0 == strcmp("foo", test_message->Message.Fuse.Request.Parameters.Unlink.Name));
+    munit_assert(0 == status);
+
+    // server responds
+    status = FinesseSendUnlinkResponse(fsh, client, fm_server, ENOENT);
+    munit_assert(0 == status);
+
+    // client gets the response
+    status = FinesseGetUnlinkResponse(fch, message);
+    munit_assert(0 == status);
+
+    // Release the message
+    FinesseFreeClientResponse(fch, message);
+
+    // cleanup    
+    status = FinesseStopClientConnection(fch);
+    munit_assert(0 == status);
+    
+    status = FinesseStopServerConnection(fsh);
+    munit_assert(0 == status);
+
+    return MUNIT_OK;
+}
+
 
 
 static const MunitTest finesse_tests[] = {
@@ -412,6 +476,7 @@ static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/client/map", test_msg_namemap, NULL),
         TEST((char *)(uintptr_t)"/client/map_release", test_msg_namemaprelease, NULL),
         TEST((char *)(uintptr_t)"/client/statfs", test_msg_statfs, NULL),
+        TEST((char *)(uintptr_t)"/client/unlink", test_msg_unlink, NULL),
     	TEST(NULL, NULL, NULL),
     };
 

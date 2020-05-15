@@ -16,7 +16,9 @@ finessecommmunications_sources = [
    'fcs.c', 
    'namemap.c', 
    'statfs.c',
-   'testmsg.c']
+   'testmsg.c',
+   'unlink.c',
+   ]
 
 finesscommunications = static_library('finessecommuncations',
                                       finessecommmunications_sources,
