@@ -60,6 +60,22 @@ int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, void
 int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
 void FinesseFreeFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
+int FinesseSendStatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, fincomm_message *Message);
+int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
+int FinesseGetStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
+void FinesseFreeStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+
+int FinesseSendLstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, fincomm_message *Message);
+int FinesseSendLstatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
+int FinesseGetLstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
+void FinesseFreeLstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+
+int FinesseSendFstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message);
+int FinesseSendFstatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
+int FinesseGetFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
+void FinesseFreeFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+
+
 
 void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);

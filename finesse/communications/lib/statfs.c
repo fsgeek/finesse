@@ -63,7 +63,6 @@ int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void 
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_STATFS;
-    ffm->Message.Fuse.Request.Parameters.Statfs.StatFsType = STATFS;
     ffm->Message.Fuse.Response.Parameters.StatFs.StatBuffer = *buf;
 
     FinesseResponseReady(fsmr, Message, 0);

@@ -246,7 +246,18 @@ typedef struct {
         } Forget;
 
         struct {
-            uuid_t Inode;
+            enum {
+                GETATTR_STAT = 301,
+                GETATTR_FSTAT,
+                GETATTR_LSTAT,                
+            } StatType;
+            union {
+                uuid_t Inode;
+                struct {
+                    uuid_t Parent;
+                    char Name[0];
+                } Path;
+            } Options;
         } GetAttr;
 
         struct {
