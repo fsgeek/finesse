@@ -7,21 +7,89 @@
 
 int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Key, char *Path, fincomm_message *Message)
 {
-    (void) FinesseClientHandle;
-    (void) Key;
-    (void) Path;
-    *Message = NULL;
-    return ENOTSUP;
+    int status = 0;
+    client_connection_state_t *ccs = FinesseClientHandle;
+    fincomm_shared_memory_region *fsmr;
+    fincomm_message message = NULL;
+    finesse_msg *fmsg = NULL;
+    size_t nameLength, bufSize;
+
+    assert(NULL != ccs);
+    fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
+    assert(NULL != fsmr);
+    message = FinesseGetRequestBuffer(fsmr);
+    assert(NULL != message);
+    message->MessageType = FINESSE_REQUEST;
+    fmsg = (finesse_msg *)message->Data;
+    fmsg->Version = FINESSE_MESSAGE_VERSION;
+    fmsg->MessageClass = FINESSE_NATIVE_MESSAGE;
+    fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_DIRMAP;
+    memcpy(&fmsg->Message.Native.Request.Parameters.Dirmap.Parent, &Key, sizeof(uuid_t));
+
+    assert(NULL != Path);
+    nameLength = strlen(Path);
+    bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Request.Parameters.Dirmap.Name);
+    assert(nameLength < bufSize);
+    strncpy(fmsg->Message.Native.Request.Parameters.Dirmap.Name, Path, bufSize);
+
+    status = FinesseRequestReady(fsmr, message);
+    assert(0 != status); // invalid request ID
+    *Message = message;
+    status = 0;
+
+    return status;
+
 }
 
-int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, char *Path, int Result)
+void *FinesseGetDirMapResponseDataBuffer(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, size_t *BufferSize)
 {
-    (void) FinesseServerHandle;
-    (void) Client;
-    (void) Message;
-    (void) Path;
-    (void) Result;
-    return ENOTSUP;
+    void *buffer;
+    int status = 0;
+
+    status = FinesseGetMessageAuxBuffer(FinesseServerHandle, Client, Message, &buffer, BufferSize);
+    assert(0 == status);
+    assert(NULL != buffer);
+
+    return buffer;
+}
+
+int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, size_t DataLength, int Result)
+{
+    int status = 0;
+    fincomm_shared_memory_region *fsmr = NULL;
+    finesse_msg *ffm;
+    unsigned index = (unsigned)(uintptr_t)Client;
+    const char *shm_name = NULL;
+    size_t nameLength, bufSize;
+
+    fsmr = FcGetSharedMemoryRegion(FinesseServerHandle, index);
+    assert(NULL != fsmr);
+    assert (index < SHM_MESSAGE_COUNT);
+    assert(0 != Message);
+    assert(FINESSE_REQUEST == Message->MessageType);
+    
+    Message->Result = Result;
+    Message->MessageType = FINESSE_RESPONSE;
+
+    ffm = (finesse_msg *)Message->Data;
+    memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
+    ffm->Version = FINESSE_MESSAGE_VERSION;
+    ffm->MessageClass = FINESSE_FUSE_MESSAGE;
+    ffm->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_DIRMAP;
+    ffm->Message.Native.Response.Parameters.DirMap.Length = DataLength;
+    ffm->Message.Native.Response.Parameters.DirMap.Inline = 0;
+
+    shm_name = FinesseGetMessageAuxBufferName(FinesseServerHandle, Client, Message);
+
+    assert(NULL != shm_name);
+    nameLength = strlen(shm_name);
+    bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Response.Parameters.DirMap.Data);
+    assert(nameLength < bufSize);
+    strncpy(ffm->Message.Native.Response.Parameters.DirMap.Data, shm_name, bufSize);
+
+    FinesseResponseReady(fsmr, Message, 0);
+
+    return status;
 
 }
 

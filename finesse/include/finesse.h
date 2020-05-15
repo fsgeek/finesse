@@ -16,6 +16,9 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle);
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle);
 int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request);
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
+int FinesseGetMessageAuxBuffer(finesse_server_handle_t FinesseServerHandle,  void *Client, void *Message, void **Buffer, size_t *BufferSize);
+const char *FinesseGetMessageAuxBufferName(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message);
+
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);
@@ -41,8 +44,9 @@ int FinesseGetPathSearchResponse(finesse_client_handle_t FinesseClientHandle, fi
 void FinesseFreePathSearchResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Key, char *Path, fincomm_message *Message);
-int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, char *Path, int Result);
+int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, size_t DataLength, int Result);
 int FinesseGetDirMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
+void *FinesseGetDirMapResponseDataBuffer(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, size_t *BufferSize);
 void FinesseFreeDirMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Parent, const char *NameToUnlink, fincomm_message *Message);

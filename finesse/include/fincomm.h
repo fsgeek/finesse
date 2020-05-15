@@ -144,6 +144,14 @@ typedef struct server_connection_state {
     void *                          client_shm;
     pthread_t                       monitor_thread;
     uint8_t                         monitor_thread_active;
+    struct {
+        uuid_t      AuxShmKey;  // use UUIDs for the shared memory region
+        int         AuxShmFd;   // Open instance
+        uint8_t     AuxInUse;   // indicates if this is currently in use
+        void *      AuxShmMap;  // location in server memory
+        size_t      AuxShmSize; // size of the shared memory region
+        char        AuxShmName[MAX_SHM_PATH_NAME]; // name for shared memory region
+    } aux_shm_table[SHM_MESSAGE_COUNT]; // could need one per message
 } server_connection_state_t;
 
 // This declares the operations that correspond to various message types
@@ -223,6 +231,8 @@ typedef enum {
     FINESSE_NATIVE_REQ_TEST = 1024,
     FINESSE_NATIVE_REQ_MAP,
     FINESSE_NATIVE_REQ_MAP_RELEASE,
+    FINESSE_NATIVE_REQ_DIRMAP,
+    FINESSE_NATIVE_REQ_DIRMAPRELEASE,
 } FINESSE_NATIVE_REQ_TYPE;
 
 typedef enum {
@@ -230,6 +240,8 @@ typedef enum {
     FINESSE_NATIVE_RSP_TEST,
     FINESSE_NATIVE_RSP_MAP,
     FINESSE_NATIVE_RSP_MAP_RELEASE,
+    FINESSE_NATIVE_RSP_DIRMAP,
+    FINESSE_NATIVE_RSP_DIRMAPRELEASE,
 } FINESSE_NATIVE_RSP_TYPE;
 
 typedef struct {
@@ -635,6 +647,11 @@ typedef struct {
                 } Absolute;
             } LinkData;
         } MakeLink;
+
+        struct {
+            uuid_t Parent;
+            char   Name[0];
+        } Dirmap;
     } Parameters;
 } finesse_native_request;
 
@@ -656,6 +673,13 @@ typedef struct {
         struct {
             uint64_t Version;
         } Test;
+
+        struct {
+            uuid_t   MapId; // for tracking this specific mapping
+            size_t   Length; // Length of the data
+            uint8_t  Inline; // boolean if the data is returned rather than a name
+            char     Data[0]; // either inline data or the shared memory name
+        } DirMap;
     } Parameters;
 } finesse_native_response;
 

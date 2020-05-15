@@ -37,6 +37,79 @@ _Static_assert(0 == (offsetof(server_internal_connection_state_t, monitor_cond) 
 _Static_assert(0 == (offsetof(server_internal_connection_state_t, server_connection_name) % 64), "Misaligned");
 
 
+static void create_aux_shm(server_connection_state_t *ccs, unsigned Index)
+{
+    int status;
+
+    assert(NULL != ccs);
+    assert(Index < SHM_MESSAGE_COUNT);
+
+    assert(-1 == ccs->aux_shm_table[Index].AuxShmFd);
+    assert(uuid_is_null(ccs->aux_shm_table[Index].AuxShmKey));
+    assert(MAP_FAILED == ccs->aux_shm_table[Index].AuxShmMap);
+    assert(0 == ccs->aux_shm_table[Index].AuxShmSize);
+
+    // generate a name
+    uuid_generate(ccs->aux_shm_table[Index].AuxShmKey);
+    status = GenerateClientSharedMemoryName(ccs->aux_shm_table[Index].AuxShmName, MAX_SHM_PATH_NAME, ccs->aux_shm_table[Index].AuxShmKey);
+    assert(0 == status);
+
+    // create shared memory
+    ccs->aux_shm_table[Index].AuxShmFd = shm_open(ccs->aux_shm_table[Index].AuxShmName, O_RDWR | O_CREAT | O_EXCL, 0600);
+    assert(ccs->aux_shm_table[Index].AuxShmFd >= 0);
+
+    ccs->aux_shm_table[Index].AuxShmSize = 1024 * 1024; // hard code for now
+    status = ftruncate(ccs->aux_shm_table[Index].AuxShmFd, ccs->aux_shm_table[Index].AuxShmSize);
+    assert(0 == status);
+
+    ccs->aux_shm_table[Index].AuxShmMap = mmap(NULL, ccs->aux_shm_table[Index].AuxShmSize, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->aux_shm_table[Index].AuxShmSize, 0);
+    assert(MAP_FAILED != ccs->aux_shm_table[Index].AuxShmMap);
+
+}
+
+static void init_aux_shm(server_connection_state_t *ccs)
+{
+    for(unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
+        ccs->aux_shm_table[index].AuxShmFd = -1;
+        memset(&ccs->aux_shm_table[index].AuxShmKey, 0, sizeof(uuid_t));
+        ccs->aux_shm_table[index].AuxShmMap = MAP_FAILED;
+        ccs->aux_shm_table[index].AuxShmSize = 0;
+        ccs->aux_shm_table[index].AuxInUse = 0;
+    }
+}
+
+static void destroy_aux_shm(server_connection_state_t *ccs, unsigned Index)
+{
+    int status;
+
+    // unmap
+    status = munmap(ccs->aux_shm_table[Index].AuxShmMap, ccs->aux_shm_table[Index].AuxShmSize);
+    assert(0 == status);
+
+    ccs->aux_shm_table[Index].AuxShmSize = 0;
+    ccs->aux_shm_table[Index].AuxShmMap = MAP_FAILED;
+
+    // close map file
+    if (ccs->aux_shm_table[Index].AuxShmFd >= 0) {
+        status = close(ccs->aux_shm_table[Index].AuxShmFd);
+        ccs->aux_shm_table[Index].AuxShmFd = -1;
+    }
+
+    // unlink the shared memory
+    status = shm_unlink(ccs->aux_shm_table[Index].AuxShmName);
+    assert(0 == status);
+
+}
+
+static void shutdown_aux_shm(server_connection_state_t *ccs)
+{
+    for(unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
+        if (-1 != ccs->aux_shm_table[index].AuxShmFd) {
+            destroy_aux_shm(ccs, index);
+        }
+    }
+}
+
 static void teardown_client_connection(server_connection_state_t *ccs)
 {
     int status;
@@ -72,6 +145,8 @@ static void teardown_client_connection(server_connection_state_t *ccs)
         assert(0 == status);
         ccs->client_shm_fd = -1;
     }
+
+    shutdown_aux_shm(ccs);
 
     free(ccs);
 }
@@ -186,6 +261,9 @@ static void *listener(void *context)
         // initialize the shared memory region
         status = FinesseInitializeMemoryRegion(new_client->client_shm);
         assert(0 == status);
+
+        // set up the aux shm area
+        init_aux_shm(new_client);
 
         // Prepare registration acknowledgment.
         memset(&conf, 0, sizeof(conf));
@@ -568,6 +646,115 @@ fincomm_shared_memory_region *FcGetSharedMemoryRegion(finesse_server_handle_t Se
     assert(Index < SHM_MESSAGE_COUNT);
     assert(NULL != scs->client_server_connection_state_table[Index]);
     return (fincomm_shared_memory_region *)scs->client_server_connection_state_table[Index]->client_shm;
+}
+
+const char *fincomm_get_aux_shm_name(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex)
+{
+    server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
+    server_connection_state_t *scs = NULL;
+
+    assert(NULL != sics);
+    scs = sics->client_server_connection_state_table[ClientIndex];
+    assert(NULL != scs);
+
+    assert(1 == scs->aux_shm_table[MessageIndex].AuxInUse);
+
+    if (MAP_FAILED == scs->aux_shm_table[MessageIndex].AuxShmMap) {
+        // Not allocated yet, so let's do so...
+        create_aux_shm(scs, MessageIndex);
+        assert(MAP_FAILED != scs->aux_shm_table[MessageIndex].AuxShmMap);
+    }
+
+    return scs->aux_shm_table[MessageIndex].AuxShmName;
+}
+
+
+void *fincomm_get_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex, size_t *Size)
+{
+    server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
+    server_connection_state_t *scs = NULL;
+
+    assert(NULL != sics);
+    scs = sics->client_server_connection_state_table[ClientIndex];
+    assert(NULL != scs);
+
+    assert(0 == scs->aux_shm_table[MessageIndex].AuxInUse);
+
+    if (MAP_FAILED == scs->aux_shm_table[MessageIndex].AuxShmMap) {
+        // Not allocated yet, so let's do so...
+        create_aux_shm(scs, MessageIndex);
+        assert(MAP_FAILED != scs->aux_shm_table[MessageIndex].AuxShmMap);
+    }
+
+    scs->aux_shm_table[MessageIndex].AuxInUse = 1;
+    assert(*Size <= scs->aux_shm_table[MessageIndex].AuxShmSize); // otherwise, it's not big enough
+    *Size = scs->aux_shm_table[MessageIndex].AuxShmSize;
+
+    return scs->aux_shm_table[MessageIndex].AuxShmMap;
+}
+
+void fincomm_release_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex)
+{
+    server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
+    server_connection_state_t *scs = NULL;
+
+    assert(NULL != sics);
+    scs = sics->client_server_connection_state_table[ClientIndex];
+    assert(NULL != scs);
+
+    assert(1 == scs->aux_shm_table[MessageIndex].AuxInUse);
+
+    // TODO: cleanup
+    scs->aux_shm_table[MessageIndex].AuxInUse = 0;
+}
+
+int FinesseGetMessageAuxBuffer(
+    finesse_server_handle_t FinesseServerHandle, 
+    void *Client, 
+    void *Message,
+    void **Buffer,
+    size_t *BufferSize)
+{
+    unsigned index;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
+    unsigned messageIndex;
+
+    for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
+        if (scs->client_server_connection_state_table[index] == Client) {
+            break;
+        }
+    }
+
+    assert(index < SHM_MESSAGE_COUNT);
+
+    // TODO: we could use the memory inside the message itself, if there is space
+
+    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm)/SHM_PAGE_SIZE)-1);
+    *Buffer = fincomm_get_aux_shm(FinesseServerHandle, index, messageIndex, BufferSize);
+
+    return 0;
+}
+
+const char *FinesseGetMessageAuxBufferName(
+    finesse_server_handle_t FinesseServerHandle, 
+    void *Client, 
+    void *Message)
+{
+    unsigned index;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
+    unsigned messageIndex;
+
+    for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
+        if (scs->client_server_connection_state_table[index] == Client) {
+            break;
+        }
+    }
+
+    assert(index < SHM_MESSAGE_COUNT);
+
+    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm)/SHM_PAGE_SIZE)-1);
+
+    return scs->client_server_connection_state_table[index]->aux_shm_table[messageIndex].AuxShmName;
 }
 
 
