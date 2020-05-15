@@ -340,6 +340,7 @@ test_msg_statfs (
     munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
     munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
     munit_assert(FINESSE_FUSE_REQ_STATFS == test_message->Message.Fuse.Request.Type);
+    munit_assert(STATFS == test_message->Message.Fuse.Request.Parameters.Statfs.StatFsType);
 
     status = statvfs(".", &vfs);
     munit_assert(0 == status);
@@ -350,6 +351,40 @@ test_msg_statfs (
 
     // client gets the response
     status = FinesseGetStatfsResponse(fch, message, &vfs2);
+    munit_assert(0 == status);
+    munit_assert(0 == memcmp(&vfs, &vfs2, sizeof(vfs)));
+
+    // Release the message
+    FinesseFreeClientResponse(fch, message);
+
+    // Now check the inode based approach, albeit with a fake inode
+    uuid_generate(key);
+    status = FinesseSendFstatfsRequest(fch, &key, &message);
+    munit_assert(0 == status);
+
+    // server gets a request
+    status = FinesseGetRequest(fsh, &client, &request);
+    assert(0 == status);
+    assert(NULL != request);
+    fm_server = (fincomm_message)request;
+    munit_assert(FINESSE_REQUEST == fm_server->MessageType);
+    test_message = (finesse_msg *)fm_server->Data;
+
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
+    munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
+    munit_assert(FINESSE_FUSE_REQ_STATFS == test_message->Message.Fuse.Request.Type);
+    munit_assert(FSTATFS == test_message->Message.Fuse.Request.Parameters.Statfs.StatFsType);
+    munit_assert(0 == uuid_compare(key, test_message->Message.Fuse.Request.Parameters.Statfs.Options.Inode));
+
+    status = statvfs(".", &vfs);
+    munit_assert(0 == status);
+
+    // server responds
+    status = FinesseSendFstatfsResponse(fsh, client, fm_server, &vfs, 0);
+    munit_assert(0 == status);
+
+    // client gets the response
+    status = FinesseGetFstatfsResponse(fch, message, &vfs2);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&vfs, &vfs2, sizeof(vfs)));
 

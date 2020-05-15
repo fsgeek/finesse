@@ -368,8 +368,8 @@ typedef struct {
 
         struct {
             enum {
-                STATFS, // path name
-                FSTATFS // inode number
+                STATFS = 31, // path name
+                FSTATFS = 32  // inode number
             } StatFsType;
             union {
                 uuid_t Inode;

@@ -63,6 +63,7 @@ int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void 
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_STATFS;
+    ffm->Message.Fuse.Request.Parameters.Statfs.StatFsType = STATFS;
     ffm->Message.Fuse.Response.Parameters.StatFs.StatBuffer = *buf;
 
     FinesseResponseReady(fsmr, Message, 0);
@@ -98,7 +99,7 @@ int FinesseGetStatfsResponse(finesse_client_handle_t FinesseClientHandle, fincom
 
 }
 
-int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Inode, fincomm_message *Message)
+int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -118,8 +119,8 @@ int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STATFS;
     fmsg->Message.Fuse.Request.Parameters.Statfs.StatFsType = FSTATFS;
 
-    assert(!uuid_is_null(Inode));
-    memcpy(&fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Inode, &Inode, sizeof(uuid_t));
+    assert(!uuid_is_null(*Inode));
+    memcpy(&fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Inode, Inode, sizeof(uuid_t));
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID

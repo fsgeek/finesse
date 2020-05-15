@@ -53,7 +53,7 @@ int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const 
 int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);
 int FinesseGetStatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
 
-int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Inode, fincomm_message *Message);
+int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message);
 extern int (*FinesseSendFstatfsResponse)(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);
 extern int (*FinesseGetFstatfsResponse)(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
 
