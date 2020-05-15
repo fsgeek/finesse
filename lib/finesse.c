@@ -1074,7 +1074,7 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     {
         if (NULL != req->finesse.message)
         {
-            FinesseFreeRequest(req->se->server_handle, req->finesse.message);
+            assert(0); // really should have set this to NULL when we sent the response
             req->finesse.message = NULL;
         }
 

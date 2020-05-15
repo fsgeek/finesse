@@ -360,6 +360,7 @@ int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
 
     assert(NULL != Fsmr);
     assert(0 == Fsmr->ShutdownRequested); // don't call twice!
+    assert(0 == Fsmr->AllocationBitmap); // shouldn't have any outstanding buffer allocations!
 
     Fsmr->ShutdownRequested = 1;
     pthread_mutex_lock(&Fsmr->RequestMutex);

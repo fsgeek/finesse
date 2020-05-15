@@ -135,6 +135,10 @@ test_msg_test(
     status = FinesseGetTestResponse(fch, message);
     munit_assert(0 == status);
 
+
+    // Free the buffer
+    FinesseFreeClientResponse(fch, message);
+
     // cleanup    
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
@@ -216,12 +220,14 @@ test_msg_namemap (
     // client gets the response (for message 2)
     status = FinesseGetNameMapResponse(fch, message2, &out_key2);
     munit_assert(0 == status);
-    munit_assert(0 == uuid_compare(key2, out_key2));    
+    munit_assert(0 == uuid_compare(key2, out_key2));  
+    FinesseFreeClientResponse(fch, message2);  
 
     // client gets the response (for message 1)
     status = FinesseGetNameMapResponse(fch, message1, &out_key1);
     munit_assert(0 == status);
     munit_assert(0 == uuid_compare(key1, out_key1));
+    FinesseFreeClientResponse(fch, message1);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);
@@ -281,6 +287,75 @@ test_msg_namemaprelease (
     status = FinesseGetNameMapReleaseResponse(fch, message);
     munit_assert(0 == status);
 
+    // Release the message
+    FinesseFreeClientResponse(fch, message);
+
+    // cleanup    
+    status = FinesseStopClientConnection(fch);
+    munit_assert(0 == status);
+    
+    status = FinesseStopServerConnection(fsh);
+    munit_assert(0 == status);
+
+    return MUNIT_OK;
+}
+
+static MunitResult
+test_msg_statfs (
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    int status;
+    finesse_server_handle_t fsh;
+    finesse_client_handle_t fch;
+    fincomm_message message;
+    finesse_msg *test_message = NULL;
+    fincomm_message fm_server = NULL;
+    void *client;
+    fincomm_message request;
+    uuid_t key;
+    struct statvfs vfs, vfs2;
+
+    status = FinesseStartServerConnection(&fsh);
+    munit_assert(0 == status);
+    munit_assert(NULL != fsh);
+
+    status = FinesseStartClientConnection(&fch);
+    munit_assert(0 == status);
+    munit_assert(NULL != fch);
+
+    // client sends request
+    uuid_generate(key);
+    status = FinesseSendStatfsRequest(fch, ".", &message);
+    munit_assert(0 == status);
+
+    // server gets a request
+    status = FinesseGetRequest(fsh, &client, &request);
+    assert(0 == status);
+    assert(NULL != request);
+    fm_server = (fincomm_message)request;
+    munit_assert(FINESSE_REQUEST == fm_server->MessageType);
+    test_message = (finesse_msg *)fm_server->Data;
+
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
+    munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
+    munit_assert(FINESSE_FUSE_REQ_STATFS == test_message->Message.Fuse.Request.Type);
+
+    status = statvfs(".", &vfs);
+    munit_assert(0 == status);
+
+    // server responds
+    status = FinesseSendStatfsResponse(fsh, client, fm_server, &vfs, 0);
+    munit_assert(0 == status);
+
+    // client gets the response
+    status = FinesseGetStatfsResponse(fch, message, &vfs2);
+    munit_assert(0 == status);
+    munit_assert(0 == memcmp(&vfs, &vfs2, sizeof(vfs)));
+
+    // Release the message
+    FinesseFreeClientResponse(fch, message);
+
     // cleanup    
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
@@ -292,6 +367,7 @@ test_msg_namemaprelease (
 }
 
 
+
 static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/null", test_null, NULL),
         TEST((char* )(uintptr_t)"/server/connect", test_server_connect, NULL),
@@ -300,6 +376,7 @@ static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/client/msg", test_msg_test, NULL),
         TEST((char *)(uintptr_t)"/client/map", test_msg_namemap, NULL),
         TEST((char *)(uintptr_t)"/client/map_release", test_msg_namemaprelease, NULL),
+        TEST((char *)(uintptr_t)"/client/statfs", test_msg_statfs, NULL),
     	TEST(NULL, NULL, NULL),
     };
 

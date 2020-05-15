@@ -561,17 +561,6 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
     return status;
 }
 
-// This doesn't make sense for the server now since there's no allocation
-// Plus, if it is a server function, it should be in fcs.c not here.
-void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request)
-{
-    assert(NULL != FinesseServerHandle);
-    assert(NULL != Request);
-
-    // Nothing to do now, since we don't allocate memory
-    return;
-}
-
 fincomm_shared_memory_region *FcGetSharedMemoryRegion(finesse_server_handle_t ServerHandle, unsigned Index)
 {
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)ServerHandle;

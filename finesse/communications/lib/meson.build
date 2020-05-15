@@ -10,7 +10,13 @@ if libdl.found()
    deps += [ libdl ]
 endif
 
-finessecommmunications_sources = ['fincomm.c', 'fcc.c', 'fcs.c', 'namemap.c', 'testmsg.c']
+finessecommmunications_sources = [
+   'fincomm.c', 
+   'fcc.c', 
+   'fcs.c', 
+   'namemap.c', 
+   'statfs.c',
+   'testmsg.c']
 
 finesscommunications = static_library('finessecommuncations',
                                       finessecommmunications_sources,

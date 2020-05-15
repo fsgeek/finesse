@@ -16,7 +16,6 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle);
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle);
 int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request);
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
-void FinesseFreeRequest(finesse_server_handle_t FinesseServerHandle, void *Request);
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);
@@ -54,9 +53,10 @@ int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const 
 int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);
 int FinesseGetStatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
 
-int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, fuse_ino_t nodeid, fincomm_message *Message);
-int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);
-int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
+int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Inode, fincomm_message *Message);
+extern int (*FinesseSendFstatfsResponse)(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);
+extern int (*FinesseGetFstatfsResponse)(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
+
 
 void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);

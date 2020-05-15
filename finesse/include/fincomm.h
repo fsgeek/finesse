@@ -367,7 +367,14 @@ typedef struct {
         } Fsyncdir;
 
         struct {
-            uuid_t Inode;
+            enum {
+                STATFS, // path name
+                FSTATFS // inode number
+            } StatFsType;
+            union {
+                uuid_t Inode;
+                char Name[0];
+            } Options;
         } Statfs;
 
         struct {

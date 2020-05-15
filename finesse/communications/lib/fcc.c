@@ -131,3 +131,14 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
     return status;
 }
 
+void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, void *Response)
+{
+    client_connection_state_t *ccs = FinesseClientHandle;
+    fincomm_shared_memory_region *fsmr;
+
+    assert(NULL != ccs);
+    fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
+    assert(NULL != fsmr);
+
+    FinesseReleaseRequestBuffer(fsmr, Response);
+}
