@@ -75,7 +75,10 @@ int FinesseSendFstatResponse(finesse_server_handle_t FinesseServerHandle, void *
 int FinesseGetFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
 void FinesseFreeFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
-
+int FinesseSendCreateRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, struct stat *Stat, fincomm_message *Message);
+int FinesseSendCreateResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *Key, uint64_t Generation, struct stat *Stat, double Timeout, int Result);
+int FinesseGetCreateResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, uuid_t *Key, uint64_t *Generation, struct stat *Stat,  double *Timeout);
+void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);

@@ -11,6 +11,7 @@ if libdl.found()
 endif
 
 finessecommmunications_sources = [
+   'create.c',
    'dirmap.c',
    'fincomm.c', 
    'fcc.c', 

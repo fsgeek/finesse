@@ -419,7 +419,7 @@ typedef struct {
 
         struct {
             uuid_t Parent;
-            mode_t Mode;
+            struct stat Attr;
             char Name[0];
         } Create;
 
@@ -531,8 +531,11 @@ typedef struct {
         } EntryParam;
 
         struct {
-            struct fuse_entry_param EntryParam;
-            struct fuse_file_info FileInfo;
+            // derived from the fuse_entry_param structure
+            uuid_t      Key;
+            uint64_t    Generation; // unique value for this file (NFS support)
+            struct stat Attr;
+            double      Timeout;
         } Create;
 
         struct {
@@ -613,6 +616,25 @@ typedef struct {
         struct {
             uint64_t Version;
         } Test;
+
+        struct {
+            enum {
+                HARDLINK = 701,
+                HARDLINKAT,
+                SYMLINK,
+                SYMLINKAT,
+            } LinkType;
+            union {
+                struct {
+                    uuid_t Parent1;
+                    uuid_t Parent2;
+                    char Paths[0]; // two null-terminated paths.
+                } Relative;
+                struct {
+                    char Paths[0]; // two null-terminated paths.
+                } Absolute;
+            } LinkData;
+        } MakeLink;
     } Parameters;
 } finesse_native_request;
 
