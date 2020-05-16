@@ -2,8 +2,6 @@
  * Copyright (c) 2017, Tony Mason. All rights reserved.
  */
 
-#include "../finesse-internal.h"
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -24,7 +22,8 @@
 
 #include <pthread.h>
 
-#include "munit.h"
+#include <munit.h>
+#include "finesse-internal.h"
 
 extern char *files_in_path[];
 extern char *libs_in_path[];

@@ -231,9 +231,8 @@ void *finesse_map_name_async(void *args)
     fincomm_message message;
 
     status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)parsed_args->mapfile_name, &message);
-    while (0 == status) {
+    if (0 == status) {
         status = FinesseGetNameMapResponse(finesse_client_handle, message, parsed_args->uuid);
-        break;
     }
     *(parsed_args->status) = status;
      

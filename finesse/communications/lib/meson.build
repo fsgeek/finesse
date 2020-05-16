@@ -27,6 +27,6 @@ finessecommmunications_sources = [
 finesscommunications = static_library('finessecommuncations',
                                       finessecommmunications_sources,
                                       dependencies: deps,
-                                      c_args: ['-Wall', '-Wextra', '-Werror'],
+                                      c_args: ['-DFUSE_USE_VERSION=39', '-Wall', '-Wextra', '-Werror'],
                                       include_directories: [include_dirs, finesse_inc_dirs])
 

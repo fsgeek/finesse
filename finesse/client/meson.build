@@ -16,14 +16,14 @@ assert(r.returncode() == 0, 'Failed to generate protobuf code correctly')
 
 libfinesse_sources = [ #'dirmap.c',
                       'fdmgr.c',
-                      'finesse.c',
+                      #'finesse.c',
                       # 'finesse-fuse.c',
-                      'finesse-lookup.c',
+                      #'finesse-lookup.c',
                       # 'finesse-search.c',
                       'init.c',
                       #'mqcomm.c',
                       #'name_map.c',
-                      'openclose.c',
+                      #'openclose.c',
                       #'pathsearch.c', 
                       #'test.c',
                       #'mkdir.c',
@@ -62,4 +62,4 @@ libfinesse = library('finesse', libfinesse_sources,
                 link_with: finesscommunications
  )
 
-subdir('test')
+#subdir('test')
