@@ -860,7 +860,7 @@ test_finesse_search(
 }
 
 
-static const char *mount_prefix[] = {"", /* "/mnt/pt",*/ NULL};
+static const char *mount_prefix[] = {"", "/mnt/pt", NULL};
 static const char *files[] = { "testfile1", NULL};
 static const char *dirs[] = { "/tmp/nicfs/dir1", NULL};
 static const char *file_counts[] = { "1", /* "100", "1000",  "10000",*/ NULL};
@@ -899,6 +899,15 @@ const MunitSuite testutils_suite = {
     .iterations = 1,
     .options = MUNIT_SUITE_OPTION_NONE,
 };
+
+static MunitSuite testutils_suites[10];
+
+MunitSuite *SetupMunitSuites()
+{
+    memset(testutils_suites, 0, sizeof(testutils_suites));
+    testutils_suites[0] = testutils_suite;
+    return testutils_suites;
+}
 
 
 

@@ -709,3 +709,12 @@ const MunitSuite finesse_suite = {
     .options = MUNIT_SUITE_OPTION_NONE,
 };
 
+static MunitSuite finessetest_suites[10];
+
+MunitSuite *SetupMunitSuites()
+{
+    memset(finessetest_suites, 0, sizeof(finessetest_suites));
+    finessetest_suites[0] = finesse_suite;
+    finessetest_suites[1] = fincomm_suite;
+    return finessetest_suites;
+}

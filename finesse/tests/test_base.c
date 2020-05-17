@@ -17,22 +17,18 @@ test_null(
     return MUNIT_OK;
 }
 
+extern MunitSuite *SetupMunitSuites(void);
 
 int
 main(
     int argc,
     char **argv)
 {
-    MunitSuite subtests[10];
     MunitSuite suite;
-
-    memset(subtests, 0, sizeof(subtests));
-    subtests[0] = finesse_suite;
-    subtests[1] = fincomm_suite;
 
     suite.prefix = (char *)(uintptr_t)"/finesse";
     suite.tests = NULL;
-    suite.suites = subtests;
+    suite.suites = SetupMunitSuites();
     suite.iterations = 1;
     suite.options = MUNIT_SUITE_OPTION_NONE;   
 
