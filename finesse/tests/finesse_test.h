@@ -25,7 +25,7 @@
 
 #define TEST(_name, _func, _params)             \
     {                                           \
-        .name = (_name),                        \
+        .name = (char *)(uintptr_t)(_name),     \
         .test = (_func),                        \
         .setup = NULL,                          \
         .tear_down = NULL,                      \
@@ -35,5 +35,6 @@
 
 extern const MunitSuite fincomm_suite;
 extern const MunitSuite finesse_suite;
+extern const MunitSuite testutils_suite;
 
 extern MunitResult test_null(const MunitParameter params[], void *prv);

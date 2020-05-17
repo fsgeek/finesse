@@ -10,8 +10,6 @@ if libdl.found()
 endif
 
 finesse_utils_sources = [
-    'fdmgr.c',
-    'init.c',
     'lookup.c',
 ]
 

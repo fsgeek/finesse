@@ -3,10 +3,9 @@
  * All Rights Reserved
  */
 
-#include "finesse-internal.h"
-#include <stdarg.h>
-#include <uuid/uuid.h>
-#include <pthread.h>
+#include "api-internal.h"
+
+
 /* 
  * REF: https://rafalcieslak.wordpress.com/2013/04/02/dynamic-linker-tricks-using-ld_preload-to-cheat-inject-features-and-investigate-programs/
  *      https://github.com/poliva/ldpreloadhook/blob/master/hook.c
@@ -90,6 +89,7 @@ int finesse_open(const char *pathname, int flags, ...)
     mode_t mode;
     int status;
     uuid_t uuid;
+    fincomm_message message = NULL;
 
     va_start(args, flags);
     mode = va_arg(args, int);
@@ -106,55 +106,45 @@ int finesse_open(const char *pathname, int flags, ...)
     }
 
     //
-    // let's see if the other side knows about this file already
-    // invoke finesse_map_name asynchronously
+    // Ask the other side
     //
-    pthread_t tid;
-    struct map_name_args *mn_args = (struct map_name_args *) malloc(sizeof(struct map_name_args));
-    mn_args->mapfile_name = pathname;
-    mn_args->uuid = &uuid;
-    mn_args->status = &status;
-    pthread_create(&tid, NULL, finesse_map_name_async, (void *) mn_args);
+    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)pathname, &message);
 
-    if (0 == status) {
-        // if this is a NOENT and O_CREAT is not specified, we know this open will fail
-        if ((ENOENT == status) && (O_CREAT == (flags & O_CREAT))) {
-            errno = ENOENT;
-            return -1;
-        }
+    if (0 != status ) {
+        // fallback
+        return fin_open(pathname, flags, mode);
     }
 
+    // Otherwise, let's do the open
     fd = fin_open(pathname, flags, mode);
-    pthread_join(tid, NULL);
-    free(mn_args); 
 
-    while (fd >= 0) {
-        finesse_key_t key;
-        finesse_file_state_t *file_state;
+    // Get the answer from the server
+    status = FinesseGetNameMapResponse(finesse_client_handle, message, &uuid);
+    FinesseReleaseRequestBuffer(finesse_client_handle, message);
 
+    if (0 > fd) {
+        // both calls failed
+        if (status != 0) {
+            return fd;
+        }
+        // otherwise, the open failed but the remote succeeded
+        status = FinesseSendNameMapReleaseRequest(finesse_client_handle, &uuid, &message);
         if (0 != status) {
-            // retry the lookup here
-            status = finesse_map_name(pathname, &uuid);
-
-            if (0 != status) {
-                // map still failed
-                break;
-            }
+            // note that this is uuid leak - maybe the server died?
+            return fd;
         }
-
-        file_state = finesse_create_file_state(fd, &key, pathname);
-
-        if (NULL == file_state) {
-            fprintf(stderr, "%d @ %s (%s) - NULL from finesse_create_file_state\n", __LINE__, __FILE__, __FUNCTION__);
-
-            //
-            // If anything goes wrong, we just do nothing because the fallback is
-            // to go the "old" way.
-            //
-        }
-        break;
-
     }
+
+    // the open succeeded
+    if (0 != status) {
+        // lookup failed
+        return fd;
+    }
+    
+    // open succeeded AND lookup succeeded - insert into the lookup table
+    // Note that if this failed (file_state is null) we don't care - that
+    // just turns this into a fallback case.
+    (void) finesse_create_file_state(fd, &uuid, pathname);
 
     return finesse_fd_to_nfd(fd);
 }
@@ -177,11 +167,9 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
     mode = va_arg(args, int);
     va_end(args);
 
-    fd = fin_openat(dirfd, pathname, flags, mode);
+    assert(0); // need to code this path
 
-    if (fd >= 0) {
-        /* TODO: add the lookup/insert logic for this pair of fds */
-    }
+    fd = fin_openat(dirfd, pathname, flags, mode);
 
     return finesse_fd_to_nfd(fd);
 }

@@ -3,9 +3,7 @@
  * All Rights Reserved
  */
 
-#include "finesse-internal.h"
-#include "finesse.h"
-#include <pthread.h>
+#include "api-internal.h"
 
 // this is the list of prefixes that we care about
 // TODO: make this configuration or parameterizable

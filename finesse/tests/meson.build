@@ -10,23 +10,17 @@ libfuse = cc.find_library('libfuse')
 libpthread = cc.find_library('pthread')
 munit = dependency('munit', fallback: ['munit', 'munit_dep'])
 
+testfinesse_sources = [
+    'pathdata.c',
+    'finesse_test.c',
+    'fincomm_test.c',
+    'test_base.c',
+    'testutils.c',
+]
 
-common_sources = ['pathdata.c']
-
-testfinesse_sources = common_sources + ['testfinesse.c']
-testutils_sources = common_sources + ['testutils.c']
-                
-executable('testfinesse', 
-            testfinesse_sources,
-            dependencies: [deps, librt, libuuid, libfuse, munit], 
-            include_directories: [include_dirs, finesse_inc_dirs],
-            link_with : [finesse_utils]
-            )
-
-executable('testutils',
-            testutils_sources,
-            dependencies: [deps, librt, libuuid, munit],
-            include_directories: [include_dirs, finesse_inc_dirs], 
-            link_with : [finesse_utils]
-            )
-
+executable('testfinesse',
+           testfinesse_sources,
+           dependencies: [deps, munit],
+           include_directories: [include_dirs, finesse_inc_dirs],
+           link_with: [finesscommunications, finesse_utils, libfinesse_api]
+          )

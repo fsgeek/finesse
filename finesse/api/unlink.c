@@ -4,11 +4,7 @@
  */
 
 
-#include "finesse-internal.h"
-#include <stdarg.h>
-#include <uuid/uuid.h>
-#include "finesse.pb-c.h"
-#include "mqcomm.h"
+#include "api-internal.h"
 
 static int fin_unlink_call(const char *unlinkfile_name);
 
@@ -82,153 +78,19 @@ static int fin_unlink_call(const char *unlinkfile_name)
 {
     int status;
     uint64_t req_id;
+    uuid_t null_uuid;
+    fincomm_message message;
 
-    status = FinesseSendUnlinkRequest(finesse_client_handle, unlinkfile_name, &req_id);
-    while (0 == status) {
-        status = FinesseGetUnlinkResponse(finesse_client_handle, req_id);
-        break;
-    }
+    memset(&null_uuid, 0, sizeof(uuid_t));
 
-    return status;
-}
+    status = FinesseSendUnlinkRequest(finesse_client_handle, &null_uuid, unlinkfile_name, &message);
 
-int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, const char *NameToUnlink, uint64_t *RequestId)
-{
-    Finesse__FinesseRequest req = FINESSE__FINESSE_REQUEST__INIT;
-    Finesse__FinesseMessageHeader header = FINESSE__FINESSE_MESSAGE_HEADER__INIT;
-    Finesse__FinesseRequest__Unlink unlink_path = FINESSE__FINESSE_REQUEST__UNLINK__INIT;
-    void *buffer = NULL;
-    size_t buffer_len = 0;
-    size_t packed_buffer_len = 0;
-    int status = -ENOSYS;
-
-    while (NULL == buffer) {
-        finesse_set_client_message_header(FinesseClientHandle, &header, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH);
-
-        req.header = &header;
-        req.clientuuid.data = (uint8_t *)finesse_get_client_uuid(FinesseClientHandle);
-        req.clientuuid.len = sizeof(uuid_t);
-        req.request_case = FINESSE__FINESSE_REQUEST__REQUEST_UNLINK_REQ;
-        req.unlinkreq = &unlink_path;
-
-        unlink_path.name = (char *)(uintptr_t)NameToUnlink;
-
-        buffer_len = finesse__finesse_request__get_packed_size(&req);
-
-        // TODO: note that if it is too big we'll have to figure out a different way
-        // to send this information across (and I *do* expect that to happen)
-        // my expectation is that I'll need to create a shared memory buffer for this.
-        if (buffer_len > FINESSE_MQ_MAX_MESSAGESIZE) {
-            status = -EINVAL;
-            break;
+    if (0 == status) {
+        status = FinesseGetUnlinkResponse(finesse_client_handle, message);
+        if (0 == status) {
+            status = message->Result;
         }
-
-        buffer = malloc(buffer_len);
-        if (NULL == buffer) {
-            status = -ENOMEM;
-            break;
-        }
-
-        packed_buffer_len = finesse__finesse_request__pack(&req, (uint8_t *)buffer);
-        assert(buffer_len == packed_buffer_len);
-
-        status = FinesseSendRequest(FinesseClientHandle, buffer, buffer_len);
-
-        break;
-    }
-
-
-    // cleanup
-    if (NULL != buffer) {
-        free(buffer);
-        buffer = NULL;
-    }
-
-    *RequestId = header.messageid;
-    return status;
-}
-
-int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result)
-{
-    Finesse__FinesseResponse rsp = FINESSE__FINESSE_RESPONSE__INIT;
-    Finesse__FinesseMessageHeader header = FINESSE__FINESSE_MESSAGE_HEADER__INIT;
-    void *buffer = NULL;
-    size_t buffer_len = 0;
-    size_t packed_buffer_len = 0;
-    int status = -ENOSYS;
-
-    while (NULL == buffer) {
-        finesse_set_server_message_header(FinesseServerHandle, &header, RequestId, FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__UNLINK);
-
-        rsp.header = &header;
-        rsp.status = Result;
-        rsp.response_case = FINESSE__FINESSE_RESPONSE__RESPONSE__NOT_SET;
-
-        buffer_len = finesse__finesse_response__get_packed_size(&rsp);
-
-        if (buffer_len > finesse_get_max_message_size(FinesseServerHandle)) {
-            status = -EINVAL;
-            break;
-        }
-
-        buffer = malloc(buffer_len);
-        if (NULL == buffer) {
-            status = -ENOMEM;
-            break;
-        }
-
-        packed_buffer_len = finesse__finesse_response__pack(&rsp, (uint8_t *)buffer);
-        assert(buffer_len == packed_buffer_len);
-
-        status = FinesseSendResponse(FinesseServerHandle, ClientUuid, buffer, buffer_len);
-
-        break;
-    }
-
-
-    // cleanup
-    if (NULL != buffer) {
-        free(buffer);
-        buffer = NULL;
-    }
-
-    return status;
-}
-
-int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId)
-{
-    Finesse__FinesseResponse *rsp = NULL;
-    void *buffer = NULL;
-    size_t buffer_len = 0;
-    int status;
-
-    while (NULL == buffer)
-    {
-        status = FinesseGetClientResponse(FinesseClientHandle, &buffer, &buffer_len);
-
-        if (0 != status)
-        {
-            break;
-        }
-
-        rsp = finesse__finesse_response__unpack(NULL, buffer_len, (const uint8_t *)buffer);
-
-        if (NULL == rsp)
-        {
-            status = -EINVAL;
-            break;
-        }
-
-        assert(rsp->header->messageid == RequestId);
-
-        status = (int)rsp->status;
-        break;
-    }
-
-    if (NULL != buffer)
-    {
-        FinesseFreeClientResponse(FinesseClientHandle, buffer);
-        buffer = NULL;
+        FinesseReleaseRequestBuffer(finesse_client_handle, message);
     }
 
     return status;

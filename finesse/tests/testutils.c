@@ -2,28 +2,11 @@
  * Copyright (c) 2017, Tony Mason. All rights reserved.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "finesse_test.h"
+#include "../api/api-internal.h"
 
-
-#include <string.h>
-
-#include <defs.h>
-// #include <crt/nstime.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
-
-#include <uuid/uuid.h>
-
-#include <pthread.h>
-
-#include <munit.h>
-#include "finesse-internal.h"
+#define __packed __attribute__((packed))
+#define __notused __attribute__((unused))
 
 extern char *files_in_path[];
 extern char *libs_in_path[];
@@ -39,14 +22,6 @@ void (*finesse_init)(void) = finesse_init_dummy;
 static void finesse_shutdown(void);
 static void finesse_shutdown(void)
 {
-}
-
-static MunitResult
-test_null(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
-{
-    return MUNIT_OK;
 }
 
 static MunitResult test_lookup_table_create(const MunitParameter params[], void *arg)
@@ -901,47 +876,31 @@ MunitParameterEnum open_params[] =
     {.name = NULL, .values = NULL},
 };
 
+static MunitTest tests[] = {
+    TEST("/one", test_null, NULL),
+    TEST("/open/dir", test_open_dir, open_params),
+    TEST("/open/existing-files", test_open_existing_files, open_params),
+    TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),
+    TEST("/fstatfs", test_fstatfs, open_params),
+    TEST("/lookup/create", test_lookup_table_create, NULL),
+    TEST("/lookup/test_table", test_lookup_table, NULL),
+    TEST("/search/path/niccolum", test_finesse_search, NULL),
+    TEST("/search/path/native", test_path_search_native, NULL),
+    TEST("/search/path/passthrough", test_path_search_pt, NULL),
+    TEST("/search/library/native", test_library_search_native, NULL),
+    TEST("/search/library/passthrough", test_library_search_pt, NULL),
+    TEST(NULL, NULL, NULL),
+};
 
-#define TEST(_name, _func, _params)             \
-    {                                           \
-        .name = (char *)(uintptr_t)(_name),                        \
-        .test = (_func),                        \
-        .setup = NULL,                          \
-        .tear_down = NULL,                      \
-        .options = MUNIT_TEST_OPTION_NONE,      \
-        .parameters = (_params),                     \
-    }
+const MunitSuite testutils_suite = {
+    .prefix = (char *)(uintptr_t)"/utils",
+    .tests = tests,
+    .suites = NULL,
+    .iterations = 1,
+    .options = MUNIT_SUITE_OPTION_NONE,
+};
 
-int
-main(
-    int argc,
-    char **argv)
-{
-    static MunitTest tests[] = {
-        TEST("/one", test_null, NULL),
-        TEST("/open/dir", test_open_dir, open_params),
-        TEST("/open/existing-files", test_open_existing_files, open_params),
-        TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),
-        TEST("/fstatfs", test_fstatfs, open_params),
-	TEST("/lookup/create", test_lookup_table_create, NULL),
-        TEST("/lookup/test_table", test_lookup_table, NULL),
-        TEST("/search/path/niccolum", test_finesse_search, NULL),
-        TEST("/search/path/native", test_path_search_native, NULL),
-        TEST("/search/path/passthrough", test_path_search_pt, NULL),
-        TEST("/search/library/native", test_library_search_native, NULL),
-        TEST("/search/library/passthrough", test_library_search_pt, NULL),
-        TEST(NULL, NULL, NULL),
-    };
-    static const MunitSuite suite = {
-        .prefix = (char *)(uintptr_t)"/nicfs",
-        .tests = tests,
-        .suites = NULL,
-        .iterations = 1,
-        .options = MUNIT_SUITE_OPTION_NONE,
-    };
 
-    return munit_suite_main(&suite, NULL, argc, argv);
-}
 
 /*
  * Local variables:

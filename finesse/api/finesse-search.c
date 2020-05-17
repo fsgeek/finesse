@@ -12,10 +12,6 @@
 #include "fuse_opt.h"
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
-#include "finesse_msg.h"
-#include "finesse_fuse.h"
-#include "finesse-lookup.h"
-#include "finesse-list.h"
 #include "finesse-search.h"
 
 #include <stdio.h>
@@ -84,10 +80,6 @@ typedef struct finesse_path_search_request {
 	char SearchData[1];
 } finesse_path_search_request_t;
 
-#define FINESSE_SEARCH_DATA_RESIDENT (0x1)
-#define FINESSE_SEARCH_DATA_SHARED_MEM (0x2)
-#endif // 0
-
 int finesse_process_search_request(finesse_path_search_request_t *search_request, finesse_path_search_response_t **search_response)
 {
     (void)search_request;
@@ -96,7 +88,6 @@ int finesse_process_search_request(finesse_path_search_request_t *search_request
     return -ENOSYS;
 }
 
-#if 0
 /////
 //
 // given a list of files and paths, find the first occurrence of the file in the path
@@ -122,7 +113,6 @@ static int find_file_in_path(char **files, char **paths, char *prefix, char **fi
             }
 
                 // TODO: need to wire this up
-#if 0
 			{
 				// ugly hack - simulate a call to getattr
 				struct lo_inode {
@@ -136,7 +126,6 @@ static int find_file_in_path(char **files, char **paths, char *prefix, char **fi
 
 			}
 			finesse_original_ops.getattr();
-#endif // 0
             if (0 == stat(scratch, &stat_buf))
             {
                 // found it
@@ -265,3 +254,4 @@ void finesse_test_search(void)
     lib_search_internal(NULL);
     // path_search_internal(NULL);
 }
+#endif // 0

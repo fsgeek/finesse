@@ -13,9 +13,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <fuse_lowlevel.h>
-#include "finesse-lookup.h"
-
 #include "finesse-list.h"
+#include <finesse-fuse.h>
+#include "../api/api-internal.h"
 
 #if !defined(offset_of)
 #define offset_of(type, field) (unsigned long)&(((type *)0)->field)

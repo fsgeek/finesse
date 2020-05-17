@@ -3,8 +3,13 @@
  * All Rights Reserved
  */
 
-#include "finesse-internal.h"
+#include "api-internal.h"
 #include "list.h"
+
+
+#if !defined(offsetof)
+#define offsetof(type, member)  __builtin_offsetof (type, member)
+#endif // offsetof
 
 /*
  * The purpose of the file descriptor manager is to provide a mechanism for mapping file descriptors to paths, since
@@ -243,7 +248,7 @@ static int lookup_table_remove(lookup_table_t *Table, void *Key)
  *       to delete the state.
  */
 
-finesse_file_state_t *finesse_create_file_state(int fd, finesse_key_t *key, const char *pathname)
+finesse_file_state_t *finesse_create_file_state(int fd, uuid_t *key, const char *pathname)
 {
     size_t pathlen = strlen(pathname) + sizeof('\0');
     size_t size = (sizeof(finesse_file_state_t) + pathlen + 0x7) & ~0x7;
@@ -255,7 +260,7 @@ finesse_file_state_t *finesse_create_file_state(int fd, finesse_key_t *key, cons
     file_state = malloc(size);
     while (NULL != file_state) {
         file_state->fd = fd;
-        file_state->key = *key;
+        memcpy(&file_state->key, key, sizeof(uuid_t));
         file_state->pathname = (char *)(file_state+1);
         strncpy(file_state->pathname, pathname, pathlen);
         file_state->current_offset = 0;

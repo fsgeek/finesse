@@ -13,10 +13,6 @@
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
 #include "finesse-fuse.h"
-#include "finesse-lookup.h"
-#include "finesse-list.h"
-#include "finesse.h"
-#include "finesse.pb-c.h"
 
 #include <stdio.h>
 #include <stdlib.h>

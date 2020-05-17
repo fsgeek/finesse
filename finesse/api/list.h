@@ -9,8 +9,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <defs.h>
-
 struct list {
     struct list *prv;
     struct list *nxt;
