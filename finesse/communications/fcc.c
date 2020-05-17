@@ -80,6 +80,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
 
         ccs->server_shm = mmap(NULL, ccs->server_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->server_shm_fd, 0);
         assert(MAP_FAILED != ccs->server_shm);
+        memcpy(ccs->server_shm, FinesseSharedMemoryRegionSignature, sizeof(FinesseSharedMemoryRegionSignature));
 
         ccs->server_sockaddr.sun_family = AF_UNIX;
         status = GenerateServerName(ccs->server_sockaddr.sun_path, sizeof(ccs->server_sockaddr.sun_path));
@@ -131,6 +132,30 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
     return status;
 }
 
+void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
+{
+    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
+    u_int64_t bitmap; // = AllocationBitmap;
+    u_int64_t new_bitmap; 
+
+    assert(NULL != RequestRegion);
+    assert(index < SHM_MESSAGE_COUNT);
+    assert(NULL != Message);
+
+    Message->RequestId = 0; // invalid
+
+    bitmap = RequestRegion->AllocationBitmap;
+    new_bitmap = bitmap & ~make_mask64(index);
+    assert(bitmap != new_bitmap); // freeing an unallocated message
+
+    assert(&RequestRegion->Messages[index] == Message);
+
+    while (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
+        bitmap = RequestRegion->AllocationBitmap;
+        new_bitmap = (bitmap & ~make_mask64(index));
+    }
+}
+
 void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
 {
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -142,3 +167,4 @@ void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, finc
 
     FinesseReleaseRequestBuffer(fsmr, Response);
 }
+

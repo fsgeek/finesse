@@ -20,6 +20,7 @@
 #include <finesse.h>
 #include "finesse_test.h"
 #include "fincomm.h"
+#include "../communications/fcinternal.h"
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))

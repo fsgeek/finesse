@@ -456,7 +456,7 @@ test_msg_unlink (
     munit_assert(0 == status);
 
     // Release the message
-    FinesseFreeUnlinkMapResponse(fch, message);
+    FinesseFreeUnlinkResponse(fch, message);
 
     // cleanup    
     status = FinesseStopClientConnection(fch);

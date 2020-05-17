@@ -89,7 +89,7 @@ static int fin_unlink_call(const char *unlinkfile_name)
         if (0 == status) {
             status = message->Result;
         }
-        FinesseReleaseRequestBuffer(finesse_client_handle, message);
+        FinesseFreeUnlinkResponse(finesse_client_handle, message);
     }
 
     return status;

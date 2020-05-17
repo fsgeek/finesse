@@ -96,13 +96,14 @@ _Static_assert(SHM_PAGE_SIZE == sizeof(fincomm_message_block), "Alignment wrong"
 // message blocks
 //
 typedef struct {
+    char            Signature[8];
     uuid_t          ClientId;
     uuid_t          ServerId;
     u_int64_t       RequestBitmap;
     u_int64_t       RequestWaiters;
     pthread_mutex_t RequestMutex;
     pthread_cond_t  RequestPending;
-    u_int8_t        align0[192-((2 * sizeof(uuid_t)) + (2*sizeof(u_int64_t)) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
+    u_int8_t        align0[192-((2 * sizeof(uuid_t)) + 8 * sizeof(char) + (2*sizeof(u_int64_t)) + sizeof(pthread_mutex_t) + sizeof(pthread_cond_t))];
     u_int64_t       ResponseBitmap;
     pthread_mutex_t ResponseMutex;
     pthread_cond_t  ResponsePending;
@@ -115,6 +116,10 @@ typedef struct {
     u_int8_t        UnusedRegion[4096-(6*64)];
     fincomm_message_block   Messages[SHM_MESSAGE_COUNT];
 } fincomm_shared_memory_region;
+
+extern const char FinesseSharedMemoryRegionSignature[8];
+
+#define CHECK_SHM_SIGNATURE(fsmr) assert(0 == memcmp(fsmr, FinesseSharedMemoryRegionSignature, sizeof(FinesseSharedMemoryRegionSignature)))
 
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, ResponseBitmap) % OPTIMAL_ALIGNMENT_SIZE, "Alignment wrong");
@@ -732,7 +737,6 @@ void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_m
 int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait);
 int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_message *message);
 int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion);
-void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
 int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr);
 int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr);
 

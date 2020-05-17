@@ -52,7 +52,7 @@ void FinesseFreeDirMapResponse(finesse_client_handle_t FinesseClientHandle, finc
 int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *NameToUnlink, fincomm_message *Message);
 int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int64_t Result);
 int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
-void FinesseFreeUnlinkMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+void FinesseFreeUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const char *path, fincomm_message *Message);
 int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct statvfs *buf, int Result);

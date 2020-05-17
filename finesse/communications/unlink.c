@@ -94,7 +94,7 @@ int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincom
 
 }
 
-void FinesseFreeUnlinkMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+void FinesseFreeUnlinkResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
 {
     FinesseFreeClientResponse(FinesseClientHandle, Response);
 }

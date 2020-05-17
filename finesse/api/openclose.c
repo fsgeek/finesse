@@ -120,7 +120,7 @@ int finesse_open(const char *pathname, int flags, ...)
 
     // Get the answer from the server
     status = FinesseGetNameMapResponse(finesse_client_handle, message, &uuid);
-    FinesseReleaseRequestBuffer(finesse_client_handle, message);
+    FinesseFreeNameMapResponse(finesse_client_handle, message);
 
     if (0 > fd) {
         // both calls failed
