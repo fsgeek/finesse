@@ -39,6 +39,9 @@ test_server_connect(
     status = FinesseStartServerConnection(&fsh);
     munit_assert(0 == status);
 
+    // too fast and startup hasn't finished
+    sleep(1);
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 

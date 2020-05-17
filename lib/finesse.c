@@ -744,12 +744,6 @@ static void *finesse_process_request_worker(void *arg)
         fincomm_message request;
         finesse_msg *fmsg = NULL;
   
-        if (NULL == fsh) {
-            status = FinesseStartServerConnection(&fsh);
-            assert(0 == status);
-            assert(NULL != fsh);
-        }
-
         status = FinesseGetRequest(fsh, &client, &request);
         assert(0 == status);
         assert(NULL != request);

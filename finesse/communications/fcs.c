@@ -18,6 +18,7 @@
 
 typedef struct server_internal_connection_state {
     int                         server_connection;
+    int                         shutdown;
     pthread_t                   listener_thread;
     uuid_t                      server_uuid;
     unsigned char               align0[32];
@@ -236,6 +237,10 @@ static void *listener(void *context)
         new_client->client_connection = -1;
 
         new_client->client_connection = accept(scs->server_connection, 0, 0);
+        if (scs->shutdown) {
+            // don't care about errors, we're done.
+            break;
+        }
         assert(new_client->client_connection >= 0);
         status = read(new_client->client_connection, buffer, sizeof(buffer));
         assert(status >= sizeof(fincomm_registration_info));
@@ -301,6 +306,9 @@ static void *listener(void *context)
             teardown_client_connection(new_client);
             new_client = NULL;
         }
+
+        // Notify any waiting server thread(s) that the state of the world has changed
+        status = pthread_cond_broadcast(&scs->server_cond);
     }
 
     return (void *)0;
@@ -428,6 +436,16 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 
     assert(NULL != FinesseServerHandle);
 
+    scs->shutdown = 1;
+    
+    // Tell any waiting service callers that the state of teh world has changed
+    pthread_cond_broadcast(&scs->server_cond);
+
+    // Close the client registration connection - this should kill the listener
+    status = close(scs->server_connection);
+    assert(0 == status);
+    scs->server_connection = -1;
+
     if (scs->listener_thread) {
         status = pthread_cancel(scs->listener_thread);
         assert(0 == status);
@@ -437,9 +455,6 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     assert(PTHREAD_CANCELED == result);
     assert(0 == status);
 
-    status = close(scs->server_connection);
-    assert(0 == status);
-    scs->server_connection = -1;
 
     for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (NULL != scs->client_server_connection_state_table[index]) {
@@ -553,52 +568,50 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
     for(;;) {
         int found = 0;
 
-        // Let's check and see if there are any connected clients at this point
-        for (unsigned i = 0; i < SHM_MESSAGE_COUNT; i++) {
-            if (NULL != scs->client_server_connection_state_table[i]) {
-                found = 1;
-                break;
+        pthread_mutex_lock(&scs->monitor_mutex);
+        captured_bitmap = scs->waiting_client_request_bitmap;
+        //
+        // The server service thread is going to need to wait if:
+        //  (1) there are no clients;
+        //  (2) there are clients, but they aren't asking for any work
+        //
+        while ((0 == found) || (0 == captured_bitmap)) {
+            // Let's check and see if there are any connected clients at this point
+            for (unsigned i = 0; i < SHM_MESSAGE_COUNT; i++) {
+                if (NULL != scs->client_server_connection_state_table[i]) {
+                    found = 1;
+                    break;
+                }
             }
+
+            if (0 != found) {
+                // We're going to wake up the secondary threads, so they can
+                // check if there are messages waiting.  I really wish I didn't
+                // need secondary threads, but there's no simple way for us to
+                // block on multiple condition variables; I'd need to use some
+                // other mechanism and for now, this is sufficient.
+                // TODO: review if there's not a better way to monitor for state
+                // changes without multiple threads.
+                pthread_cond_broadcast(&scs->monitor_cond); // wake up the monitor threads
+            }
+
+            // wait for state change.  Note that this means we need to signal this condition
+            // when: (1) a new client connects (found state changes) or (2) someone notices
+            // there are messages waiting to be processed.
+            pthread_cond_wait(&scs->server_cond, &scs->monitor_mutex); // wait for a monitor thread wake this thread up
+
+            // the world has changed, so we start back up at the top.
+            captured_bitmap = scs->waiting_client_request_bitmap;
+
         }
-        if (0 == found) {
-            status = ENOTCONN; // there aren't any connected clients!
+        pthread_mutex_unlock(&scs->monitor_mutex);
+
+        // Was a shutdown requested?
+        if (scs->shutdown) {
             break;
         }
 
-        // We're going to wake up the secondary threads, so they can
-        // check if there are messages waiting.  I really wish I didn't
-        // need secondary threads, but there's no simple way for us to
-        // block on multiple condition variables; I'd need to use some
-        // other mechanism and for now, this is sufficient.
-        // TODO: review if there's not a better way to monitor for state
-        // changes without multiple threads.
-        captured_bitmap = 0;
-
-        // First thing to do is kick the secondary threads to update
-        // state.  Note that if there's already work to do, this
-        // won't actually wake up the monitor threads.  If there
-        // isn't work to do, it wakes up those threads and asks
-        // them to continue.
-        //
-        // Since the monitor operation is a broadcast, it will
-        // get all the threads to run and update their respective
-        // bits.  Since the mutex lock is held across the broadcast
-        // they can't proceed until after we've gone into the wait
-        // on the condition, so this should avoid the lost signal
-        // problem. We could broadcast more aggressively, but I
-        // don't see a benefit to it.
-        //
-        // Monitor threads that don't have any activity will block
-        // and wait for activity to happen and when it does, they'll
-        // update the bitmap.
-        // 
-        pthread_mutex_lock(&scs->monitor_mutex);
-        while (0 == scs->waiting_client_request_bitmap) {
-            pthread_cond_broadcast(&scs->monitor_cond); // wake up the monitor threads
-            pthread_cond_wait(&scs->server_cond, &scs->monitor_mutex); // wait for a monitor thread wake this thread up
-        }
-        captured_bitmap = scs->waiting_client_request_bitmap;
-        pthread_mutex_unlock(&scs->monitor_mutex);
+        // We should never be here without a captured bitmap
         assert(0 != captured_bitmap);
 
         // I randomize the starting point to try and ensure fair
@@ -626,6 +639,12 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
 
         // At this point we will try again, as perhaps the state of the world has changed for us.
 
+    }
+
+    if (scs->shutdown) {
+        *Client = NULL;
+        *Request = NULL;
+        return ESHUTDOWN;
     }
 
     *Client = ccs;
