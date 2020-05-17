@@ -90,11 +90,11 @@ int finesse_statfs(const char *path, struct statvfs *buf)
 static int fin_statfs_call(const char *path, struct statvfs *buf)
 {
     int status;
-    uint64_t req_id;
+    fincomm_message message;
 
-    status = FinesseSendStatfsRequest(finesse_client_handle, path, &req_id);
+    status = FinesseSendStatfsRequest(finesse_client_handle, path, &message);
     while (0 == status) {
-        status = FinesseGetStatfsResponse(finesse_client_handle, req_id, buf);
+        status = FinesseGetStatfsResponse(finesse_client_handle, message, buf);
         break;
     }
 

@@ -32,7 +32,7 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Request.Parameters.Map.Name);
 
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Native.Request.Parameters.Map.Name, NameToMap, bufSize);
+    memcpy(fmsg->Message.Native.Request.Parameters.Map.Name, NameToMap, nameLength + 1);
     assert(strlen(fmsg->Message.Native.Request.Parameters.Map.Name) == nameLength);
     memset(fmsg->Message.Native.Request.Parameters.Map.Parent, 0, sizeof(fmsg->Message.Native.Request.Parameters.Map.Parent));
 

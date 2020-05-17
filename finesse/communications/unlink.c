@@ -6,7 +6,7 @@
 
 #include <fcinternal.h>
 
-int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t Parent, const char *NameToUnlink, fincomm_message *Message)
+int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *NameToUnlink, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -30,7 +30,7 @@ int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     nameLength = strlen(NameToUnlink);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Unlink.Name);
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Fuse.Request.Parameters.Unlink.Name, NameToUnlink, bufSize);
+    memcpy(fmsg->Message.Fuse.Request.Parameters.Unlink.Name, NameToUnlink, nameLength + 1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID

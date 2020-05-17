@@ -35,7 +35,7 @@ int FinesseSendPathSearchRequest(finesse_client_handle_t FinesseClientHandle, ch
     nameLength = strlen(NameToUnlink);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Unlink.Name);
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Fuse.Request.Parameters.Unlink.Name, NameToUnlink, bufSize);
+    memcpy(fmsg->Message.Fuse.Request.Parameters.Unlink.Name, NameToUnlink, nameLength+1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID

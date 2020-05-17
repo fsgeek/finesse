@@ -1,7 +1,7 @@
 
 libfinesse_api_sources = [
    'fdmgr.c',
-   'finesse-search.c',
+   # 'finesse-search.c',
    'init.c',
    'mkdir.c',
    'openclose.c',

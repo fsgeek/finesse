@@ -30,7 +30,7 @@ int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     nameLength = strlen(Path);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Request.Parameters.Dirmap.Name);
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Native.Request.Parameters.Dirmap.Name, Path, bufSize);
+    memcpy(fmsg->Message.Native.Request.Parameters.Dirmap.Name, Path, nameLength+1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID
@@ -85,7 +85,7 @@ int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, void 
     nameLength = strlen(shm_name);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Response.Parameters.DirMap.Data);
     assert(nameLength < bufSize);
-    strncpy(ffm->Message.Native.Response.Parameters.DirMap.Data, shm_name, bufSize);
+    memcpy(ffm->Message.Native.Response.Parameters.DirMap.Data, shm_name, nameLength+1);
 
     FinesseResponseReady(fsmr, Message, 0);
 

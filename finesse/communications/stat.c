@@ -32,7 +32,7 @@ int FinesseSendStatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *
     nameLength = strlen(Path);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name);
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name, Path, bufSize);
+    memcpy(fmsg->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name, Path, nameLength+1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID
@@ -132,7 +132,7 @@ int FinesseSendLstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t 
     nameLength = strlen(Path);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name);
     assert(nameLength < bufSize);
-    strncpy(fmsg->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name, Path, bufSize);
+    memcpy(fmsg->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name, Path, nameLength+1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID

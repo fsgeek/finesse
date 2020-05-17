@@ -77,7 +77,6 @@ int finesse_unlinkat(int dirfd, const char *pathname, int flags)
 static int fin_unlink_call(const char *unlinkfile_name)
 {
     int status;
-    uint64_t req_id;
     uuid_t null_uuid;
     fincomm_message message;
 

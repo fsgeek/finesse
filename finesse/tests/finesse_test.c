@@ -426,7 +426,7 @@ test_msg_unlink (
 
     // client sends request
     memset(&key, 0, sizeof(key));
-    status = FinesseSendUnlinkRequest(fch, key, "foo", &message);
+    status = FinesseSendUnlinkRequest(fch, &key, "foo", &message);
     munit_assert(0 == status);
 
     // server gets a request
