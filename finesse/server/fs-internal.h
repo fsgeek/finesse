@@ -27,4 +27,4 @@ typedef struct finesse_lookup_info
 
 
 
-void FinesseServerInternalLookup(struct fuse_session *se, const char *Path);
+int FinesseServerInternalNameMapRequest(struct fuse_session *se, const char *Name, finesse_object_t **Finobj);

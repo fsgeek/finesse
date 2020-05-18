@@ -508,10 +508,13 @@ test_fstatfs(
 
         fd = finesse_open(scratch, O_RDONLY);
         munit_assert_int(fd, >=, 0);
-        close(fd);
 
         status = finesse_statvfs(scratch, statfsstruc);
         munit_assert_int(status, ==, 0);
+
+        status = finesse_fstatvfs(fd, statfsstruc);
+        munit_assert_int(status, ==, 0);
+
     } 
     else {
         fd = finesse_open(test_file, O_RDONLY);

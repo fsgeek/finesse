@@ -3,18 +3,11 @@
 */
 #include "fs-internal.h"
 
-// do a synchronous lookup
-void FinesseServerInternalLookup(struct fuse_session *se, const char *Path)
-{
-    (void) se;
-    (void) Path;
-    assert(0); // TODO
-}
-
 void FinesseWaitForFuseRequestCompletion(struct finesse_req *req)
 {
     assert(NULL != req);
     assert(req->fuse_request.finesse.allocated); // otherwise this shouldn't be passed here!
+    assert(NULL != req->fuse_request.se);
 
     if (0 == req->completed) {
         pthread_mutex_lock(&req->lock);
@@ -29,6 +22,7 @@ void FinesseSignalFuseRequestCompletion(struct finesse_req *req)
 {
     assert(NULL != req);
     assert(req->fuse_request.finesse.allocated); // otherwise this shouldn't be passed here!
+    assert(NULL != req->fuse_request.se);
 
     assert(0 == req->completed);
 

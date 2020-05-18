@@ -57,14 +57,15 @@ int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void 
     Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
 
-    assert(NULL != buf);
     ffm = (finesse_msg *)Message->Data;
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_STATFS;
-    ffm->Message.Fuse.Response.Parameters.StatFs.StatBuffer = *buf;
-
+    if (0 == Result) {
+        assert(NULL != buf);
+        ffm->Message.Fuse.Response.Parameters.StatFs.StatBuffer = *buf;
+    }
     FinesseResponseReady(fsmr, Message, 0);
 
     return status;

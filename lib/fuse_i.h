@@ -28,10 +28,6 @@ struct fuse_req
 	struct {
 		unsigned int allocated : 1; 		     // set if this is a finesse allocated fuse_req
 		unsigned int notify : 1; 			     // set if this should trigger a finesse notification
-		void *message;						     // This is the finesse message
-		void *client;						     // This indicates the client
-		void *handler_data;					     // opaque data to pass to the handler;
-		void (*handler)(struct fuse_req **req);  // registered handler for this operation - caller sets to null if they don't want it freed
 		struct fuse_req *original_fuse_req;	     // For chained requests, this indicates the original request
 	} finesse;
 	/* END FINESSE CHANGE */

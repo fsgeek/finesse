@@ -344,7 +344,11 @@ static void *finesse_process_request_worker(void *arg)
         status = EINVAL;
         switch (fmsg->MessageClass) {
             default: {
-                assert(0); // this shouldn't be happening.
+                // Bad request
+                request->Result = EINVAL;
+                request->MessageType = FINESSE_RESPONSE;
+                status = FinesseSendResponse(se->server_handle, client, request);
+                assert(0 == status);
             }
             break;
 
@@ -391,7 +395,6 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
     switch (req->opcode)
     {
         default:
-            assert(0); // not handled - so why are we being called?
             break;
         case FUSE_LOOKUP:
         {
@@ -408,7 +411,6 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
             assert(NULL != nicobj);
             finesse_object_release(nicobj);
         }
-        break;
     }
 
 }
@@ -426,23 +428,21 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     }
 
     assert(NULL != req);
+    assert(NULL != req->se);
     assert(req->finesse.allocated); // otherwise, shouldn't be here
     freq = (struct finesse_req *)req;
+    assert(NULL == freq->iov); // if not, we've got to clean up what IS there - but why would this happen?
     freq->iov = (struct iovec *)malloc(count * sizeof(struct iovec));
     assert(NULL != freq->iov);
     freq->iov_count = count;
 
-    assert(count > 0);
-    freq->out.unique = req->unique;
-    freq->out.error = error;
-    freq->out.len = sizeof(struct fuse_out_header);
-    freq->iov[0].iov_base = &freq->out;
-
-    if (count > 1) {
-        freq->iov[1] = iov[1];
+    // capture all the io vector data
+    for (unsigned index = 0; index < count; index++) {
+        freq->iov[index].iov_base = malloc(iov[index].iov_len);
+        assert(NULL != freq->iov[index].iov_base);
+        memcpy(freq->iov[index].iov_base, iov[index].iov_base, iov[index].iov_len);
+        freq->iov[index].iov_len = iov[index].iov_len;
     }
-
-    assert(count <= 2); // otherwise... we need to handle this
 
     // signal the waiter
     FinesseSignalFuseRequestCompletion(freq);

@@ -19,6 +19,7 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
 int FinesseGetMessageAuxBuffer(finesse_server_handle_t FinesseServerHandle,  void *Client, void *Message, void **Buffer, size_t *BufferSize);
 const char *FinesseGetMessageAuxBufferName(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message);
+void FinesseDestroyFuseRequest(fuse_req_t req);
 
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);

@@ -23,7 +23,7 @@ extern const struct fuse_lowlevel_ops *finesse_original_ops;
 
 struct fuse_req *FinesseAllocFuseRequest(struct fuse_session *se);
 void FinesseFreeFuseRequest(fuse_req_t req);
-
+void FinesseDestroyFuseRequest(fuse_req_t req);
 
 void FinesseServerFuseStatFs(struct fuse_session *se, void *Client, fincomm_message Message);
 void FinesseSignalFuseRequestCompletion(struct finesse_req *req);

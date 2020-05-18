@@ -161,8 +161,14 @@ static void list_add_req(struct fuse_req *req, struct fuse_req *next)
 
 static void FinesseDestroyFuseReq(fuse_req_t req)
 {
-	pthread_mutex_destroy(&req->lock);
-	free(req);
+	if (0 == req->finesse.allocated) {
+		pthread_mutex_destroy(&req->lock);
+		memset(req, 0, sizeof(struct fuse_req));
+		free(req);
+	}
+	else {
+		FinesseDestroyFuseRequest(req);
+	}
 }
 
 void fuse_free_req(fuse_req_t req)

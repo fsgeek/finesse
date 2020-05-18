@@ -30,7 +30,7 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
         break;
         
         case FINESSE_NATIVE_REQ_MAP: {
-            status = FinesseServerNativeMapRequest(fsh, Client, Message);
+            status = FinesseServerNativeMapRequest(se, Client, Message);
             assert(0 == status); // either that, or pass it back... 
         }
         break;
