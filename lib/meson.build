@@ -43,7 +43,7 @@ libfuse = library('fuse3', libfuse_sources, version: meson.project_version(),
                   link_depends: 'fuse_versionscript',
                   c_args: [ '-DFUSE_USE_VERSION=35',
                             '-DFUSERMOUNT_DIR="@0@"'.format(fusermount_path) ],
-                  link_with : [finesscommunications, finesse_utils], 
+                  link_with : [finesscommunications, finesse_utils, finesse_server], 
                   link_args: ['-Wl,--version-script,' + meson.current_source_dir()
                               + '/fuse_versionscript' ])
 

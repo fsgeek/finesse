@@ -13,6 +13,7 @@
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
 #include "finesse-fuse.h"
+#include <finesse-server.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,86 +37,8 @@
 #endif // container_of
 
 
-
-typedef struct finesse_lookup_info
-{
-    int status;
-    /* used so the caller can wait for completion */
-    pthread_mutex_t lock;
-    pthread_cond_t condition;
-
-    /* attributes */
-    struct fuse_attr attr;
-
-} finesse_lookup_info_t;
-
 /* TODO: add remove! */
-
-struct finesse_req
-{
-    struct fuse_req fuse_request;
-
-    /* finesse specific routing information */
-};
-
-static void list_init_req(struct fuse_req *req)
-{
-    req->next = req;
-    req->prev = req;
-}
-
-static void list_del_req(struct fuse_req *req)
-{
-    struct fuse_req *prev = req->prev;
-    struct fuse_req *next = req->next;
-    prev->next = next;
-    next->prev = prev;
-}
-
-static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
-{
-    struct fuse_req *req;
-
-    req = (struct fuse_req *)calloc(1, sizeof(struct fuse_req));
-    if (req == NULL)
-    {
-        fprintf(stderr, "finesse (fuse): failed to allocate request\n");
-    }
-    else
-    {
-        req->se = se;
-        req->ctr = 1;
-        list_init_req(req);
-        fuse_mutex_init(&req->lock);
-        finesse_set_provider(req, 1);
-    }
-    return req;
-}
-
-static void destroy_req(fuse_req_t req)
-{
-    pthread_mutex_destroy(&req->lock);
-    free(req);
-}
-
-static void finesse_free_req(fuse_req_t req)
-{
-    int ctr;
-    struct fuse_session *se = req->se;
-
-    pthread_mutex_lock(&se->lock);
-    req->u.ni.func = NULL;
-    req->u.ni.data = NULL;
-    list_del_req(req);
-    ctr = --req->ctr;
-    fuse_chan_put(req->ch);
-    req->ch = NULL;
-    pthread_mutex_unlock(&se->lock);
-    if (!ctr)
-        destroy_req(req);
-}
-
-static const struct fuse_lowlevel_ops *finesse_original_ops;
+const struct fuse_lowlevel_ops *finesse_original_ops;
 
 static int finesse_mt = 1;
 
@@ -395,274 +318,6 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
     return se;
 }
 
-static int handle_fuse_request(struct fuse_session *se, void *Client, fincomm_message Message)
-{
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
-    finesse_msg *fmsg = NULL;
-
-    if (NULL == fsh) {
-        return ENOTCONN;
-    }
-
-    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
-    assert(NULL != Message);
-    fmsg = (finesse_msg *)Message->Data;
-    assert(NULL != fmsg);
-    assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
-
-    // Now the big long switch statement
-    switch (fmsg->Message.Fuse.Request.Type) {
-        case FINESSE_FUSE_REQ_LOOKUP:
-        case FINESSE_FUSE_REQ_FORGET:
-        case FINESSE_FUSE_REQ_GETATTR:
-        case FINESSE_FUSE_REQ_SETATTR:
-        case FINESSE_FUSE_REQ_READLINK:
-        case FINESSE_FUSE_REQ_MKNOD:
-        case FINESSE_FUSE_REQ_MKDIR:
-        case FINESSE_FUSE_REQ_UNLINK:
-        case FINESSE_FUSE_REQ_RMDIR:
-        case FINESSE_FUSE_REQ_SYMLINK:
-        case FINESSE_FUSE_REQ_RENAME:
-        case FINESSE_FUSE_REQ_LINK:
-        case FINESSE_FUSE_REQ_OPEN:
-        case FINESSE_FUSE_REQ_READ:
-        case FINESSE_FUSE_REQ_WRITE:
-        case FINESSE_FUSE_REQ_FLUSH:
-        case FINESSE_FUSE_REQ_RELEASE:
-        case FINESSE_FUSE_REQ_FSYNC:
-        case FINESSE_FUSE_REQ_OPENDIR:
-        case FINESSE_FUSE_REQ_READDIR:
-        case FINESSE_FUSE_REQ_RELEASEDIR:
-        case FINESSE_FUSE_REQ_FSYNCDIR:
-        case FINESSE_FUSE_REQ_STATFS:
-        case FINESSE_FUSE_REQ_SETXATTR:
-        case FINESSE_FUSE_REQ_GETXATTR:
-        case FINESSE_FUSE_REQ_LISTXATTR:
-        case FINESSE_FUSE_REQ_REMOVEXATTR:
-        case FINESSE_FUSE_REQ_ACCESS:
-        case FINESSE_FUSE_REQ_CREATE:
-        case FINESSE_FUSE_REQ_GETLK:
-        case FINESSE_FUSE_REQ_SETLK:
-        case FINESSE_FUSE_REQ_BMAP:
-        case FINESSE_FUSE_REQ_IOCTL:
-        case FINESSE_FUSE_REQ_POLL:
-        case FINESSE_FUSE_REQ_WRITE_BUF:
-        case FINESSE_FUSE_REQ_RETRIEVE_REPLY:
-        case FINESSE_FUSE_REQ_FORGET_MULTI:
-        case FINESSE_FUSE_REQ_FLOCK:
-        case FINESSE_FUSE_REQ_FALLOCATE:
-        case FINESSE_FUSE_REQ_READDIRPLUS:
-        case FINESSE_FUSE_REQ_COPY_FILE_RANGE:
-        case FINESSE_FUSE_REQ_LSEEK:
-        default:
-            fuse_log(FUSE_LOG_ERR, "Finesse %s: unsupported request %d, returning ENOTSUP", __PRETTY_FUNCTION__, fmsg->Message.Fuse.Request.Type);
-            fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
-            fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err = ENOTSUP;
-            FinesseSendResponse(fsh, Client, Message);
-            break;
-    }
-
-    return 0;
-}
-
-struct finesse_native_name_map_lookup_response_data {
-    int error;
-    struct iovec *iov;
-    int count; // # of iov entries
-    int free;
-};
-
-static void handle_native_name_map_lookup_response(struct fuse_req **req)
-{
-    finesse_server_handle_t fsh = NULL; // (finesse_server_handle_t)se->server_handle;
-    struct fuse_req *lreq = NULL;
-    struct finesse_native_name_map_lookup_response_data *data = NULL;
-    struct fuse_out_header *out = NULL;
-    struct fuse_entry_out *arg = NULL;
-    struct iovec *iov = NULL;
-    int status = 0;
-    fincomm_message *message = NULL;
-    finesse_object_t *finobj = NULL;
-    uuid_t uuid;
-
-    assert(NULL != req);
-    assert(NULL != *req);
-
-    lreq = *req; // need to check later if we're supposed to free it
-
-    while (NULL != lreq) {
-
-        message = lreq->finesse.message;
-        assert(NULL != message);
-        data = (struct finesse_native_name_map_lookup_response_data *)lreq->finesse.handler_data;
-        assert(NULL != data);
-        fsh = (finesse_server_handle_t)lreq->se->server_handle;
-        assert(NULL != fsh);
-
-        assert(data->count > 0);
-        iov = data->iov;
-        out = (struct fuse_out_header *)iov[0].iov_base;
-        assert(sizeof(struct fuse_out_header) <= iov[0].iov_len);
-        if (data->count < 2) {
-            // no data was returned
-            // TODO - send back an error
-            memset(&uuid, 0, sizeof(uuid));
-            status = out->error;
-            break;
-        }
-
-        // otherwise, we did get the lookup information back.
-        assert(0 == out->error); // don't expect an error in this case
-        arg = iov[1].iov_base;
-        assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
-        finobj = finesse_object_lookup_by_ino(arg->attr.ino);
-
-        if (NULL == finobj) {
-            // don't know about this file yet
-            uuid_generate_time_safe(uuid);
-            finobj = finesse_object_create(arg->attr.ino, &uuid);
-            assert(NULL != finobj);
-        }
-        else {
-            memcpy(&uuid, finobj->uuid, sizeof(uuid));
-            status = 0;
-        }
-
-        break;
-    }
-
-    status = FinesseSendNameMapResponse(fsh, lreq->finesse.client, lreq->finesse.message, &uuid, status);
-    assert(0 == status); // may have to handle the client disconnection case here
-    lreq->finesse.message = NULL; // can't use this any longer
-
-    if (NULL != finobj) {
-        finesse_object_release(finobj);
-        finobj = NULL;
-    }
-
-    if (data && data->free) {
-        // Free the request
-        finesse_free_req(lreq);
-        *req = NULL;
-    }
-
-}
-
-static int handle_native_name_map_request(struct fuse_session *se, void *Client, fincomm_message Message)
-{
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
-    static uuid_t null_uuid;
-    struct fuse_req *fuse_request;
-    finesse_msg *fmsg = (finesse_msg *)Message->Data;
-    int status = 0;
-    size_t mp_length = strlen(se->mountpoint);
-
-    if (NULL == fsh) {
-        return ENOTCONN;
-    }
-
-    // Presently, we don't handle openat
-    if (!uuid_is_null(fmsg->Message.Native.Request.Parameters.Map.Parent)) {
-        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOTSUP);
-    }
-
-
-    if ((strlen(fmsg->Message.Native.Request.Parameters.Map.Name) < mp_length) ||
-        (strncmp(fmsg->Message.Native.Request.Parameters.Map.Name, se->mountpoint, mp_length))) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __PRETTY_FUNCTION__, ENOTDIR, fmsg->Message.Native.Request.Parameters.Map.Name);
-        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOTDIR);      
-    }
-
-    // We need to do a lookup here
-    fuse_request = finesse_alloc_req(se);
-
-    if (NULL == fuse_request) {
-        fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
-        // TODO: fix this function's prototype
-        return FinesseSendNameMapResponse(fsh, Client, Message, &null_uuid, ENOMEM);      
-    }
-
-    fuse_request->finesse.message = Message;
-    fuse_request->finesse.client = Client;
-    fuse_request->opcode = FUSE_LOOKUP; // Fuse internal call
-    fuse_request->finesse.handler = handle_native_name_map_lookup_response;
-    fuse_request->finesse.handler_data = NULL;
-    fuse_request->se = se;
-    finesse_original_ops->lookup(fuse_request, FUSE_ROOT_ID, &fmsg->Message.Native.Request.Parameters.Map.Name[mp_length]);
-
-    return status;
- 
-}
-
-static int handle_native_name_map_release_request(struct fuse_session *se, void *Client, fincomm_message Message)
-{
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
-    finesse_object_t *object = NULL;
-    finesse_msg *fmsg = (finesse_msg *)Message->Data;
-    int status = 0;
-
-    object = finesse_object_lookup_by_uuid(&fmsg->Message.Native.Request.Parameters.MapRelease.Key);
-    if (NULL != object) {
-        finesse_object_release(object);
-    }
-
-    if (NULL != fsh) {
-        // TODO: fix this function prototype/call
-        status = FinesseSendNameMapReleaseResponse(fsh, Client, Message, 0);
-    }
-
-    return status;
-}
-
-
-static int handle_native_request(struct fuse_session *se, void *Client, fincomm_message Message)
-{
-    finesse_msg *fmsg = NULL;
-    int status = EINVAL;
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
-
-    if (NULL == fsh) {
-        return ENOTCONN;
-    }
-
-    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
-    assert(NULL != Message);
-    fmsg = (finesse_msg *)Message->Data;
-    assert(NULL != fmsg);
-    assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
-
-    // Now the big long switch statement
-    switch (fmsg->Message.Native.Request.NativeRequestType) {
-        case FINESSE_NATIVE_REQ_TEST: {
-            status = FinesseSendTestResponse(fsh, Client, Message, 0);
-            if (0 > status)
-            {
-                perror("FinesseSendTestResponse");
-            }
-            break;
-
-        }
-        break;
-        
-        case FINESSE_NATIVE_REQ_MAP: {
-            status = handle_native_name_map_request(se, Client, Message);
-        }
-        break;
-        
-        case FINESSE_NATIVE_REQ_MAP_RELEASE: {
-            status = handle_native_name_map_release_request(se, Client, Message);
-        }
-        break;
-
-        default:
-            fmsg->Message.Native.Response.NativeResponseType = FINESSE_FUSE_RSP_ERR;
-            fmsg->Message.Native.Response.Parameters.Err.Result = ENOTSUP;
-            FinesseSendResponse(fsh, Client, Message);
-            break;
-    }
-
-    return 0;
-}
 
 static void *finesse_process_request_worker(void *arg)
 {
@@ -694,12 +349,12 @@ static void *finesse_process_request_worker(void *arg)
             break;
 
             case FINESSE_FUSE_MESSAGE: {
-                status = handle_fuse_request(se, client, request);
+                status = FinesseServerHandleFuseRequest(se, client, request);
             }
             break;
             
             case FINESSE_NATIVE_MESSAGE: {
-                status = handle_native_request(se, client, request);
+                status = FinesseServerHandleNativeRequest(se, client, request);
             }
             break;
         }
@@ -735,49 +390,32 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
     //
     switch (req->opcode)
     {
-    default:
-        // no action is the default
-        break;
-    case FUSE_LOOKUP:
-    {
-        ino_t ino;
-        struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
-        finesse_object_t *nicobj;
-        uuid_t uuid;
+        default:
+            assert(0); // not handled - so why are we being called?
+            break;
+        case FUSE_LOOKUP:
+        {
+            ino_t ino;
+            struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
+            finesse_object_t *nicobj;
+            uuid_t uuid;
 
-        uuid_generate_time_safe(uuid);
+            uuid_generate_time_safe(uuid);
 
-        assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
-        ino = arg->nodeid;
-        nicobj = finesse_object_create(ino, &uuid);
-        assert(NULL != nicobj);
-        finesse_object_release(nicobj);
+            assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
+            ino = arg->nodeid;
+            nicobj = finesse_object_create(ino, &uuid);
+            assert(NULL != nicobj);
+            finesse_object_release(nicobj);
+        }
         break;
     }
-    case FUSE_RELEASE:
-    {
-        // this is done in the pre-call release path
-    }
-    case FUSE_OPENDIR:
-    {
-        // TODO
-        break;
-    }
-    case FUSE_RELEASEDIR:
-    {
-        // TODO
-        break;
-    }
-    case FUSE_STATFS:
-    	break;
-    }
-    return;
+
 }
 
 int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req)
 {
-    struct fuse_out_header out;
-    struct finesse_native_name_map_lookup_response_data *data = NULL;
+    struct finesse_req *freq = NULL;
 
     // Note: we'll probably have to add additional case handling here (right now this is just lookup)
 
@@ -787,43 +425,29 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
         error = -ERANGE;
     }
 
-    out.unique = req->unique;
-    out.error = error;
+    assert(NULL != req);
+    assert(req->finesse.allocated); // otherwise, shouldn't be here
+    freq = (struct finesse_req *)req;
+    freq->iov = (struct iovec *)malloc(count * sizeof(struct iovec));
+    assert(NULL != freq->iov);
+    freq->iov_count = count;
 
-    iov[0].iov_base = &out;
-    iov[0].iov_len = sizeof(struct fuse_out_header);
+    assert(count > 0);
+    freq->out.unique = req->unique;
+    freq->out.error = error;
+    freq->out.len = sizeof(struct fuse_out_header);
+    freq->iov[0].iov_base = &freq->out;
 
-    assert(1 == req->finesse.allocated); // this must be one of OUR requests
-
-    data = (struct finesse_native_name_map_lookup_response_data *) malloc(sizeof(struct finesse_native_name_map_lookup_response_data));
-    assert(NULL != data);
-
-    data->count = count;
-    data->error = error;
-    data->iov = iov;
-    data->free = free_req;
-    req->finesse.handler_data = data;
-
-    // dispatch to the registered handler - if there is one
-    if (NULL != req->finesse.handler) {
-        req->finesse.handler(&req);
+    if (count > 1) {
+        freq->iov[1] = iov[1];
     }
 
-    // cleanup
-    if (NULL != req)
-    {
-        if (NULL != req->finesse.message)
-        {
-            assert(0); // really should have set this to NULL when we sent the response
-            req->finesse.message = NULL;
-        }
+    assert(count <= 2); // otherwise... we need to handle this
 
-        if (free_req)
-        {
-            assert(req->finesse.allocated); // best have been allocated!
-            finesse_free_req(req);
-        }
-    }
+    // signal the waiter
+    FinesseSignalFuseRequestCompletion(freq);
+
+    assert(0 == free_req); // we don't handle the "don't free" case at this point.
 
     return 0;
 }

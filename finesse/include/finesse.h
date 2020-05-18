@@ -7,6 +7,7 @@
 #include <uuid/uuid.h>
 #include <stdint.h>
 #include <sys/statvfs.h>
+#include <sys/statfs.h>
 
 typedef void *finesse_server_handle_t;
 typedef void *finesse_client_handle_t;
@@ -92,7 +93,9 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...);
 int finesse_close(int fd);
 int finesse_unlink(const char *pathname);
 int finesse_unlinkat(int dirfd, const char *pathname, int flags);
-int finesse_statfs(const char *path, struct statvfs *buf);
-int finesse_fstatfs(fuse_ino_t nodeid, struct statvfs *buf);
+int finesse_statvfs(const char *path, struct statvfs *buf);
+int finesse_fstatvfs(int fd, struct statvfs *buf);
+int finesse_fstatfs(int fd, struct statfs *buf);
+int finesse_statfs(const char *path, struct statfs *buf);
 //int finesse_mkdir(const char *path, mode_t mode);
 //int finesse_mkdirat(int fd, const char *path, mode_t mode);
