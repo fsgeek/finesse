@@ -159,6 +159,8 @@ static void list_add_req(struct fuse_req *req, struct fuse_req *next)
 	next->prev = req;
 }
 
+extern void FinesseDestroyFuseRequest(fuse_req_t req);
+
 static void FinesseDestroyFuseReq(fuse_req_t req)
 {
 	if (0 == req->finesse.allocated) {

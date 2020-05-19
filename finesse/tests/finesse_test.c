@@ -403,6 +403,13 @@ test_msg_statfs (
     return MUNIT_OK;
 }
 
+static MunitResult
+test_msg_access (
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    return MUNIT_OK;
+}
 
 static MunitResult
 test_msg_unlink (
@@ -698,6 +705,7 @@ static const MunitTest finesse_tests[] = {
         TEST((char *)(uintptr_t)"/client/unlink", test_msg_unlink, NULL),
         TEST((char *)(uintptr_t)"/client/stat", test_msg_stat, NULL),
         TEST((char *)(uintptr_t)"/client/create", test_msg_create, NULL),
+        TEST("/client/access", test_msg_access, NULL),
     	TEST(NULL, NULL, NULL),
     };
 

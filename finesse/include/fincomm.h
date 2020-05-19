@@ -430,7 +430,14 @@ typedef struct {
         } Removexattr;
 
         struct {
-            uuid_t Inode;
+            enum {
+                ACCESS_NAME = 33,
+                ACCESS_INODE = 34,
+            } AccessType;
+            union {
+                uuid_t Inode;
+                char Name[0];
+            } Options;
             int Mask;
         } Access;
 
