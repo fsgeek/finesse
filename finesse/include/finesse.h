@@ -98,5 +98,8 @@ int finesse_statvfs(const char *path, struct statvfs *buf);
 int finesse_fstatvfs(int fd, struct statvfs *buf);
 int finesse_fstatfs(int fd, struct statfs *buf);
 int finesse_statfs(const char *path, struct statfs *buf);
+int finesse_mkdir(const char *path, mode_t mode);
+int finesse_mkdirat(int fd, const char *path, mode_t mode);
+
 //int finesse_mkdir(const char *path, mode_t mode);
 //int finesse_mkdirat(int fd, const char *path, mode_t mode);

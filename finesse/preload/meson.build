@@ -1,31 +1,44 @@
-rpcgen = find_program('rpcgen', required : false)
 
-libfinessepl_sources = [
-    'nicfdmgr.c',
-    'nicfscomm.c',
-    'nicfsinit.c',
-    'nicopenclose.c',
-    'nicreadwrite.c',
-    'nicsearch.c',
-    'nicunlink.c',
+finesse_preload_sources = [
+    'access.c',
+    'chmod.c',
+    'chown.c',
+    'close.c',
+    'dir.c',
+    'dup.c',
+    'fstat.c',
+    'init.c',
+    'link.c',
+    'lseek.c',
+    'mkdir.c',
+    'open.c',
+    'preload.c',
+    'read.c',
+    'rename.c',
+    'rmdir.c',
+    'stat.c',
+    'umask.c',
+    'unlink.c',
+    'utime.c',
+    'write.c',
 ]
 
-deps = [ thread_dep ]
+librt = cc.find_library('rt')
+libuuid = cc.find_library('uuid')
+libfuse = cc.find_library('libfuse')
+libpthread = cc.find_library('pthread')
+
+deps = [librt, libuuid, libpthread]
 libdl = cc.find_library('dl', required: false)
 if libdl.found()
    deps += [ libdl ]
 endif
 
-librt = cc.find_library('rt')
-libuuid = cc.find_library('uuid')
-
-libfinessepl = library('finessepl', libfinessepl_sources,
-                    version: meson.project_version(),
-                    soversion: '1',
-                    include_directories: include_dirs,
-                    dependencies: deps,
-                    install: true,
-
+libfinessepl = library('finesse_preload', finesse_preload_sources,
+                        version: meson.project_version(),
+                        soversion: '1',
+                        include_directories: include_dirs,
+                        dependencies: deps,
+                        link_with: [finesscommunications, finesse_utils, libfinesse_api],
+                        install: true,
                 )
-
-subdir('test')
