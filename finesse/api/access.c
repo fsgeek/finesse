@@ -30,12 +30,25 @@ int finesse_access(const char *pathname, int mode)
     return fin_access(pathname, mode);
 }
 
+static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
+{
+    typedef int (*orig_faccessat_t)(int dirfd, const char *pathname, int mode, int flags);
+    static orig_faccessat_t orig_faccessat = NULL;
+
+    if (NULL == orig_faccessat) {
+        orig_faccessat = (orig_faccessat_t)dlsym(RTLD_NEXT, "faccessat");
+
+        assert(NULL != orig_faccessat);
+        if (NULL == orig_faccessat) {
+            return EACCES;
+        }
+    }
+
+    return orig_faccessat(dirfd, pathname, mode, flags);
+
+}
+
 int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
-    (void) dirfd;
-    (void) pathname;
-    (void) mode;
-    (void) flags;
-    assert(0);
-
+    return fin_faccessat(dirfd, pathname, mode, flags);
 }

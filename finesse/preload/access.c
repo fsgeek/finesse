@@ -7,7 +7,7 @@
 
 int access(const char *pathname, int mode)
 {
-  return finesse_access(pathconf, mode);
+  return finesse_access(pathname, mode);
 }
 
 int faccessat(int dirfd, const char *pathname, int mode, int flags)

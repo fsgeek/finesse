@@ -168,3 +168,32 @@ void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, finc
     FinesseReleaseRequestBuffer(fsmr, Response);
 }
 
+// This is a general function that can be called from any specialized function where
+// the only thing they want back is the result code from the operation.
+int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result)
+{
+    int status = 0;
+    client_connection_state_t *ccs = FinesseClientHandle;
+    fincomm_shared_memory_region *fsmr = NULL;
+    finesse_msg *fmsg = NULL;
+
+    assert(NULL != ccs);
+    fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
+    assert(NULL != fsmr);
+    assert(0 != Message);
+
+    // This is a blocking get
+    status = FinesseGetResponse(fsmr, Message, 1);
+    assert(0 != status);
+    status = 0; // FinesseGetResponse is a boolean return function
+
+    assert(FINESSE_RESPONSE == Message->MessageType);
+    fmsg = (finesse_msg *)Message->Data;
+    assert(FINESSE_MESSAGE_VERSION == fmsg->Version);
+    assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
+    assert(FINESSE_FUSE_RSP_ERR == fmsg->Message.Fuse.Response.Type);
+    *Result = fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err;
+
+    return status;
+}
+

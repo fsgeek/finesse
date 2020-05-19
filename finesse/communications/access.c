@@ -43,11 +43,6 @@ int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const 
 
 int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
 {
-    (void) FinesseServerHandle;
-    (void) Client;
-    (void) Message;
-    (void) Result;
-    #if 0
     int status = 0;
     fincomm_shared_memory_region *fsmr = NULL;
     finesse_msg *ffm;
@@ -66,23 +61,15 @@ int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void 
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
-    ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_STATFS;
-    if (0 == Result) {
-        assert(NULL != buf);
-        ffm->Message.Fuse.Response.Parameters.StatFs.StatBuffer = *buf;
-    }
+    ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR; // No data returned here
+    ffm->Message.Fuse.Response.Parameters.ReplyErr.Err = Result;
     FinesseResponseReady(fsmr, Message, 0);
 
     return status;
-    #endif // 0
-    return ENOTSUP;
 }
 
-int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
+int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result)
 {
-    (void) FinesseClientHandle;
-    (void) Message;
-    #if 0
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr = NULL;
@@ -102,12 +89,10 @@ int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincom
     fmsg = (finesse_msg *)Message->Data;
     assert(FINESSE_MESSAGE_VERSION == fmsg->Version);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
-    assert(FINESSE_FUSE_RSP_STATFS == fmsg->Message.Fuse.Response.Type);
-    *buf = fmsg->Message.Fuse.Response.Parameters.StatFs.StatBuffer;
+    assert(FINESSE_FUSE_RSP_ERR == fmsg->Message.Fuse.Response.Type);
+    *Result = fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err;
 
     return status;
-#endif // 0
-    return ENOTSUP;
 }
 
 void FinesseFreeAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
@@ -152,9 +137,9 @@ int FinesseSendFaccessResponse(finesse_server_handle_t FinesseServerHandle, void
     return FinesseSendFaccessResponse(FinesseServerHandle, Client, Message, Result);
 }
 
-int FinesseGetFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message)
+int FinesseGetFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result)
 {
-    return FinesseGetFaccessResponse(FinesseClientHandle, Message);
+    return FinesseGetFaccessResponse(FinesseClientHandle, Message, Result);
 }
 
 void FinesseFreeFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)

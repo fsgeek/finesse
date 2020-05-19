@@ -19,6 +19,8 @@ int FinesseSendRequest(finesse_client_handle_t FinesseClientHandle, fincomm_mess
 int FinesseGetClientResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message *Response, size_t *ResponseLen);
 void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
+int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result);
+
 
 void *fincomm_get_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex, size_t *Size);
 void fincomm_release_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex);

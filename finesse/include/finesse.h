@@ -82,11 +82,11 @@ int FinesseGetFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm
 void FinesseFreeFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const char *path, fincomm_message *Message);
 int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
-int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
+int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result);
 void FinesseFreeAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 int FinesseSendFaccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message);
 int FinesseSendFaccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
-int FinesseGetFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
+int FinesseGetFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result);
 void FinesseFreeFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 
