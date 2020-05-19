@@ -472,7 +472,7 @@ test_fstatfs(
     const char *prefix;
     size_t prefix_length;
     const char *test_file;
-    struct statvfs *statfsstruc;
+    struct statvfs statfsstruc, statfsstruc2;
     char scratch[512];
 
     finesse_enabled = get_finesse_option(params);
@@ -497,9 +497,8 @@ test_fstatfs(
     close(fd);
     fd = -1;
 
-    statfsstruc = malloc(sizeof(struct statvfs));
-    memset(statfsstruc, 0, sizeof(struct statvfs));
-    status = finesse_fstatvfs(fd, statfsstruc);
+    memset(&statfsstruc, 0, sizeof(struct statvfs));
+    memset(&statfsstruc2, 0, sizeof(statfsstruc2));
 
     if (finesse_enabled && (prefix_length > 0)) {
         // Now using the passthrough name, open the file
@@ -509,21 +508,37 @@ test_fstatfs(
         fd = finesse_open(scratch, O_RDONLY);
         munit_assert_int(fd, >=, 0);
 
-        status = finesse_statvfs(scratch, statfsstruc);
-        munit_assert_int(status, ==, 0);
+        status = statvfs(test_file, &statfsstruc);
+        munit_assert(0 == status);
 
-        status = finesse_fstatvfs(fd, statfsstruc);
+        status = finesse_fstatvfs(fd, &statfsstruc2);
         munit_assert_int(status, ==, 0);
+        munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, offsetof(struct statvfs, f_favail)));
+
+        // for some reason, linux strips away some of the data the file system gives back!
+        // compare the fields that seem to be the same
+        status = finesse_statvfs(scratch, &statfsstruc2);
+        munit_assert_int(status, ==, 0);
+        munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, offsetof(struct statvfs, f_favail)));
+
+        memset(&statfsstruc2, 0, sizeof(statfsstruc2));
+        status = finesse_fstatvfs(fd, &statfsstruc2);
+        munit_assert_int(status, ==, 0);
+        munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, offsetof(struct statvfs, f_favail)));
 
     } 
     else {
         fd = finesse_open(test_file, O_RDONLY);
         munit_assert_int(fd, >=, 0);
 
-        status = fstatvfs(fd, statfsstruc);
+        status = statvfs(test_file, &statfsstruc);
+        munit_assert(0 == status);
+
+        status = fstatvfs(fd, &statfsstruc2);
+        munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, sizeof(statfsstruc)));
     }
 
-    free(statfsstruc);
+    munit_assert(0 <= fd); 
 
     if (finesse_enabled) {
         munit_assert_int(finesse_close(fd), >=, 0);
@@ -534,9 +549,10 @@ test_fstatfs(
     
     cleanup_test(params);
     
-    if (finesse_enabled)
+    if (finesse_enabled){
         finesse_terminate_file_state_mgr();
-    
+    }
+
     finesse_shutdown();
     return MUNIT_OK;
 }

@@ -61,7 +61,7 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, const char *Nam
         uuid_generate_time_safe(uuid);
         *Finobj = finesse_object_create(arg->ino, &uuid);
         assert(NULL != *Finobj);
-        if (uuid_compare(uuid, (*Finobj)->uuid)) {
+        if (0 == uuid_compare(uuid, (*Finobj)->uuid)) {
             created_finobj = 1;
         }
         else {
