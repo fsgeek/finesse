@@ -108,7 +108,6 @@ static int fin_statfs(const char *path, struct statfs *buf)
 
 int finesse_statfs(const char *path, struct statfs *buf)
 {
-    // TODO: implement these?
     return fin_statfs(path, buf);
 }
 

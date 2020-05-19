@@ -8,11 +8,6 @@
 
 int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const char *path, fincomm_message *Message)
 {
-    (void) FinesseClientHandle;
-    (void) path;
-    (void) Message;
-
-    #if 0
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr;
@@ -29,14 +24,14 @@ int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const 
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
-    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STATFS;
-    fmsg->Message.Fuse.Request.Parameters.Statfs.StatFsType = STATFS;
+    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_ACCESS;
+    fmsg->Message.Fuse.Request.Parameters.Access.AccessType = ACCESS_NAME;
 
     assert(NULL != path);
     nameLength = strlen(path);
-    bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Statfs.Options.Name);
+    bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Access.Options.Name);
     assert(nameLength < bufSize);
-    memcpy(fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Name, path, nameLength+1);
+    memcpy(fmsg->Message.Fuse.Request.Parameters.Access.Options.Name, path, nameLength+1);
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID
@@ -44,8 +39,6 @@ int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const 
     status = 0;
 
     return status;
-    #endif // 0
-    return ENOTSUP;
 }
 
 int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)
@@ -125,11 +118,6 @@ void FinesseFreeAccessResponse(finesse_client_handle_t FinesseClientHandle, finc
 
 int FinesseSendFaccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message)
 {
-    (void) FinesseClientHandle;
-    (void) Inode;
-    (void) *Message;
-
-    #if 0
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr;
@@ -145,11 +133,11 @@ int FinesseSendFaccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
-    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STATFS;
-    fmsg->Message.Fuse.Request.Parameters.Statfs.StatFsType = FSTATFS;
+    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_ACCESS;
+    fmsg->Message.Fuse.Request.Parameters.Access.AccessType = FSTATFS;
 
     assert(!uuid_is_null(*Inode));
-    memcpy(&fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Inode, Inode, sizeof(uuid_t));
+    memcpy(&fmsg->Message.Fuse.Request.Parameters.Access.Options.Inode, Inode, sizeof(uuid_t));
 
     status = FinesseRequestReady(fsmr, message);
     assert(0 != status); // invalid request ID
@@ -157,8 +145,6 @@ int FinesseSendFaccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_
     status = 0;
 
     return status;
-#endif // 0
-    return ENOTSUP;
 }
 
 int FinesseSendFaccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result)

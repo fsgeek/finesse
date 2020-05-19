@@ -97,7 +97,7 @@ void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, finc
 
 
 
-void (*finesse_init)(void);
+extern void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);
 int finesse_open(const char *pathname, int flags, ...);
 int finesse_creat(const char *pathname, mode_t mode);
@@ -111,6 +111,8 @@ int finesse_fstatfs(int fd, struct statfs *buf);
 int finesse_statfs(const char *path, struct statfs *buf);
 int finesse_mkdir(const char *path, mode_t mode);
 int finesse_mkdirat(int fd, const char *path, mode_t mode);
+int finesse_access(const char *pathname, int mode);
+int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags);
 
 //int finesse_mkdir(const char *path, mode_t mode);
 //int finesse_mkdirat(int fd, const char *path, mode_t mode);

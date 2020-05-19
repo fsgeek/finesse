@@ -1,5 +1,6 @@
 
 libfinesse_api_sources = [
+   'access.c',
    'fdmgr.c',
    # 'finesse-search.c',
    'init.c',
@@ -20,14 +21,14 @@ libuuid = cc.find_library('uuid')
 libfuse = cc.find_library('libfuse')
 libpthread = cc.find_library('pthread')
 
-libfinesse_api = library('finesse_api', libfinesse_api_sources, 
-                          version: meson.project_version(),
-                          soversion: '3', 
-                          include_directories: [include_dirs, finesse_inc_dirs],
-                          dependencies: [deps, libpthread, librt, libuuid, libfuse], 
-                          install: true,
-                          c_args: [ '-DFUSE_USE_VERSION=39'],
-                          link_with: finesscommunications
- )
+libfinesse_api = static_library('finesse_api', libfinesse_api_sources, 
+                                 version: meson.project_version(),
+                                 soversion: '3', 
+                                 include_directories: [include_dirs, finesse_inc_dirs],
+                                 dependencies: [deps, libpthread, librt, libuuid, libfuse], 
+                                 install: true,
+                                 c_args: [ '-DFUSE_USE_VERSION=39'],
+                                 link_with: finesscommunications
+)
 
 #subdir('test')

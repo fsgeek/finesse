@@ -1,13 +1,16 @@
+/*
+ * Copyright (c) 2020, Tony Mason. All rights reserved.
+ */
 
+#include <finesse.h>
+#include "preload.h"
 
-#if 0
+int access(const char *pathname, int mode)
+{
+  return finesse_access(pathconf, mode);
+}
 
-  #include <unistd.h>
-
-       int access(const char *pathname, int mode);
-
-       #include <fcntl.h>           /* Definition of AT_* constants */
-       #include <unistd.h>
-
-       int faccessat(int dirfd, const char *pathname, int mode, int flags);
-#endif // 0
+int faccessat(int dirfd, const char *pathname, int mode, int flags)
+{
+  return finesse_faccessat(dirfd, pathname, mode, flags);
+}

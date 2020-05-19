@@ -13,11 +13,11 @@ extern char *libs_in_path[];
 
 static int finesse_enabled = 0;
 
-static void finesse_init_dummy(void);
-static void finesse_init_dummy(void)
+static void finesse_test_init_dummy(void);
+static void finesse_test_init_dummy(void)
 {
 }
-void (*finesse_init)(void) = finesse_init_dummy;
+void (*finesse_test_init)(void) = finesse_test_init_dummy;
 
 static void finesse_shutdown(void);
 static void finesse_shutdown(void)
@@ -124,7 +124,7 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
 
     //munit_assert(0);
 
-    finesse_init();
+    finesse_test_init();
 
     pthread_attr_init(&thread_attr);
 
@@ -309,7 +309,7 @@ test_open_existing_files(
 
     finesse_enabled = get_finesse_option(params);
 
-    finesse_init();
+    finesse_test_init();
     setup_test(params);
 
     prefix = munit_parameters_get(params, TEST_MOUNT_PREFIX);
@@ -388,7 +388,7 @@ test_open_nonexistant_files(
     unsigned index;
     unsigned long file_count;
 
-    finesse_init();
+    finesse_test_init();
 
     prefix = munit_parameters_get(params, TEST_MOUNT_PREFIX);
     munit_assert_not_null(prefix);
@@ -446,7 +446,7 @@ test_open_dir(
     const char *pathname;
     char scratch[512];
 
-    finesse_init();
+    finesse_test_init();
     
 
     setup_test(params);
@@ -500,7 +500,7 @@ test_fstatfs(
 
     finesse_enabled = get_finesse_option(params);
    
-    finesse_init();
+    finesse_test_init();
     setup_test(params);
     
     prefix =  munit_parameters_get(params, TEST_MOUNT_PREFIX);
@@ -776,7 +776,7 @@ old_test_finesse_search(
     unsigned index;
     unsigned index2;
 
-    finesse_init();
+    finesse_test_init();
 
     for (index = 0; index < 100; index++) {
         for (index2 = 0; NULL != files_in_path[index2]; index2++) {
