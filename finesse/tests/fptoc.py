@@ -74,6 +74,9 @@ def main():
         else: lib_dic[l] = 1
     print('{} libraries can be found'.format(len(lib_dic)))
 
+    if type(args.output) is list:
+        assert len(args.output) == 1, "Can only handle single entry list"
+        args.output = args.output[0]
     sys.stdout = open(args.output, 'w')
     sys.stderr = sys.stdout
 
