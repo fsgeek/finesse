@@ -100,8 +100,13 @@ void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, finc
 extern void (*finesse_init)(void);
 int finesse_check_prefix(const char *pathname);
 int finesse_open(const char *pathname, int flags, ...);
+int finesse_open64(const char *pathname, int flags, ...);
+FILE *finesse_fopen(const char *pathname, const char *mode);
+FILE *finesse_fopen64(const char *pathname, const char *mode);
 int finesse_creat(const char *pathname, mode_t mode);
+int finesse_creat64(const char *pathname, mode_t mode);
 int finesse_openat(int dirfd, const char *pathname, int flags, ...);
+int finesse_openat64(int dirfd, const char *pathname, int flags, ...);
 int finesse_close(int fd);
 int finesse_unlink(const char *pathname);
 int finesse_unlinkat(int dirfd, const char *pathname, int flags);

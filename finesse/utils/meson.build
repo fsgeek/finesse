@@ -11,6 +11,7 @@ endif
 
 finesse_utils_sources = [
     'lookup.c',
+    'prefix.c',
 ]
 
 

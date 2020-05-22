@@ -149,13 +149,20 @@ int finesse_open(const char *pathname, int flags, ...)
     return finesse_fd_to_nfd(fd);
 }
 
-
 int finesse_creat(const char *pathname, mode_t mode) 
 {
     int fd = finesse_open(pathname, O_CREAT|O_WRONLY|O_TRUNC, mode);
 
     return finesse_fd_to_nfd(fd);
 }
+
+int finesse_creat64(const char *pathname, mode_t mode) 
+{
+    int fd = finesse_open64(pathname, O_CREAT|O_WRONLY|O_TRUNC, mode);
+
+    return finesse_fd_to_nfd(fd);
+}
+
 
 int finesse_openat(int dirfd, const char *pathname, int flags, ...)
 {
@@ -195,4 +202,187 @@ int finesse_close(int fd)
     }
 
     return 0;
+}
+
+
+static FILE *fin_fopen(const char *pathname, const char *mode)
+{
+    typedef FILE *(*orig_fopen_t)(const char *path, const char *mode);
+    static orig_fopen_t orig_fopen = NULL;
+
+    if (NULL == orig_fopen) {
+        orig_fopen = (orig_fopen_t)dlsym(RTLD_NEXT, "fopen");
+
+        assert(NULL != orig_fopen);
+        if (NULL == orig_fopen) {
+            errno = EACCES;
+            return NULL;
+        }
+    }
+
+    return orig_fopen(pathname, mode);
+}
+
+FILE *finesse_fopen(const char *pathname, const char *mode)
+{
+    assert(0); // not coded yet
+    return fin_fopen(pathname, mode);
+}
+
+
+static FILE *fin_fopen64(const char *pathname, const char *mode)
+{
+    typedef FILE *(*orig_fopen64_t)(const char *path, const char *mode);
+    static orig_fopen64_t orig_fopen = NULL;
+
+    if (NULL == orig_fopen) {
+        orig_fopen = (orig_fopen64_t)dlsym(RTLD_NEXT, "fopen64");
+
+        assert(NULL != orig_fopen);
+        if (NULL == orig_fopen) {
+            errno = EACCES;
+            return NULL;
+        }
+    }
+
+    return orig_fopen(pathname, mode);
+}
+
+FILE *finesse_fopen64(const char *pathname, const char *mode)
+{
+    assert(0); // TODO
+    return fin_fopen64(pathname, mode);
+}
+
+
+static int fin_open64(const char *pathname, int flags, ...)
+{
+    typedef int (*orig_open64_t)(const char *pathname, int flags, ...); 
+    static orig_open64_t orig_open64 = NULL;
+    va_list args;
+    mode_t mode;
+
+    if (NULL == orig_open64) {
+        orig_open64 = (orig_open64_t)dlsym(RTLD_NEXT, "open64");
+
+        assert(NULL != orig_open64);
+        if (NULL == orig_open64) {
+            return EACCES;
+        }
+    }
+
+	va_start (args, flags);
+	mode = va_arg (args, int);
+	va_end (args);
+
+    return orig_open64(pathname,flags, mode);
+}
+
+int finesse_open64(const char *pathname, int flags, ...)
+{
+    int fd;
+    va_list args;
+    mode_t mode;
+    int status;
+    uuid_t uuid;
+    fincomm_message message = NULL;
+
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+
+    finesse_init();
+
+    //
+    // Let's see if it makes sense for us to try opening this
+    //
+    if (0 == finesse_check_prefix(pathname)) {
+        // not of interest
+        return fin_open64(pathname, flags, mode);
+    }
+
+    //
+    // Ask the other side
+    //
+    status = FinesseSendNameMapRequest(finesse_client_handle, (char *)(uintptr_t)pathname, &message);
+
+    if (0 != status ) {
+        // fallback
+        return fin_open64(pathname, flags, mode);
+    }
+
+    // Otherwise, let's do the open
+    fd = fin_open64(pathname, flags, mode);
+
+    // Get the answer from the server
+    status = FinesseGetNameMapResponse(finesse_client_handle, message, &uuid);
+    FinesseFreeNameMapResponse(finesse_client_handle, message);
+
+    if (0 > fd) {
+        // both calls failed
+        if (status != 0) {
+            return fd;
+        }
+        // otherwise, the open failed but the remote succeeded
+        status = FinesseSendNameMapReleaseRequest(finesse_client_handle, &uuid, &message);
+        if (0 != status) {
+            // note that this is uuid leak - maybe the server died?
+            return fd;
+        }
+    }
+
+    // the open succeeded
+    if (0 != status) {
+        // lookup failed
+        return fd;
+    }
+    
+    // open succeeded AND lookup succeeded - insert into the lookup table
+    // Note that if this failed (file_state is null) we don't care - that
+    // just turns this into a fallback case.
+    (void) finesse_create_file_state(fd, &uuid, pathname);
+
+    return finesse_fd_to_nfd(fd);
+}
+
+
+static int fin_openat64(int dirfd, const char *pathname, int flags, ...)
+{
+    typedef int (*orig_openat64_t)(int dirfd, const char *pathname, int flags, ...);
+    static orig_openat64_t orig_openat64 = NULL;
+    va_list args;
+    mode_t mode;
+
+    if (NULL == orig_openat64) {
+        orig_openat64 = (orig_openat64_t) dlsym(RTLD_NEXT, "openat64");
+
+        assert(NULL != orig_openat64);
+        if (NULL == orig_openat64) {
+            return EACCES;
+        }
+    }
+
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+
+    return orig_openat64(dirfd, pathname, flags, mode);
+}
+
+
+int finesse_openat64(int dirfd, const char *pathname, int flags, ...)
+{
+    int fd;
+    va_list args;
+    mode_t mode;
+
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+
+    assert(0); // need to code this path
+
+    fd = fin_openat64(dirfd, pathname, flags, mode);
+
+    return finesse_fd_to_nfd(fd);
 }

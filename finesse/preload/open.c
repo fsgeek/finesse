@@ -5,6 +5,8 @@
 #include <finesse.h>
 #include "preload.h"
 
+
+#if 0
 int open(const char *pathname, int flags, ...)
 {
     va_list args;
@@ -16,8 +18,11 @@ int open(const char *pathname, int flags, ...)
 
     finesse_preload_init();
 
+    fprintf(stderr, "finesse preload called for open\n");
+
     return finesse_open(pathname, flags, mode);
 }
+#endif // 
 
 int creat(const char *pathname, mode_t mode) 
 {
@@ -26,6 +31,7 @@ int creat(const char *pathname, mode_t mode)
     return finesse_creat(pathname, mode);
 }
 
+#if 0
 int openat(int dirfd, const char *pathname, int flags, ...)
 {
     va_list args;
@@ -39,17 +45,50 @@ int openat(int dirfd, const char *pathname, int flags, ...)
 
     return finesse_openat(dirfd, pathname, flags, mode);
 }
-
+#endif // 0
 
 #if 0
-int finesse_open(const char *pathname, int flags, ...);
-int finesse_creat(const char *pathname, mode_t mode);
-int finesse_openat(int dirfd, const char *pathname, int flags, ...);
-int finesse_close(int fd);
-int finesse_unlink(const char *pathname);
-int finesse_unlinkat(int dirfd, const char *pathname, int flags);
-int finesse_statvfs(const char *path, struct statvfs *buf);
-int finesse_fstatvfs(int fd, struct statvfs *buf);
-int finesse_fstatfs(int fd, struct statfs *buf);
-int finesse_statfs(const char *path, struct statfs *buf);
+FILE *fopen(const char *pathname, const char *mode)
+{
+    finesse_preload_init();
+
+    return finesse_fopen(pathname, mode);
+}
 #endif // 0
+
+FILE *fopen64(const char *pathname, const char *mode)
+{
+    finesse_preload_init();
+
+    return finesse_fopen64(pathname, mode);
+}
+
+int open64(const char *pathname, int flags, ...)
+{
+    va_list args;
+    mode_t mode;
+
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+
+    finesse_preload_init();
+
+    fprintf(stderr, "finesse preload called for open\n");
+
+    return finesse_open64(pathname, flags, mode);
+}
+
+int openat64(int dirfd, const char *pathname, int flags, ...)
+{
+    va_list args;
+    mode_t mode;
+
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+
+    finesse_preload_init();
+
+    return finesse_openat64(dirfd, pathname, flags, mode);
+}
