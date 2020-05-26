@@ -6,7 +6,6 @@ assert(r.returncode() == 0, 'Failed to generate pathdata.c correctly')
 
 librt = cc.find_library('rt')
 libuuid = cc.find_library('uuid')
-libfuse = cc.find_library('libfuse')
 libpthread = cc.find_library('pthread')
 munit = dependency('munit', fallback: ['munit', 'munit_dep'])
 

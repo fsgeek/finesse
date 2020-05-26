@@ -25,7 +25,6 @@ finesse_preload_sources = [
 
 librt = cc.find_library('rt')
 libuuid = cc.find_library('uuid')
-libfuse = cc.find_library('libfuse')
 libpthread = cc.find_library('pthread')
 
 deps = [librt, libuuid, libpthread]

@@ -18,14 +18,13 @@ endif
 
 librt = cc.find_library('rt')
 libuuid = cc.find_library('uuid')
-libfuse = cc.find_library('libfuse')
 libpthread = cc.find_library('pthread')
 
 libfinesse_api = static_library('finesse_api', libfinesse_api_sources, 
                                  version: meson.project_version(),
                                  soversion: '3', 
                                  include_directories: [include_dirs, finesse_inc_dirs],
-                                 dependencies: [deps, libpthread, librt, libuuid, libfuse], 
+                                 dependencies: [deps, libpthread, librt, libuuid], 
                                  install: true,
                                  c_args: [ '-DFUSE_USE_VERSION=39'],
                                  link_with: finesscommunications
