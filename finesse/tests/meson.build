@@ -28,6 +28,9 @@ testfuse_sources = [
     'fuse_test.c',
 ]
 
+testperf_sources = [
+    'perf_test.c',
+]
 
 
 executable('testutils',
@@ -46,6 +49,13 @@ executable('testfinesse',
 
 executable('testfuse',
            [common_sources, testfuse_sources],
+           dependencies: [deps, munit],
+           include_directories: [include_dirs, finesse_inc_dirs],
+           link_with: [finesscommunications, finesse_utils, libfinesse_api]
+)
+
+executable('testperf',
+           [common_sources, testperf_sources],
            dependencies: [deps, munit],
            include_directories: [include_dirs, finesse_inc_dirs],
            link_with: [finesscommunications, finesse_utils, libfinesse_api]
