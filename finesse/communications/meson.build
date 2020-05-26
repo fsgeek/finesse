@@ -2,7 +2,6 @@
 deps = []
 deps += cc.find_library('rt')
 deps += cc.find_library('uuid')
-deps += cc.find_library('libfuse')
 deps += cc.find_library('pthread')
 
 libdl = cc.find_library('dl', required: false)
