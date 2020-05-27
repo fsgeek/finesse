@@ -49,7 +49,7 @@ static int finesse_check(void)
     finesse_client_handle_t fch;
 
     if (0 == ServerRunning) {
-        status = FinesseStartClientConnection(test_name, &fch);
+        status = FinesseStartClientConnection(&fch, test_name);
         if (0 == status) {
             sleep(1);
             status = FinesseStopClientConnection(fch);

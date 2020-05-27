@@ -6,8 +6,6 @@
 
 #include "api-internal.h"
 
-static int fin_unlink_call(const char *unlinkfile_name);
-
 static int fin_unlink(const char *pathname)
 {
     typedef int (*orig_unlink_t)(const char *pathname); 

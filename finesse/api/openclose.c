@@ -170,10 +170,10 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
     int fd;
     va_list args;
     mode_t mode;
-    finesse_file_state_t *ffs;
     int status;
     uuid_t uuid;
     fincomm_message message = NULL;
+    finesse_file_state_t *ffs = NULL;
 
     va_start(args, flags);
     mode = va_arg(args, int);
@@ -228,8 +228,8 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
     // open succeeded AND lookup succeeded - insert into the lookup table
     // Note that if this failed (file_state is null) we don't care - that
     // just turns this into a fallback case.
-    status = finesse_create_file_state(fd, ffs->client, &uuid, pathname);
-    assert(0 == status); // if it failed, we'd need to release the name map
+    ffs = finesse_create_file_state(fd, ffs->client, &uuid, pathname);
+    assert(NULL != ffs); // if it failed, we'd need to release the name map
 
     return finesse_fd_to_nfd(fd);
 }
@@ -327,6 +327,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
     uuid_t uuid;
     fincomm_message message = NULL;
     finesse_client_handle_t finesse_client_handle = NULL;
+    finesse_file_state_t *ffs = NULL;
 
     finesse_client_handle = finesse_check_prefix(pathname);
     
@@ -379,8 +380,8 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
 
     // Open + lookup both worked, so we need to track the file descriptor
     // to uuid mapping.
-    status = finesse_create_file_state(fileno(file), finesse_client_handle, &uuid, pathname);
-    assert(0 == status); // if it failed, we'd need to release the name map
+    ffs = finesse_create_file_state(fileno(file), finesse_client_handle, &uuid, pathname);
+    assert(NULL != ffs); // if it failed, we'd need to release the name map
 
     return fin_fopen(pathname, mode);
 }
@@ -457,8 +458,8 @@ FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream)
     assert(NULL != file); // in this case we need to do the name map release
 
     // create state for this file
-    status = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname);
-    assert(0 == status); // if it failed, we'd need to release the name map
+    ffs = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname);
+    assert(NULL != ffs); // if it failed, we'd need to release the name map
 
     return fin_freopen(pathname, mode, stream);
 
