@@ -309,7 +309,7 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
         return se;
     }
 
-    if (0 > FinesseStartServerConnection(&se->server_handle))
+    if (0 > FinesseStartServerConnection(se->mountpoint, &se->server_handle))
     {
         fprintf(stderr, "fuse (finesse): failed to start Finesse Server connection\n");
         se->server_handle = NULL;

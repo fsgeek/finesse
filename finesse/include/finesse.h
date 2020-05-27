@@ -13,7 +13,7 @@ typedef void *finesse_server_handle_t;
 typedef void *finesse_client_handle_t;
 typedef uint64_t fuse_ino_t;
 
-int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle);
+int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t *FinesseServerHandle);
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle);
 int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request);
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response);
@@ -21,8 +21,7 @@ int FinesseGetMessageAuxBuffer(finesse_server_handle_t FinesseServerHandle,  voi
 const char *FinesseGetMessageAuxBufferName(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message);
 void FinesseDestroyFuseRequest(fuse_req_t req);
 
-
-int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);
+int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, const char *MountPoint);
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);
 
 int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_message *Message);
@@ -30,7 +29,7 @@ int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *C
 int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
 void FinesseFreeTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
-int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, fincomm_message *Message);
+int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *ParentDir, const char *NameToMap, fincomm_message *Message);
 int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *MapKey, int Result);
 int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, uuid_t *MapKey);
 void FinesseFreeNameMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
@@ -98,7 +97,7 @@ void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, finc
 
 
 extern void (*finesse_init)(void);
-int finesse_check_prefix(const char *pathname);
+finesse_client_handle_t *finesse_check_prefix(const char *name);
 int finesse_open(const char *pathname, int flags, ...);
 int finesse_creat(const char *pathname, mode_t mode);
 int finesse_openat(int dirfd, const char *pathname, int flags, ...);
@@ -113,6 +112,6 @@ int finesse_mkdir(const char *path, mode_t mode);
 int finesse_mkdirat(int fd, const char *path, mode_t mode);
 int finesse_access(const char *pathname, int mode);
 int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags);
-
-//int finesse_mkdir(const char *path, mode_t mode);
-//int finesse_mkdirat(int fd, const char *path, mode_t mode);
+FILE *finesse_fopen(const char *pathname, const char *mode);
+FILE *finesse_fdopen(int fd, const char *mode);
+FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream);

@@ -20,7 +20,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <aio.h>
-#include <mqueue.h>
 #include <stddef.h>
 #include <pthread.h>
 #include <uuid/uuid.h>
@@ -128,7 +127,7 @@ _Static_assert(0 == offsetof(fincomm_shared_memory_region, UnusedRegion) % OPTIM
 _Static_assert(0 == offsetof(fincomm_shared_memory_region, Messages) % SHM_PAGE_SIZE, "Alignment wrong");
 _Static_assert(0 == sizeof(fincomm_shared_memory_region) % SHM_PAGE_SIZE, "Length Wrong");
 
-int GenerateServerName(char *ServerName, size_t ServerNameLength);
+int GenerateServerName(const char *MountPath, char *ServerName, size_t ServerNameLength);
 int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId);
 
 

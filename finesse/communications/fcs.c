@@ -357,7 +357,7 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
     return status;
 }
 
-int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
+int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t *FinesseServerHandle)
 {
     int status = 0;
     DIR *dir = NULL;
@@ -387,7 +387,7 @@ int FinesseStartServerConnection(finesse_server_handle_t *FinesseServerHandle)
             break;
         }
 
-        status = GenerateServerName(scs->server_connection_name, sizeof(scs->server_connection_name));
+        status = GenerateServerName(MountPoint, scs->server_connection_name, sizeof(scs->server_connection_name));
         assert(0 == status);
         
         status = CheckForLiveServer(scs);

@@ -7,7 +7,5 @@
 
 int close(int fd)
 {
-    finesse_preload_init();
-
     return finesse_close(fd);
 }

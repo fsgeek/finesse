@@ -7,7 +7,7 @@
 
 // This is the replacement implementation that uses the
 // shared memory message exchange API.
-int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, fincomm_message *Message)
+int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *ParentDir, const char *NameToMap, fincomm_message *Message)
 {
     int status = 0;
     client_connection_state_t *ccs = FinesseClientHandle;
@@ -27,6 +27,8 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char 
     fmsg->MessageClass = FINESSE_NATIVE_MESSAGE;
     fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_MAP;
     assert(NULL != NameToMap);
+
+    memcpy(fmsg->Message.Native.Request.Parameters.Map.Parent, ParentDir, sizeof(uuid_t));
 
     nameLength = strlen(NameToMap);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Native.Request.Parameters.Map.Name);

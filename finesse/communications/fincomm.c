@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <finesse.h>
 #include "fcinternal.h"
+#include <openssl/sha.h>
 
 #define FINESSE_SERVICE_NAME "Finesse-1.0"
 
@@ -28,6 +29,16 @@ const char FinesseSharedMemoryRegionSignature[8] = {'F','i','n','e','s','s','e'}
 // This is the common code for the finesse communications package, shared
 // between client and server.
 //
+
+static void sha256(const char *Data, size_t DataLength, unsigned char *Hash)
+{
+    SHA256_CTX sha256;
+    
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, Data, DataLength);
+    SHA256_Final(Hash, &sha256);
+
+}
 
 //
 // Basic design:
@@ -39,14 +50,30 @@ const char FinesseSharedMemoryRegionSignature[8] = {'F','i','n','e','s','s','e'}
 //
 //   
 
-int GenerateServerName(char *ServerName, size_t ServerNameLength)
+int GenerateServerName(const char *MountPath, char *ServerName, size_t ServerNameLength)
 {
     int status;
+    unsigned long long hash[SHA256_DIGEST_LENGTH/sizeof(unsigned long long)];
+    char hash_string[1 + (2 * SHA256_DIGEST_LENGTH)];
 
-    status = snprintf(ServerName, ServerNameLength, "%s/%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME);
+    status = snprintf(ServerName, ServerNameLength, "%s/%s-%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME, MountPath);   
     if (status >= ServerNameLength) {
         return EOVERFLOW;
     }
+
+    sha256(ServerName, strlen(ServerName), (unsigned char *)hash);
+
+    _Static_assert((sizeof(hash) % sizeof(unsigned long long)) == 0, "invalid hash size");
+    for (unsigned index = 0; index < sizeof(hash)/ sizeof(unsigned long long); index++) {
+        snprintf(&hash_string[index * sizeof(unsigned long long)], 2 * sizeof(unsigned long long), "%llx", hash[index]);
+    }
+    hash_string[sizeof(hash_string)-1] = '\0';
+
+    status = snprintf(ServerName, ServerNameLength, "%s/%s-%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME, hash_string);
+    if (status >= ServerNameLength) {
+        return EOVERFLOW;
+    }
+
     return 0; // 0 == success
 }
 

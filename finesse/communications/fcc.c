@@ -51,7 +51,7 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
 }
 
 
-int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
+int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, const char *MountPoint)
 {
     int status = 0;
     client_connection_state_t *ccs = NULL;
@@ -83,7 +83,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle)
         memcpy(ccs->server_shm, FinesseSharedMemoryRegionSignature, sizeof(FinesseSharedMemoryRegionSignature));
 
         ccs->server_sockaddr.sun_family = AF_UNIX;
-        status = GenerateServerName(ccs->server_sockaddr.sun_path, sizeof(ccs->server_sockaddr.sun_path));
+        status = GenerateServerName(MountPoint, ccs->server_sockaddr.sun_path, sizeof(ccs->server_sockaddr.sun_path));
         assert(0 == status);
 
         ccs->server_connection = socket(AF_UNIX, SOCK_SEQPACKET, 0);

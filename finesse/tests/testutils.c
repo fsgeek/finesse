@@ -41,6 +41,7 @@ typedef struct {
     int min_fd;
     int max_fd;
     unsigned lookup_iterations;
+    finesse_client_handle_t client_handle;
 } lt_test_params_t;
 
 static void * ltworker(void *arg)
@@ -59,7 +60,7 @@ static void * ltworker(void *arg)
             memset(buf, 0, sizeof(buf));
             snprintf(buf, sizeof(buf), "/test/%016u", index);
             uuid_generate(uuid);
-            fs = finesse_create_file_state(index, (void *)&uuid, buf);
+            fs = finesse_create_file_state(index, params->client_handle, (void *)&uuid, buf);
 
             assert (NULL != fs);
         }
@@ -147,6 +148,7 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
             test_params[index].max_fd = fd_max_test;
         }
         test_params[index].lookup_iterations = 100;
+        test_params[index].client_handle = (void *)(uintptr_t)(1 + index); // just can't be zero
         status = pthread_create(&threads[index], &thread_attr, ltworker, &test_params[index]);
         munit_assert(0 == status);
     }

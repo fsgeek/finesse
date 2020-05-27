@@ -41,7 +41,6 @@ static int fin_mkdirat(int fd, const char *path, mode_t mode) {
 int finesse_mkdir(const char *path, mode_t mode) {
     struct stat sb;
 
-    finesse_init();
     int status;
 
     if (stat(path, &sb) == 0 && S_ISDIR(sb.st_mode)) {

@@ -29,8 +29,6 @@ int finesse_fstatvfs(int fd, struct statvfs *buf)
     finesse_file_state_t *file_state = NULL;
     fincomm_message message;
 
-    finesse_init();
-
     file_state = finesse_lookup_file_state(finesse_nfd_to_fd(fd));
 
     if (NULL == file_state) {
@@ -38,11 +36,11 @@ int finesse_fstatvfs(int fd, struct statvfs *buf)
         return fin_fstatvfs(fd, buf);
     }
 
-    status = FinesseSendFstatfsRequest(finesse_client_handle, &file_state->key, &message);
+    status = FinesseSendFstatfsRequest(file_state->client, &file_state->key, &message);
     assert(0 == status);
-    status  = FinesseGetFstatfsResponse(finesse_client_handle, message, buf);
+    status  = FinesseGetFstatfsResponse(file_state->client, message, buf);
     assert(0 == status);
-    FinesseFreeStatfsResponse(finesse_client_handle, message);
+    FinesseFreeStatfsResponse(file_state->client, message);
     return 0;
 
 }
@@ -68,10 +66,11 @@ int finesse_statvfs(const char *path, struct statvfs *buf)
 {
     int status;
     fincomm_message message;
+    finesse_client_handle_t finesse_client_handle = NULL;
 
-    finesse_init();
-
-    if (0 == finesse_check_prefix(path)) {
+    finesse_client_handle = finesse_check_prefix(path);
+    
+    if (NULL == finesse_client_handle) {
         // not of interest - fallback path
         return fin_statvfs(path, buf);
     }

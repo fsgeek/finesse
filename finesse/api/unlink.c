@@ -45,18 +45,27 @@ static int fin_unlinkat(int dirfd, const char *pathname, int flags)
 int finesse_unlink(const char *pathname)
 {
     int status;
+    finesse_client_handle_t finesse_client_handle = NULL;
+    uuid_t null_uuid;
+    fincomm_message message = NULL;
 
-    finesse_init();
+    finesse_client_handle = finesse_check_prefix(pathname);
 
-    if (0 == finesse_check_prefix(pathname)) {
+    if (NULL == finesse_client_handle) {
         // not of interest
         return fin_unlink(pathname);
     }
 
-    status = fin_unlink_call(pathname);
+    memset(&null_uuid, 0, sizeof(uuid_t));
 
-    if (0 > status) {
-        status = fin_unlink(pathname);
+    status = FinesseSendUnlinkRequest(finesse_client_handle, &null_uuid, pathname, &message);
+
+    if (0 == status) {
+        status = FinesseGetUnlinkResponse(finesse_client_handle, message);
+        if (0 == status) {
+            status = message->Result;
+        }
+        FinesseFreeUnlinkResponse(finesse_client_handle, message);
     }
 
     return status;
@@ -68,29 +77,6 @@ int finesse_unlinkat(int dirfd, const char *pathname, int flags)
 
     // TODO: implement the lookup here and really implement this
     status = fin_unlinkat(dirfd, pathname, flags);
-
-    return status;
-}
-
-
-
-static int fin_unlink_call(const char *unlinkfile_name)
-{
-    int status;
-    uuid_t null_uuid;
-    fincomm_message message;
-
-    memset(&null_uuid, 0, sizeof(uuid_t));
-
-    status = FinesseSendUnlinkRequest(finesse_client_handle, &null_uuid, unlinkfile_name, &message);
-
-    if (0 == status) {
-        status = FinesseGetUnlinkResponse(finesse_client_handle, message);
-        if (0 == status) {
-            status = message->Result;
-        }
-        FinesseFreeUnlinkResponse(finesse_client_handle, message);
-    }
 
     return status;
 }

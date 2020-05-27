@@ -8,14 +8,10 @@
 
 int unlink(const char *pathname)
 {
-    finesse_preload_init();
-
     return finesse_unlink(pathname);
 }
 
 int unlinkat(int dirfd, const char *pathname, int flags)
 {
-    finesse_preload_init();
-
     return finesse_unlinkat(dirfd, pathname, flags);
 }

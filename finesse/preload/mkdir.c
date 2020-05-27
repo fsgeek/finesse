@@ -7,14 +7,10 @@
 
 int mkdir(const char *path, mode_t mode) 
 {
-    finesse_preload_init();
-
     return finesse_mkdir(path, mode);
 }
 
 int mkdirat(int fd, const char *path, mode_t mode) 
 {
-    finesse_preload_init();
-
     return finesse_mkdirat(fd, path, mode);
 }

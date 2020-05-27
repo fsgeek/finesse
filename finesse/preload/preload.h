@@ -4,4 +4,4 @@
 
 #include <finesse.h>
 
-void finesse_preload_init(void);
+// Any local operations can go here

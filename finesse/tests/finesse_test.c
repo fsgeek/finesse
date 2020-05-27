@@ -28,6 +28,8 @@
 
 #define TEST_VERSION (0x10)
 
+static const char *test_name = "/mnt/pt";
+
 static MunitResult
 test_server_connect(
     const MunitParameter params[] __notused,
@@ -36,7 +38,7 @@ test_server_connect(
     int status;
     finesse_server_handle_t fsh;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
 
     // too fast and startup hasn't finished
@@ -57,10 +59,10 @@ test_client_connect(
     finesse_server_handle_t fsh;
     finesse_client_handle_t fch;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
 
     // There is a race condition between start and stop.
@@ -86,7 +88,7 @@ test_client_connect_without_server(
     int status;
     finesse_client_handle_t fch;
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 != status);
 
     return MUNIT_OK;
@@ -106,11 +108,11 @@ test_msg_test(
     void *client;
     fincomm_message request;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
@@ -172,18 +174,20 @@ test_msg_namemap (
     uuid_t key1, key2;
     uuid_t out_key1, out_key2;
     
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
     // client sends requests
-    status = FinesseSendNameMapRequest(fch, name1, &message1);
+    memset(&key1, 0, sizeof(key1));
+    status = FinesseSendNameMapRequest(fch, &key1, name1, &message1);
     munit_assert(0 == status);
-    status = FinesseSendNameMapRequest(fch, name2, &message2);
+    memset(&key2, 0, sizeof(key2));
+    status = FinesseSendNameMapRequest(fch, &key2, name2, &message2);
     munit_assert(0 == status);
 
     // server gets requests
@@ -256,11 +260,11 @@ test_msg_namemaprelease (
     fincomm_message request;
     uuid_t key;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
@@ -318,11 +322,11 @@ test_msg_statfs (
     uuid_t key;
     struct statvfs vfs, vfs2;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
@@ -426,11 +430,11 @@ test_msg_unlink (
     fincomm_message request;
     uuid_t key;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
@@ -492,11 +496,11 @@ test_msg_stat (
     uuid_t parent;
     struct stat statbuf1, statbuf2;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 
@@ -636,11 +640,11 @@ test_msg_create (
     double timeout;
     uint64_t generation;
 
-    status = FinesseStartServerConnection(&fsh);
+    status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
 
-    status = FinesseStartClientConnection(&fch);
+    status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 == status);
     munit_assert(NULL != fch);
 

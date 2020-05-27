@@ -248,11 +248,11 @@ static int lookup_table_remove(lookup_table_t *Table, void *Key)
  *       to delete the state.
  */
 
-finesse_file_state_t *finesse_create_file_state(int fd, uuid_t *key, const char *pathname)
+finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *key, const char *pathname)
 {
     size_t pathlen = strlen(pathname) + sizeof('\0');
     size_t size = (sizeof(finesse_file_state_t) + pathlen + 0x7) & ~0x7;
-    finesse_file_state_t *file_state;
+    finesse_file_state_t *file_state = NULL;
     int status;
 
     assert(fd_lookup_table);
@@ -264,6 +264,7 @@ finesse_file_state_t *finesse_create_file_state(int fd, uuid_t *key, const char 
         file_state->pathname = (char *)(file_state+1);
         strncpy(file_state->pathname, pathname, pathlen);
         file_state->current_offset = 0;
+        file_state->client = client;
 
         // Try to insert it
         status = lookup_table_insert(fd_lookup_table, &fd, file_state);
@@ -344,7 +345,7 @@ int finesse_init_file_state_mgr(void)
          *  512 - 14.118 seconds
          * 
          */
-        new_table = lookup_table_create(4096, "nicfd", NULL, sizeof(int));
+        new_table = lookup_table_create(4096, "FinesseFD", NULL, sizeof(int));
 
         if (NULL == new_table) {
             status = ENOMEM;
@@ -402,30 +403,3 @@ int finesse_nfd_to_fd(int nfd)
     return fd;
 }
 
-
-//
-// This inserts a file descriptor into the table if possible.  If not, nothing happens
-//
-void finesse_insert_new_fd(int fd, const char *path)
-{
-    (void) fd;
-    (void) path;
-#if 0
-    finesse_key_t *finesse_key = malloc(sizeof(finesse_key_t));
-
-    (void) fd;
-    (void) path;
-
-    if (NULL == fd_lookup_table) {
-        finesse_init_file_state_mgr();
-
-        if (NULL == fd_lookup_table) {
-            return;
-        }
-        (void) finesse_key;
-    }
-
-    /* call the FUSE implementation and ask for an ID for this file */
-#endif // 0
-
-}

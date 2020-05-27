@@ -3,6 +3,7 @@ deps = []
 deps += cc.find_library('rt')
 deps += cc.find_library('uuid')
 deps += cc.find_library('pthread')
+deps += dependency('openssl')
 
 libdl = cc.find_library('dl', required: false)
 if libdl.found()

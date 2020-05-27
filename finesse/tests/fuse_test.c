@@ -37,6 +37,7 @@
 #define TEST_FINESSE_OPTION_TRUE (char *)(uintptr_t)"true"
 #define TEST_FINESSE_OPTION_FALSE (char *)(uintptr_t)"false"
 
+static const char *test_name = "/mnt/pt";
 
 static int ServerRunning = 0;
 static int finesse_enabled = 0;
@@ -48,7 +49,7 @@ static int finesse_check(void)
     finesse_client_handle_t fch;
 
     if (0 == ServerRunning) {
-        status = FinesseStartClientConnection(&fch);
+        status = FinesseStartClientConnection(test_name, &fch);
         if (0 == status) {
             sleep(1);
             status = FinesseStopClientConnection(fch);
