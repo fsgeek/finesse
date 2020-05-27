@@ -3,7 +3,7 @@ td = []
 foreach prog: [ 'test_write_cache', 'test_setattr' ]
     td += executable(prog, prog + '.c',
                      include_directories: include_dirs,
-                     link_with: [ libfuse, libfinesse ],
+                     link_with: [ libfuse ],
                      dependencies: thread_dep,
                      install: false)
 endforeach

@@ -25,11 +25,11 @@ struct fuse_req
 	int interrupted;
 	unsigned int ioctl_64bit : 1;
 	/* BEGIN FINESSE CHANGE */
-	unsigned int finesse : 1;		 // finesse allocated
-	unsigned int finesse_notify : 1; // notify finesse
-	void *finesse_req;
-	void *finesse_lookup_info;
-	struct fuse_req *original_fuse_req;
+	struct {
+		unsigned int allocated : 1; 		     // set if this is a finesse allocated fuse_req
+		unsigned int notify : 1; 			     // set if this should trigger a finesse notification
+		struct fuse_req *original_fuse_req;	     // For chained requests, this indicates the original request
+	} finesse;
 	/* END FINESSE CHANGE */
 	union {
 		struct

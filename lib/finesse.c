@@ -13,10 +13,7 @@
 #include "fuse_misc.h"
 #include <fuse_lowlevel.h>
 #include "finesse-fuse.h"
-#include "finesse-lookup.h"
-#include "finesse-list.h"
-#include "finesse.h"
-#include "finesse.pb-c.h"
+#include <finesse-server.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,85 +36,9 @@
 #define container_of(ptr, type, member) ((type *)(((char *)ptr) - offset_of(type, member)))
 #endif // container_of
 
-typedef struct finesse_lookup_info
-{
-    int status;
-    /* used so the caller can wait for completion */
-    pthread_mutex_t lock;
-    pthread_cond_t condition;
-
-    /* attributes */
-    struct fuse_attr attr;
-
-} finesse_lookup_info_t;
 
 /* TODO: add remove! */
-
-struct finesse_req
-{
-    struct fuse_req fuse_request;
-
-    /* finesse specific routing information */
-};
-
-static void list_init_req(struct fuse_req *req)
-{
-    req->next = req;
-    req->prev = req;
-}
-
-static void list_del_req(struct fuse_req *req)
-{
-    struct fuse_req *prev = req->prev;
-    struct fuse_req *next = req->next;
-    prev->next = next;
-    next->prev = prev;
-}
-
-static struct fuse_req *finesse_alloc_req(struct fuse_session *se)
-{
-    struct fuse_req *req;
-
-    req = (struct fuse_req *)calloc(1, sizeof(struct fuse_req));
-    if (req == NULL)
-    {
-        fprintf(stderr, "finesse (fuse): failed to allocate request\n");
-    }
-    else
-    {
-        req->se = se;
-        req->ctr = 1;
-        list_init_req(req);
-        fuse_mutex_init(&req->lock);
-        finesse_set_provider(req, 1);
-    }
-    return req;
-}
-
-static void destroy_req(fuse_req_t req)
-{
-    pthread_mutex_destroy(&req->lock);
-    free(req);
-}
-
-static void finesse_free_req(fuse_req_t req)
-{
-    int ctr;
-    struct fuse_session *se = req->se;
-
-    pthread_mutex_lock(&se->lock);
-    req->u.ni.func = NULL;
-    req->u.ni.data = NULL;
-    list_del_req(req);
-    ctr = --req->ctr;
-    fuse_chan_put(req->ch);
-    req->ch = NULL;
-    pthread_mutex_unlock(&se->lock);
-    if (!ctr)
-        destroy_req(req);
-}
-
-static const struct fuse_lowlevel_ops *finesse_original_ops;
+const struct fuse_lowlevel_ops *finesse_original_ops;
 
 static int finesse_mt = 1;
 
@@ -131,12 +52,12 @@ static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name);
 static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     /* TODO: add to lookup table? */
     return finesse_original_ops->lookup(req, parent, name);
 }
 
-static void finesse_mkdir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode) {
+static void finesse_makedir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode) {
    finesse_set_provider(req, 0);
    return finesse_original_ops->mkdir(req, nodeid, name, mode);
 }
@@ -145,7 +66,7 @@ static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup);
 static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     /* TODO: remove from lookup table? */
     return finesse_original_ops->forget(req, ino, nlookup);
 }
@@ -168,7 +89,7 @@ static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->opendir(req, ino, fi);
 }
 
@@ -212,7 +133,7 @@ static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     }
 
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->release(req, ino, fi);
 }
 
@@ -220,7 +141,7 @@ static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_
 static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->releasedir(req, ino, fi);
 }
 
@@ -267,7 +188,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
                           size_t size, off_t off, struct fuse_file_info *fi) 
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->write(req, nodeid, buf, size, off, fi);
 }
 
@@ -275,7 +196,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
 //static void finesse_fuse_statfs(fuse_req_t req, const char *path) 
 //{
 //    finesse_set_provider(req, 0);
-//    req->finesse_notify = 1;
+//    req->finesse.notify = 1;
 //   return finesse_original_ops->statfs(req, path);
 //}
 
@@ -283,7 +204,7 @@ static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid);
 static void finesse_fuse_fstatfs(fuse_req_t req, fuse_ino_t nodeid) 
 {
     finesse_set_provider(req, 0);
-    req->finesse_notify = 1;
+    req->finesse.notify = 1;
     return finesse_original_ops->statfs(req, nodeid);
 }
 
@@ -328,7 +249,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     //.readdirplus     = finesse_readdirplus,
     .readdir         = finesse_readdir,
     .releasedir      = finesse_releasedir,
-    .mkdir           = finesse_mkdir,
+    .mkdir           = finesse_makedir,
     .create          = finesse_create,
     .open            = finesse_fuse_open,
     .release         = finesse_release,
@@ -354,17 +275,17 @@ void finesse_set_provider(fuse_req_t req, int finesse)
 {
     if (finesse)
     {
-        req->finesse = 1;
+        req->finesse.allocated = 1;
     }
     else
     {
-        req->finesse = 0;
+        req->finesse.allocated = 0;
     }
 }
 
 int finesse_get_provider(fuse_req_t req)
 {
-    return req->finesse;
+    return req->finesse.allocated;
 }
 
 #undef fuse_session_new
@@ -397,347 +318,60 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
     return se;
 }
 
-/////
-//
-// given a file and a list of paths, find the first occurrence of the file in the path
-//
-// TODO: this is currently hacked to work with passthrough
-//
-static char *find_file_in_path(struct fuse_session *session, char *file, char **paths, unsigned path_count)
-{
-    char *path_found = NULL;
-    unsigned path_index;
-    struct fuse_req *req = finesse_alloc_req(session);
-    size_t bufsize = 512;
-    char *scratch_buffer;
-    size_t mp_len = strlen(session->mountpoint);
-    size_t fn_len = strlen(file);
-    size_t out_buf_len;
-    int used_prefix;
-    finesse_lookup_info_t lookup_info;
 
-    memset(&lookup_info, 0, sizeof(lookup_info));
-    pthread_mutex_init(&lookup_info.lock, NULL);
-    pthread_cond_init(&lookup_info.condition, NULL);
-
-    if (NULL == req)
-    {
-        fprintf(stderr, "%s @ %d (%s): failed to connect to client %s\n", __FILE__, __LINE__, __FUNCTION__, strerror(errno));
-        return NULL;
-    }
-
-    scratch_buffer = malloc(bufsize); 
-    for (path_index = 0; path_index < path_count; path_index++)
-    {
-        size_t path_len = strlen(paths[path_index]);
-        size_t name_len = mp_len + fn_len + path_len + (2 * sizeof(char));
-
-        if (name_len < bufsize)
-        {
-            while (name_len < bufsize)
-            {
-                if (NULL != scratch_buffer)
-                {
-                    free(scratch_buffer);
-                    scratch_buffer = NULL;
-                }
-                bufsize += 4096;
-            }
-            scratch_buffer = malloc(bufsize);
-            if (NULL == scratch_buffer)
-            {
-                return NULL;
-            }
-        }
-
-        if ((path_len < mp_len) || (0 != strncmp(paths[path_index], session->mountpoint, mp_len)))
-        {
-            snprintf(scratch_buffer, bufsize, "%s/%s/%s", session->mountpoint, paths[path_index], file);
-            used_prefix = 1;
-        }
-        else
-        {
-            snprintf(scratch_buffer, bufsize, "%s/%s", paths[path_index], file);
-            used_prefix = 0;
-        }
-        req->opcode = FUSE_LOOKUP + 128; // TODO: turn this into a define somewhere
-        memset(&lookup_info.attr, 0, sizeof(lookup_info.attr));
-        lookup_info.status = EINVAL;
-        req->finesse_lookup_info = &lookup_info;
-        finesse_original_ops->lookup(req, FUSE_ROOT_ID, scratch_buffer);
-        pthread_mutex_lock(&lookup_info.lock);
-        while (0 == lookup_info.attr.ino)
-        {
-            pthread_cond_wait(&lookup_info.condition, &lookup_info.lock);
-        }
-        pthread_mutex_unlock(&lookup_info.lock);
-
-        // if it failed, try the next path
-        if (0 != lookup_info.status)
-        {
-            continue;
-        }
-
-        /* is it a regular file? */
-        if (!S_ISREG(lookup_info.attr.mode))
-        {
-            // TODO: is this reasonable semantics, or should we
-            // allow non-files?  Maybe we should return a list of matches?  Bleh.
-            continue; // nope - so we don't accept it
-        }
-
-        /* this means we found it */
-        out_buf_len = strlen(scratch_buffer) + sizeof(char);
-        if (used_prefix)
-        {
-            out_buf_len -= mp_len;
-        }
-        path_found = (char *)malloc(out_buf_len);
-
-        if (NULL == path_found)
-        {
-            break; // can't do much here
-        }
-
-        if (used_prefix)
-        {
-            strcpy(path_found, &scratch_buffer[mp_len]);
-        }
-        else
-        {
-            strcpy(path_found, scratch_buffer);
-        }
-
-        // found it, so we are done.
-        break;
-    }
-
-    if (NULL != scratch_buffer)
-    {
-        free(scratch_buffer);
-        scratch_buffer = NULL;
-    }
-
-    if (NULL != req)
-    {
-        finesse_free_req(req);
-        req = NULL;
-    }
-
-    return path_found;
-}
-
-static char *find_files_in_paths(struct fuse_session *session, char **file, unsigned file_count, char **paths, unsigned path_count)
-{
-    unsigned file_index;
-    char *found = NULL;
-
-    for (file_index = 0; (NULL == found) && (file_index < file_count); file_index++)
-    {
-        found = find_file_in_path(session, file[file_index], paths, path_count);
-    }
-
-    return found;
-}
-
-static void *finesse_mq_worker(void *arg)
+static void *finesse_process_request_worker(void *arg)
 {
     struct fuse_session *se = (struct fuse_session *)arg;
-    void *request;
-    size_t request_length;
-    Finesse__FinesseRequest *finesse_req;
-    int status;
-    size_t mp_length = strlen(se->mountpoint);
+    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
 
-    while ((0 < mp_length) && (NULL != se->server_handle))
+    while (fsh)
     {
+        int status;
+        void *client;
+        fincomm_message request;
+        finesse_msg *fmsg = NULL;
+  
+        status = FinesseGetRequest(fsh, &client, &request);
+        assert(0 == status);
+        assert(NULL != request);
+        assert((uintptr_t)client < SHM_MESSAGE_COUNT);
+        assert(0 != request->RequestId); // invalid request number
 
-        status = FinesseGetRequest(se->server_handle, &request, &request_length);
+        assert(FINESSE_REQUEST == request->MessageType); // nothing else makes sense here
+        fmsg = (finesse_msg *) request->Data;
+        assert(NULL != fmsg);
 
-        if (0 > status)
-        {
-            perror("FinesseGetRequest");
+        status = EINVAL;
+        switch (fmsg->MessageClass) {
+            default: {
+                // Bad request
+                request->Result = EINVAL;
+                request->MessageType = FINESSE_RESPONSE;
+                status = FinesseSendResponse(se->server_handle, client, request);
+                assert(0 == status);
+            }
             break;
-        }
 
-        finesse_req = finesse__finesse_request__unpack(NULL, request_length, request);
-
-        switch (finesse_req->header->op)
-        {
-        default: // Unknown case
+            case FINESSE_FUSE_MESSAGE: {
+                status = FinesseServerHandleFuseRequest(se, client, request);
+            }
             break;
-
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__TEST:
-        {
-            status = FinesseSendTestResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, 0);
-            if (0 > status)
-            {
-                perror("FinesseSendTestResponse");
+            
+            case FINESSE_NATIVE_MESSAGE: {
+                status = FinesseServerHandleNativeRequest(se, client, request);
             }
             break;
         }
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP:
-        {
-            static uuid_t dummy_uuid;
-            struct fuse_req *fuse_request;
+        assert(0 == status); // shouldn't be failing
+    }
 
-            if (0 != strcmp(finesse_req->namemapreq->name, se->mountpoint))
-            {
-
-                status = FinesseSendNameMapResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &dummy_uuid, ENOTDIR);
-                break;
-            }
-
-            /* do a lookup */
-            fprintf(stderr, "finesse (fuse): map name request for %s\n", finesse_req->namemapreq->name);
-            fprintf(stderr, "finesse (fuse): mount point is %s (len = %zu)\n", se->mountpoint, mp_length);
-            fprintf(stderr, "finesse (fuse): do lookup on %s\n", &finesse_req->namemapreq->name[mp_length]);
-            fuse_request = finesse_alloc_req(se);
-            if (NULL == fuse_request)
-            {
-                fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
-                status = FinesseSendNameMapResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &dummy_uuid, ENOMEM);
-                break;
-            }
-            fuse_request->finesse_req = finesse_req;
-            finesse_original_ops->lookup(fuse_request, FUSE_ROOT_ID, &finesse_req->namemapreq->name[mp_length + 1]);
-            finesse_req = NULL;
-            break;
-        }
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP_RELEASE:
-        {
-            finesse_object_t *object = NULL;
-
-            object = finesse_object_lookup_by_uuid((uuid_t *)finesse_req->namemapreleasereq->key.data);
-            if (NULL != object)
-            {
-                finesse_object_release(object);
-            }
-
-            status = FinesseSendNameMapReleaseResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, 0);
-            break;
-        }
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__DIR_MAP:
-            break;
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__DIR_MAP_RELEASE:
-            break;
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__UNLINK:
-        {
-            /* HACK */
-            /* since we're testing passthrough_ll and it doesn't support unlink, we do it here directly */
-            status = FinesseSendUnlinkResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, unlink(finesse_req->unlinkreq->name));
-            // end gross hack
-            break;
-        }
-        //case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__STATFS:
-        //{
-	//    struct statvfs fs;
-	//    int64_t result = finesse_original_ops->statfs(finesse_req->statfsreq->path, &fs);
-        //    status = FinesseSendStatfsResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &fs, result);
-        //    break;
-        //}
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__FSTATFS:
-        {
-            struct statvfs fs;
-            int64_t result = fstatvfs(finesse_req->fstatfsreq->nodeid, &fs);
-            status = FinesseSendFstatfsResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, &fs, result);
-            break;
-        }
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__PATH_SEARCH:
-        {
-            char *path_found = find_files_in_paths(se,
-                                                   finesse_req->pathsearchreq->files,
-                                                   finesse_req->pathsearchreq->n_files,
-                                                   finesse_req->pathsearchreq->paths,
-                                                   finesse_req->pathsearchreq->n_paths);
-
-            if (NULL == path_found)
-            {
-                status = ENOENT;
-            }
-            else
-            {
-                status = 0;
-            }
-
-            status = FinesseSendPathSearchResponse(se->server_handle, (uuid_t *)finesse_req->clientuuid.data, finesse_req->header->messageid, path_found, status);
-
-            if (NULL != path_found)
-            {
-                free(path_found);
-                path_found = NULL;
-            }
-
-            break;
-        }
-
-        } // end case
-
-        // cleanup:
-        if (NULL != finesse_req)
-        {
-            finesse__finesse_request__free_unpacked(finesse_req, NULL);
-            finesse_req = NULL;
-        }
-
-        if (NULL != request)
-        {
-            FinesseFreeRequest(se->server_handle, request);
-            request = NULL;
-        }
+    if (NULL != fsh) {
+        FinesseStopServerConnection(fsh);
+        fsh = NULL;
     }
 
     return NULL;
-    (void)finesse_alloc_req(NULL);
 }
-
-#if 0
-	FUSE_LOOKUP	   = 1,
-	FUSE_FORGET	   = 2,  /* no reply */
-	FUSE_GETATTR	   = 3,
-	FUSE_SETATTR	   = 4,
-	FUSE_READLINK	   = 5,
-	FUSE_SYMLINK	   = 6,
-	FUSE_MKNOD	   = 8,
-	FUSE_MKDIR	   = 9,
-	FUSE_UNLINK	   = 10,
-	FUSE_RMDIR	   = 11,
-	FUSE_RENAME	   = 12,
-	FUSE_LINK	   = 13,
-	FUSE_OPEN	   = 14,
-	FUSE_READ	   = 15,
-	FUSE_WRITE	   = 16,
-	FUSE_STATFS	   = 17,
-	FUSE_RELEASE       = 18,
-	FUSE_FSYNC         = 20,
-	FUSE_SETXATTR      = 21,
-	FUSE_GETXATTR      = 22,
-	FUSE_LISTXATTR     = 23,
-	FUSE_REMOVEXATTR   = 24,
-	FUSE_FLUSH         = 25,
-	FUSE_INIT          = 26,
-	FUSE_OPENDIR       = 27,
-	FUSE_READDIR       = 28,
-	FUSE_RELEASEDIR    = 29,
-	FUSE_FSYNCDIR      = 30,
-	FUSE_GETLK         = 31,
-	FUSE_SETLK         = 32,
-	FUSE_SETLKW        = 33,
-	FUSE_ACCESS        = 34,
-	FUSE_CREATE        = 35,
-	FUSE_INTERRUPT     = 36,
-	FUSE_BMAP          = 37,
-	FUSE_DESTROY       = 38,
-	FUSE_IOCTL         = 39,
-	FUSE_POLL          = 40,
-	FUSE_NOTIFY_REPLY  = 41,
-	FUSE_BATCH_FORGET  = 42,
-	FUSE_FALLOCATE     = 43,
-	FUSE_READDIRPLUS   = 44,
-	FUSE_RENAME2       = 45,
-	FUSE_LSEEK         = 46,
-
-#endif // 0
 
 void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count)
 {
@@ -760,50 +394,32 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
     //
     switch (req->opcode)
     {
-    default:
-        // no action is the default
-        break;
-    case FUSE_LOOKUP:
-    {
-        ino_t ino;
-        struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
-        finesse_object_t *nicobj;
-        uuid_t uuid;
+        default:
+            break;
+        case FUSE_LOOKUP:
+        {
+            ino_t ino;
+            struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
+            finesse_object_t *nicobj;
+            uuid_t uuid;
 
-        uuid_generate_time_safe(uuid);
+            uuid_generate_time_safe(uuid);
 
-        assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
-        ino = arg->nodeid;
-        nicobj = finesse_object_create(ino, &uuid);
-        assert(NULL != nicobj);
-        finesse_object_release(nicobj);
-        break;
+            assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
+            ino = arg->nodeid;
+            nicobj = finesse_object_create(ino, &uuid);
+            assert(NULL != nicobj);
+            finesse_object_release(nicobj);
+        }
     }
-    case FUSE_RELEASE:
-    {
-        // this is done in the pre-call release path
-    }
-    case FUSE_OPENDIR:
-    {
-        // TODO
-        break;
-    }
-    case FUSE_RELEASEDIR:
-    {
-        // TODO
-        break;
-    }
-    case FUSE_STATFS:
-    	break;
-    }
-    return;
+
 }
 
 int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req)
 {
-    struct fuse_out_header out;
-    Finesse__FinesseRequest *finesse_request = NULL;
-    struct fuse_entry_out *arg = NULL;
+    struct finesse_req *freq = NULL;
+
+    // Note: we'll probably have to add additional case handling here (right now this is just lookup)
 
     if (error <= -1000 || error > 0)
     {
@@ -811,88 +427,27 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
         error = -ERANGE;
     }
 
-    out.unique = req->unique;
-    out.error = error;
+    assert(NULL != req);
+    assert(NULL != req->se);
+    assert(req->finesse.allocated); // otherwise, shouldn't be here
+    freq = (struct finesse_req *)req;
+    assert(NULL == freq->iov); // if not, we've got to clean up what IS there - but why would this happen?
+    freq->iov = (struct iovec *)malloc(count * sizeof(struct iovec));
+    assert(NULL != freq->iov);
+    freq->iov_count = count;
 
-    iov[0].iov_base = &out;
-    iov[0].iov_len = sizeof(struct fuse_out_header);
-
-    if (count > 1)
-    {
-        arg = (struct fuse_entry_out *)iov[1].iov_base;
+    // capture all the io vector data
+    for (unsigned index = 0; index < count; index++) {
+        freq->iov[index].iov_base = malloc(iov[index].iov_len);
+        assert(NULL != freq->iov[index].iov_base);
+        memcpy(freq->iov[index].iov_base, iov[index].iov_base, iov[index].iov_len);
+        freq->iov[index].iov_len = iov[index].iov_len;
     }
 
-    if ((req->opcode > 127) && (req->opcode < 1024))
-    {
-        /* this is one of our "internal" operations */
-        switch (req->opcode)
-        {
-        default:
-            // no idea what is being requested here
-            assert(0);
-            break;
-        case FUSE_LOOKUP + 128: // TODO - make this a manifest constant
-        {
-            finesse_lookup_info_t *lookup_info = (finesse_lookup_info_t *)req->finesse_lookup_info;
+    // signal the waiter
+    FinesseSignalFuseRequestCompletion(freq);
 
-            // this is the "lookup for path search" code
-            free_req = 0; // do not free this request - it gets reused
-            lookup_info->status = error;
-            if (NULL != arg)
-            {
-                lookup_info->attr = arg->attr;
-            }
-            else
-            {
-                assert(0 != error); // otherwise I have no idea what this means
-            }
-            // Expectation is that this will always be uncontended
-            pthread_mutex_lock(&lookup_info->lock);
-            pthread_cond_signal(&lookup_info->condition);
-            pthread_mutex_unlock(&lookup_info->lock);
-            /* request ownership is returned to the original thread */
-            req = NULL;
-            break;
-        }
-
-        } // end switch
-    }
-    else
-    {
-        switch (finesse_request->header->op)
-        {
-        default:
-            // don't know what is being asked here, so abort
-            assert(0);
-            break;
-
-        case FINESSE__FINESSE_MESSAGE_HEADER__OPERATION__NAME_MAP:
-        {
-            finesse_object_t *nobj = finesse_object_create((ino_t)arg->nodeid, NULL);
-
-            error = FinesseSendNameMapResponse(req->se->server_handle, (uuid_t *)finesse_request->clientuuid.data,
-                                               finesse_request->header->messageid, &nobj->uuid, 0);
-
-            finesse_object_release(nobj);
-        }
-        break;
-        }
-    }
-
-    // cleanup
-    if (NULL != req)
-    {
-        if (NULL != req->finesse_req)
-        {
-            FinesseFreeRequest(req->se->server_handle, req->finesse_req);
-            req->finesse_req = NULL;
-        }
-
-        if (free_req)
-        {
-            finesse_free_req(req);
-        }
-    }
+    assert(0 == free_req); // we don't handle the "don't free" case at this point.
 
     return 0;
 }
@@ -932,7 +487,7 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
         /* TODO: start worker thread(s) */
         for (unsigned int index = 0; index < FINESSE_MAX_THREADS; index++)
         {
-            status = pthread_create(&finesse_threads[index], &finesse_mq_thread_attr, finesse_mq_worker, se);
+            status = pthread_create(&finesse_threads[index], &finesse_mq_thread_attr, finesse_process_request_worker, se);
             if (status < 0)
             {
                 fprintf(stderr, "finesse (fuse): pthread_create failed: %s\n", strerror(errno));

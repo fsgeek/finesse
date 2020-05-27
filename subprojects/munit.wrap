@@ -1,0 +1,5 @@
+[wrap-git]
+directory=munit
+url=https://github.com/fsgeek/munit/
+revision=head
+

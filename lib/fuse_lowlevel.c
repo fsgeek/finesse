@@ -159,10 +159,18 @@ static void list_add_req(struct fuse_req *req, struct fuse_req *next)
 	next->prev = req;
 }
 
-static void destroy_req(fuse_req_t req)
+extern void FinesseDestroyFuseRequest(fuse_req_t req);
+
+static void FinesseDestroyFuseReq(fuse_req_t req)
 {
-	pthread_mutex_destroy(&req->lock);
-	free(req);
+	if (0 == req->finesse.allocated) {
+		pthread_mutex_destroy(&req->lock);
+		memset(req, 0, sizeof(struct fuse_req));
+		free(req);
+	}
+	else {
+		FinesseDestroyFuseRequest(req);
+	}
 }
 
 void fuse_free_req(fuse_req_t req)
@@ -179,7 +187,7 @@ void fuse_free_req(fuse_req_t req)
 	req->ch = NULL;
 	pthread_mutex_unlock(&se->lock);
 	if (!ctr)
-		destroy_req(req);
+		FinesseDestroyFuseReq(req);
 }
 
 static struct fuse_req *fuse_ll_alloc_req(struct fuse_session *se)
@@ -261,17 +269,17 @@ int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
 	iov[0].iov_len = sizeof(struct fuse_out_header);
 
 // BEGIN FINESSE
-	if ((req->finesse) || ((req->opcode > 127) && (req->opcode < 1024)))
+	if (req->finesse.allocated)
 	{
-		assert(0 == req->finesse_notify); // can't be both
+		assert(0 == req->finesse.notify); // can't be both
 		return finesse_send_reply_iov(req, error, iov, count, 0);
 	}
 
-	if (req->finesse_notify)
+	if (req->finesse.notify)
 	{
-		/* a _notify_ means "tell us about this" but does not interfere
-		 * with the usual flow
-		 */
+		// a _notify_ means "tell us about this" but does not interfere
+		// with the usual flow
+		assert(0 == req->finesse.allocated); // can't be both
 		finesse_notify_reply_iov(req, error, iov, count);
 	}
 // END FINESSE
@@ -1866,7 +1874,7 @@ static int find_interrupted(struct fuse_session *se, struct fuse_req *req)
 			pthread_mutex_lock(&se->lock);
 			curr->ctr--;
 			if (!curr->ctr)
-				destroy_req(curr);
+				FinesseDestroyFuseReq(curr);
 
 			return 1;
 		}
@@ -1894,7 +1902,7 @@ static void do_interrupt(fuse_req_t req, fuse_ino_t nodeid, const void *inarg)
 
 	pthread_mutex_lock(&se->lock);
 	if (find_interrupted(se, req))
-		destroy_req(req);
+		FinesseDestroyFuseReq(req);
 	else
 		list_add_req(req, &se->interrupts);
 	pthread_mutex_unlock(&se->lock);
@@ -3278,6 +3286,7 @@ void fuse_session_unmount(struct fuse_session *se)
 {
 	if (se->mountpoint != NULL) {
 		fuse_kern_unmount(se->mountpoint, se->fd);
+		se->fd = -1;
 		free(se->mountpoint);
 		se->mountpoint = NULL;
 	}
