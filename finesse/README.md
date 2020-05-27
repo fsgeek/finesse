@@ -74,4 +74,45 @@ a good system for keeping track of these things, unfortunately.
 
 Normally, I build the testing up incrementally so at each step I confirm (as much as possible) that I have implemented things properly.
 
+## Adding a new LD_PRELOAD entry
+
+There's a boilerplate part to this, and then there's the part about wiring in Finesse to it.
+
+### Call boilerplate
+
+There are _three_ things required to add an LD_PRELOAD call:
+
+* The LD_PRELOAD wrapper itself.  This goes in finesse/preload.  It can either be an existing file, or it can be a new file.  I try not to overload the files to make it easier to find them.  The prototype for these functions matches something already exported by a library, so it is usually found in the documentation (e.g., `freopen` which I'm working on as I do this, is documented at [`freopen`](https://www.man7.org/linux/man-pages/man3/fopen.3.html)).  Be careful about the header files that you include; I have found issues with some calls being overridden (and thus not working).  Look at `open` (in open.c) for an example (this has minimal header files to avoid some of these issues).
+
+* The Finesse library API.  Note that this **matches** the LD_PRELOAD prototype.  The reason we have this is to permit an application program (or test) to use the API directly (by invoking the finesse_XXX version).
+
+* The finesse implementation routine.  These are **static** local functions; I try to pair them up with the finesse_XXX function.  So for finesse_XXX there is a fin_XXX function that implements the mechanics of invoking Finesse and then invoking the underlying shared library call.
+
+### LD_PRELOAD
+
+This is a thin shim - usually I just copy the prototype and then add a call to the finesse wrapper version.  For example, I just added `freopen` and it is one line long.  That is the norm.  For variable argument functions (e.g., open), there's a bit more work that needs to be done.
+
+### Finesse Library API
+
+This is where the primary work to invoke Finesse is done.  For a name based call we look to see if the path prefix is of interest to us.  If it is not, we pass it along to the `fin_XXX` variant.  If it is of interest, then we have to perform some operation(s) to communicate with Finesse.  There are basically three possible outcomes for these library API calls:
+
+- We conclude that we aren't interested; we just call the `fin_XXX` wrapper to pass things along to the underlying shared library implementation.
+
+- We decide we _are_ interested and need to do some more processing, but we also need to invoke the original implementation.  An example of this is `open` where we pass the open to the library (and then to the kernel) but we initiate a message to Finesse to obtain a handle for us.  When the kernel returns, we match it up with the Finesse handle in a handle tracking table.
+
+- We decide we can do this entirely with Finesse.  In this case we make the call, get the response, and return the result to the application.  This is what we are trying to achieve: the _kernel bypass_.
+
+As we further develop Finesse, these library API calls are going to become more feature full.  For example, we may change how `readdir` works by replacing the `glibc` implementation with one that exploits a shared memory buffer that we pass to the FUSE server to populate.  In that way, we can transparently give the application access to the directory contents without further interaction with the kernel or Finesse.
+
+For the initial implementation, these often turn into just transparent pass-through calls.
+
+### Finesse call to original shared library
+
+This is usually pretty straight-forward: keep a copy of the original call, look it up the first time we try to use it, pass the call along.  There are some cases where this can become more complicated, such as when there are _version specfic_ calls that have to be looked up (e.g., `pthread_cond_wait` - which we dont' care about here, which requires versioning.  See [Versioning](http://blog.fesnel.com/blog/2009/08/25/preloading-with-multiple-symbol-versions/
+)).
+
+Normally, I write these by copying an existing `fin_XXX` operation that is similar.  I change the typedef to match the operation name (`orig_XXX_t`).  It's used in two other places.  I change the name of the function (`orig_XXX`), which is used five times usually, then I change the symbol being looked up (`dlsym(RTLD_NEXT,"XXX")`).  Finally, fix up the parameters at the end to match the parameters of the function and you're done.
+
+
+
 
