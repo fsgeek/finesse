@@ -558,6 +558,78 @@ test_fstatfs(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_openat(
+    const MunitParameter params[] __notused,
+    void *prv __notused) 
+{
+    int fd = -1;
+    int dirfd = -1;
+    int status = 0;
+    const char *prefix = NULL;
+    const char *test_file = NULL;
+    const char *base_dir = NULL;
+
+    finesse_enabled = get_finesse_option(params);
+
+    if (!finesse_enabled) {
+        // not interested in the native path here
+        return MUNIT_OK;
+    }
+   
+    finesse_init();
+    setup_test(params);
+    
+    prefix =  munit_parameters_get(params, TEST_MOUNT_PREFIX);
+    munit_assert_not_null(prefix);
+
+    base_dir = munit_parameters_get(params, TEST_OPEN_FILE_PARAM_DIR);
+    munit_assert_not_null(prefix);
+
+    munit_assert_not_null(test_files);
+    test_file = test_files[0];
+    munit_assert_not_null(test_file);
+    
+    if(finesse_enabled) {
+        munit_assert(0 == finesse_init_file_state_mgr());
+    }
+
+    // open the root directory
+    dirfd = finesse_open(base_dir, O_RDONLY);
+    munit_assert_int(dirfd, >=, 0);
+
+    // create the file
+    fd = finesse_openat(dirfd, test_file, O_CREAT, 0664);
+    munit_assert_int(fd, >=, 0);
+
+    // now close it
+    status = finesse_close(fd);
+    munit_assert(0 == status);
+
+    status = finesse_unlinkat(dirfd, test_file, 0);
+    munit_assert(0 == status);
+
+    // verify it is deleted
+    fd = finesse_openat(dirfd, test_file, O_RDONLY);
+    munit_assert(-1 == fd);
+    munit_assert(ENOENT == errno);
+
+    // done
+    status = finesse_close(dirfd);
+    munit_assert(0 == status);
+    dirfd = -1;
+
+    cleanup_test(params);
+    
+    if (finesse_enabled){
+        finesse_terminate_file_state_mgr();
+    }
+
+    finesse_shutdown();
+
+    return MUNIT_OK;
+}
+
 
 static const char *mount_prefix[] = {"", "/mnt/pt", NULL};
 static const char *files[] = { "testfile1", NULL};
@@ -579,6 +651,7 @@ static MunitTest fuse_tests[] = {
     TEST((char *)(uintptr_t)"/null", test_null, NULL),
     TEST("/started", test_finess_started, NULL),
     TEST("/opendir", test_open_dir, open_params),
+    TEST("/openat", test_openat, open_params),
     TEST("/open/existing-files", test_open_existing_files, open_params),
     TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),
     TEST("/fstatfs", test_fstatfs, open_params),
