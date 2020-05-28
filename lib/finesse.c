@@ -309,14 +309,32 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
         return se;
     }
 
+    return se;
+}
+
+void finesse_session_mount(struct fuse_session *se);
+
+void finesse_session_mount(struct fuse_session *se)
+{
+    if (NULL != se->server_handle) {
+        // already done?
+        return; 
+    }
+
+    if (NULL == se->mountpoint) {
+        fprintf(stderr, "FINESSE: no mountpoint, cannot create connection\n");
+        return;
+    }
+
     if (0 > FinesseStartServerConnection(se->mountpoint, &se->server_handle))
     {
         fprintf(stderr, "fuse (finesse): failed to start Finesse Server connection\n");
         se->server_handle = NULL;
     }
-
-    return se;
+   
+    return;
 }
+
 
 
 static void *finesse_process_request_worker(void *arg)

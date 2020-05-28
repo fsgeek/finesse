@@ -248,8 +248,9 @@ static int fuse_send_msg(struct fuse_session *se, struct fuse_chan *ch,
 }
 // BEGIN FINESSE
 // TODO: move this to a header file
-extern int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req);
-extern void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count);
+int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req);
+void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count);
+void finesse_session_mount(struct fuse_session *se);
 // END FINESSE
 
 int fuse_send_reply_iov_nofree(fuse_req_t req, int error, struct iovec *iov,
@@ -3269,6 +3270,10 @@ int fuse_session_mount(struct fuse_session *se, const char *mountpoint)
 	se->mountpoint = strdup(mountpoint);
 	if (se->mountpoint == NULL)
 		goto error_out;
+	
+	/* BEGIN FINESSE */
+	finesse_session_mount(se);
+	/* END FINESSE */
 
 	return 0;
 
