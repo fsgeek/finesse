@@ -1,0 +1,5 @@
+[wrap-git]
+directory=ext4fuse
+url=https://github.com/fsgeek/ext4fuse.git
+revision=head
+
