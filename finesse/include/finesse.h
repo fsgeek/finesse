@@ -20,6 +20,7 @@ int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Clien
 int FinesseGetMessageAuxBuffer(finesse_server_handle_t FinesseServerHandle,  void *Client, void *Message, void **Buffer, size_t *BufferSize);
 const char *FinesseGetMessageAuxBufferName(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message);
 void FinesseDestroyFuseRequest(fuse_req_t req);
+uint64_t FinesseGetActiveClientCount(finesse_server_handle_t FinesseServerHandle);
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, const char *MountPoint);
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);
@@ -28,6 +29,11 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_
 int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
 int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message);
 void FinesseFreeTestResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+
+int FinesseSendServerStatRequest(finesse_client_handle_t FinesseClientHandle, fincomm_message *Message);
+int FinesseSendServerStatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, FinesseServerStat *ServerStats, int Result);
+int FinesseGetServerStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, FinesseServerStat **ServerStat);
+void FinesseFreeServerStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *ParentDir, const char *NameToMap, fincomm_message *Message);
 int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *MapKey, int Result);
@@ -79,14 +85,11 @@ int FinesseSendFstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t 
 int FinesseSendFstatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
 int FinesseGetFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
 void FinesseFreeFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
-int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, const char *path, fincomm_message *Message);
+
+int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, mode_t Mode, fincomm_message *Message);
 int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
 int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result);
 void FinesseFreeAccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
-int FinesseSendFaccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message);
-int FinesseSendFaccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
-int FinesseGetFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result);
-void FinesseFreeFaccessResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 
 int FinesseSendCreateRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, struct stat *Stat, fincomm_message *Message);

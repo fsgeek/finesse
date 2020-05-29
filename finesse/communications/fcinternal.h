@@ -13,7 +13,6 @@
 #define make_mask64(index) (((u_int64_t)1)<<index)
 #endif
 
-
 fincomm_shared_memory_region *FcGetSharedMemoryRegion(finesse_server_handle_t ServerHandle, unsigned Index);
 int FinesseSendRequest(finesse_client_handle_t FinesseClientHandle, fincomm_message Request, size_t RequestLen);
 int FinesseGetClientResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message *Response, size_t *ResponseLen);

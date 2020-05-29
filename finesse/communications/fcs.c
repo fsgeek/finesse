@@ -776,6 +776,25 @@ const char *FinesseGetMessageAuxBufferName(
     return scs->client_server_connection_state_table[index]->aux_shm_table[messageIndex].AuxShmName;
 }
 
+uint64_t FinesseGetActiveClientCount(finesse_server_handle_t FinesseServerHandle)
+{
+    uint64_t count = 0;
+    unsigned index;
+    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
+
+    assert(NULL != FinesseServerHandle);
+
+    // nothing locks the table, but we don't really care here
+    for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
+        if (NULL != scs->client_server_connection_state_table[index]) {
+            count++;
+        }
+    }
+
+    return count;
+
+}
+
 
 #if 0
 //

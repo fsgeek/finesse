@@ -1,3 +1,6 @@
 [submodule "subprojects/munit"]
 	path = subprojects/munit
 	url = https://github.com/fsgeek/munit
+[submodule "subprojects/ext4fuse"]
+	path = subprojects/ext4fuse
+	url = https://github.com/fsgeek/ext4fuse.git

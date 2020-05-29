@@ -18,6 +18,7 @@ finesse_object_t *finesse_object_lookup_by_ino(fuse_ino_t inode);
 finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid);
 void finesse_object_release(finesse_object_t *object);
 finesse_object_t *finesse_object_create(fuse_ino_t inode, uuid_t *uuid);
+uint64_t finesse_object_get_table_size(void);
 
 
 extern int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req);

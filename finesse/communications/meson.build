@@ -19,6 +19,7 @@ finessecommmunications_sources = [
    'fcs.c', 
    'namemap.c',
    'pathsearch.c', 
+   'serverstat.c',
    'stat.c',
    'statfs.c',
    'testmsg.c',

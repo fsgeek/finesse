@@ -40,7 +40,18 @@ static void lock_table_for_lookup(void);
 static void lock_table_for_change(void);
 static void unlock_table(void);
 
-list_entry_t table_list = {.next = &table_list, .prev = &table_list};
+static list_entry_t table_list = {.next = &table_list, .prev = &table_list};
+static uint64_t object_count;
+
+static inline void add_object(void)
+{
+    __atomic_fetch_add(&object_count, 1, __ATOMIC_RELAXED);
+}
+
+static inline void remove_object(void)
+{
+    __atomic_fetch_sub(&object_count, 1, __ATOMIC_RELAXED);
+}
 
 typedef struct _finesse_internal_object
 {
@@ -119,6 +130,7 @@ static void release(finesse_internal_object_t *object)
             // now it's safe to remove it
             remove_list_entry(&object->list_entry);
             free(object);
+            remove_object();
         }
     }
     unlock_table();
@@ -154,6 +166,7 @@ static finesse_internal_object_t *object_create(fuse_ino_t inode, uuid_t *uuid)
         break;
     }
     assert(NULL == dummy);
+    add_object();
     return internal_object;
 }
 
@@ -190,6 +203,11 @@ finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid)
     internal_object = lookup_by_uuid_locked(uuid);
     unlock_table();
     return internal_object ? &internal_object->object : NULL;
+}
+
+uint64_t finesse_object_get_table_size()
+{
+    return __atomic_load_n(&object_count, __ATOMIC_RELAXED);
 }
 
 void finesse_object_release(finesse_object_t *object)

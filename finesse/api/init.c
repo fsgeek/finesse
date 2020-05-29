@@ -63,7 +63,6 @@ static void finesse_real_shutdown(void)
     pthread_mutex_lock(&lock);
 
     while (finesse_shutdown == finesse_real_shutdown) {
-        (void) finesse_terminate_file_state_mgr();
         finesse_shutdown = finesse_dummy_shutdown;
         finesse_init = finesse_real_init;
         // close connection to finesse servers
@@ -78,7 +77,7 @@ static void finesse_real_shutdown(void)
             assert(0 == status);
             finesse_prefix_table[index].client_handle = NULL;
         }
-
+        (void) finesse_terminate_file_state_mgr();
     }
     pthread_mutex_unlock(&lock);
 }

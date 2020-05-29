@@ -288,6 +288,11 @@ finesse_file_state_t *finesse_lookup_file_state(int fd)
     finesse_file_state_t *file_state;
     int status;
     
+    if (NULL == fd_lookup_table) {
+        // This can happen during shutdown.
+        return NULL;
+    }
+
     assert(fd_lookup_table);
     status = lookup_table_lookup(fd_lookup_table, &fd, (void **)&file_state);
 

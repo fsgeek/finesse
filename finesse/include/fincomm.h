@@ -202,6 +202,7 @@ typedef enum _FINESSE_FUSE_REQ_TYPE {
     FINESSE_FUSE_REQ_READDIRPLUS = 81,
     FINESSE_FUSE_REQ_COPY_FILE_RANGE = 82,
     FINESSE_FUSE_REQ_LSEEK = 83,
+    FINESSE_FUSE_REQ_MAX
 } FINESSE_FUSE_REQ_TYPE;
 
 typedef enum _FINESSE_FUSE_RSP_TYPE {
@@ -229,24 +230,47 @@ typedef enum _FINESSE_FUSE_RSP_TYPE {
     FINESSE_FUSE_RSP_NOTIFY_DELETE,
     FINESSE_FUSE_RSP_NOTIFY_STORE,
     FINESSE_FUSE_RSP_NOTIFY_RETRIEVE,
+    FINESSE_FUSE_RSP_MAX
 } FINESSE_FUSE_RSP_TYPE;
 
 typedef enum {
     FINESSE_NATIVE_REQ_TEST = 1024,
+    FINESSE_NATIVE_REQ_SERVER_STAT,
     FINESSE_NATIVE_REQ_MAP,
     FINESSE_NATIVE_REQ_MAP_RELEASE,
     FINESSE_NATIVE_REQ_DIRMAP,
     FINESSE_NATIVE_REQ_DIRMAPRELEASE,
+    FINESSE_NATIVE_REQ_MAX,
 } FINESSE_NATIVE_REQ_TYPE;
 
 typedef enum {
     FINESSE_NATIVE_RSP_ERR = 1152,
     FINESSE_NATIVE_RSP_TEST,
+    FINESSE_NATIVE_RSP_SERVER_STAT,
     FINESSE_NATIVE_RSP_MAP,
     FINESSE_NATIVE_RSP_MAP_RELEASE,
     FINESSE_NATIVE_RSP_DIRMAP,
     FINESSE_NATIVE_RSP_DIRMAPRELEASE,
+    FINESSE_NATIVE_RSP_MAX
 } FINESSE_NATIVE_RSP_TYPE;
+
+// Information about the Finesse Server
+typedef struct _FinesseServerStat {
+    uint16_t Version;
+    uint16_t Length;
+    uint16_t ClientConnectionCount;
+    uint16_t Unused0;
+    uint32_t ActiveNameMaps;
+    uint32_t ErrorCount;
+    uint64_t FuseRequests[FINESSE_FUSE_REQ_MAX - FINESSE_FUSE_REQ_LOOKUP];
+    uint64_t FuseResponses[FINESSE_FUSE_RSP_MAX - FINESSE_FUSE_RSP_NONE];
+    uint64_t NativeRequests[FINESSE_NATIVE_REQ_MAX - FINESSE_NATIVE_REQ_TEST];
+    uint64_t NativeResponses[FINESSE_NATIVE_RSP_MAX - FINESSE_NATIVE_RSP_ERR];
+    uint64_t NativeResponseCount;
+} FinesseServerStat;
+
+#define FINESSE_SERVER_STAT_VERSION (1)
+#define FINESSE_SERVER_STAT_LENGTH (sizeof(FinesseServerStat))
 
 typedef struct {
     FINESSE_FUSE_REQ_TYPE Type; // Message type
@@ -429,14 +453,8 @@ typedef struct {
         } Removexattr;
 
         struct {
-            enum {
-                ACCESS_NAME = 33,
-                ACCESS_INODE = 34,
-            } AccessType;
-            union {
-                uuid_t Inode;
-                char Name[0];
-            } Options;
+            uuid_t ParentInode;
+            char Name[0];
             int Mask;
         } Access;
 
@@ -670,6 +688,13 @@ typedef struct {
     FINESSE_NATIVE_RSP_TYPE NativeResponseType;
     union {
         struct {
+            uuid_t   MapId; // for tracking this specific mapping
+            size_t   Length; // Length of the data
+            uint8_t  Inline; // boolean if the data is returned rather than a name
+            char     Data[0]; // either inline data or the shared memory name
+        } DirMap;
+
+        struct {
             int Result;
         } Err;
         struct {
@@ -682,15 +707,13 @@ typedef struct {
         } MapRelease;
 
         struct {
+            int Result;
+            FinesseServerStat Data;
+        } ServerStat;
+        struct {
             uint64_t Version;
         } Test;
 
-        struct {
-            uuid_t   MapId; // for tracking this specific mapping
-            size_t   Length; // Length of the data
-            uint8_t  Inline; // boolean if the data is returned rather than a name
-            char     Data[0]; // either inline data or the shared memory name
-        } DirMap;
     } Parameters;
 } finesse_native_response;
 

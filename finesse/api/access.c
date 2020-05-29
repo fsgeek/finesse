@@ -27,7 +27,25 @@ static int fin_access(const char *pathname, int mode)
 
 int finesse_access(const char *pathname, int mode)
 {
-    return fin_access(pathname, mode);
+    int status;
+    fincomm_message message;
+    finesse_client_handle_t finesse_client_handle = NULL;
+    int result;
+
+    finesse_client_handle = finesse_check_prefix(pathname);
+
+    if (NULL == finesse_client_handle) {
+        // not of interest - fallback
+        return fin_access(pathname, mode);
+    }
+
+    status = FinesseSendAccessRequest(finesse_client_handle, NULL, pathname, mode, &message);
+    assert(0 == status);
+    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);    
+    assert(0 == status);
+    FinesseFreeAccessResponse(finesse_client_handle, message);
+
+    return result;
 }
 
 static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
@@ -50,5 +68,36 @@ static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
 
 int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
-    return fin_faccessat(dirfd, pathname, mode, flags);
+    int status;
+    finesse_file_state_t *file_state = NULL;
+    fincomm_message message;
+    finesse_client_handle_t finesse_client_handle = NULL;
+    int result;
+
+    finesse_client_handle = finesse_check_prefix(pathname);
+
+    if (NULL == finesse_client_handle) {
+        // not of interest - fallback
+        if (-1 == dirfd) {
+            return fin_access(pathname, mode);
+        }
+        else {
+            return fin_faccessat(dirfd, pathname, mode, flags);
+        }
+    }
+
+    file_state = finesse_lookup_file_state(finesse_nfd_to_fd(dirfd));
+
+    if (NULL == file_state) {
+        // don't know the parent? Not interested...
+        return fin_faccessat(dirfd, pathname, mode, flags);
+    }
+
+    status = FinesseSendAccessRequest(finesse_client_handle, &file_state->key, pathname, mode, &message);
+    assert(0 == status);
+    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);    
+    assert(0 == status);
+    FinesseFreeAccessResponse(finesse_client_handle, message);
+
+    return result;
 }

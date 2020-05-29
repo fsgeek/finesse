@@ -29,6 +29,7 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         // bad handle
         status = FinesseSendFstatfsResponse(fsh, Client, Message, NULL, EBADF);
         assert(0 == status);
+        FinesseCountFuseRequest(FINESSE_FUSE_REQ_STATFS);
         return 0;
     }
 
@@ -39,7 +40,13 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
         // TODO: fix this function's prototype
 
-        return FinesseSendFstatfsResponse(fsh, Client, Message,NULL, ENOMEM);
+        status = FinesseSendFstatfsResponse(fsh, Client, Message,NULL, ENOMEM);
+
+        if (0 == status) {
+            FinesseCountFuseResponse(FINESSE_FUSE_RSP_STATFS);
+        }
+
+        return status;
     }
 
     fuse_request->ctr++; // make sure it doesn't go away until we're done processing it.
@@ -56,6 +63,7 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
     if (0 != out->error) {
         status = FinesseSendStatfsResponse(fsh, Client, Message, NULL, out->error);
         assert(0 == status);
+        FinesseCountFuseResponse(FINESSE_FUSE_RSP_STATFS);
         FinesseFreeFuseRequest(fuse_request);
         return 0;
     }
@@ -83,6 +91,10 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         status = FinesseSendStatfsResponse(fsh, Client, Message, &stvfs, 0);
     }
 
+    if (0 == status) {
+        FinesseCountFuseResponse(FINESSE_FUSE_RSP_STATFS);
+    }
+
     // clean up
     finesse_object_release(finobj);
     finobj = NULL;
@@ -107,7 +119,7 @@ static int finesse_statfs_handler(struct fuse_session *se, void *Client, fincomm
     fmsg = (finesse_msg *)Message->Data;
 
     // We need to do a lookup here
-    status = FinesseServerInternalNameMapRequest(se, fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Name, &finobj);
+    status = FinesseServerInternalNameMapRequest(se, NULL, fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Name, &finobj);
 
     if (0 == status) {
         // Now it's just an fstat...

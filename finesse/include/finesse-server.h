@@ -36,3 +36,7 @@ int FinesseServerNativeTestRequest(finesse_server_handle_t Fsh, void *Client, fi
 int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm_message Message);
 
 int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message);
+
+int FinesseServerNativeServerStatRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message);
+
+
