@@ -26,4 +26,6 @@ void finesse_delete_file_state(finesse_file_state_t *file_state);
 int finesse_fd_to_nfd(int fd);
 int finesse_nfd_to_fd(int nfd);
 
+fuse_ino_t LookupInodeForKey(uuid_t *Key);
+
 #endif // __API_INTERNAL_H__

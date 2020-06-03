@@ -82,7 +82,7 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
 
         default:
             fmsg->Message.Native.Response.NativeResponseType = FINESSE_FUSE_RSP_ERR;
-            fmsg->Message.Native.Response.Parameters.Err.Result = ENOTSUP;
+            fmsg->Result = ENOTSUP;
             FinesseSendResponse(fsh, Client, Message);
             FinesseCountNativeResponse(FINESSE_FUSE_RSP_ERR);
             break;

@@ -24,6 +24,7 @@ int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const 
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
+    fmsg->Result = ENOSYS;
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STATFS;
     fmsg->Message.Fuse.Request.Parameters.Statfs.StatFsType = STATFS;
 

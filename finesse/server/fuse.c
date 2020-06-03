@@ -18,6 +18,9 @@ static const char *finesse_request_type_to_string(FINESSE_FUSE_REQ_TYPE Type)
         case FINESSE_FUSE_REQ_FORGET:
             str = "forget";
             break;
+        case FINESSE_FUSE_REQ_STAT:
+            str = "stat";
+            break;
         case FINESSE_FUSE_REQ_GETATTR:
             str = "getattr";
             break;
@@ -161,12 +164,21 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         __PRETTY_FUNCTION__, fmsg, fmsg->Message.Fuse.Request.Type,
         finesse_request_type_to_string(fmsg->Message.Fuse.Request.Type));
 
+    FinesseCountFuseRequest(fmsg->Message.Fuse.Request.Type);
 
     // Now the big long switch statement
     switch (fmsg->Message.Fuse.Request.Type) {
         case FINESSE_FUSE_REQ_STATFS:
             FinesseServerFuseStatFs(se, Client, Message);
-        break;
+            break;
+
+        case FINESSE_FUSE_REQ_STAT:
+            FinesseServerFuseStat(se, Client, Message);
+            break;
+
+        case FINESSE_FUSE_REQ_ACCESS:
+            FinesseServerFuseAccess(se, Client, Message);
+            break;
 
         case FINESSE_FUSE_REQ_LOOKUP:
         case FINESSE_FUSE_REQ_FORGET:
@@ -194,7 +206,6 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         case FINESSE_FUSE_REQ_GETXATTR:
         case FINESSE_FUSE_REQ_LISTXATTR:
         case FINESSE_FUSE_REQ_REMOVEXATTR:
-        case FINESSE_FUSE_REQ_ACCESS:
         case FINESSE_FUSE_REQ_CREATE:
         case FINESSE_FUSE_REQ_GETLK:
         case FINESSE_FUSE_REQ_SETLK:
@@ -212,7 +223,7 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         default:
             fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) returning ENOTSUP\n", __PRETTY_FUNCTION__, fmsg);
             fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
-            fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err = ENOTSUP;
+            fmsg->Result = ENOTSUP;
             FinesseSendResponse(fsh, Client, Message);
             break;
     }

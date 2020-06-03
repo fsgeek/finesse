@@ -25,6 +25,8 @@ struct fuse_req *FinesseAllocFuseRequest(struct fuse_session *se);
 void FinesseFreeFuseRequest(fuse_req_t req);
 void FinesseDestroyFuseRequest(fuse_req_t req);
 
+typedef int (*FinesseServerFunctionHandler)(struct fuse_session *se, void *Client, fincomm_message Message);
+
 void FinesseServerFuseStatFs(struct fuse_session *se, void *Client, fincomm_message Message);
 void FinesseSignalFuseRequestCompletion(struct finesse_req *req);
 void FinesseWaitForFuseRequestCompletion(struct finesse_req *req);
@@ -39,4 +41,5 @@ int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Clie
 
 int FinesseServerNativeServerStatRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message);
 
-
+FinesseServerFunctionHandler FinesseServerFuseStat;
+FinesseServerFunctionHandler FinesseServerFuseAccess;

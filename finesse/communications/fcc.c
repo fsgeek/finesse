@@ -192,7 +192,7 @@ int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, finc
     assert(FINESSE_MESSAGE_VERSION == fmsg->Version);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_FUSE_RSP_ERR == fmsg->Message.Fuse.Response.Type);
-    *Result = fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err;
+    *Result = fmsg->Result;
 
     return status;
 }

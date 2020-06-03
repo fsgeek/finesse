@@ -205,6 +205,35 @@ finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid)
     return internal_object ? &internal_object->object : NULL;
 }
 
+fuse_ino_t finesse_lookup_ino(uuid_t *uuid)
+{
+    fuse_ino_t inode = FUSE_ROOT_ID;
+    finesse_internal_object_t *internal_object;
+    list_entry_t *entry;
+
+    if (uuid_is_null(*uuid)) {
+        return inode;
+    }
+
+    inode = (fuse_ino_t) 0;
+
+    lock_table_for_lookup();
+
+    list_for_each(&table_list, entry)
+    {
+        internal_object = container_of(entry, finesse_internal_object_t, list_entry);
+        if (0 == memcmp(&internal_object->object.uuid, uuid, sizeof(uuid_t)))
+        {
+            inode = internal_object->object.inode;
+            break;
+        }
+    }
+    unlock_table();
+
+    return inode;
+}
+
+
 uint64_t finesse_object_get_table_size()
 {
     return __atomic_load_n(&object_count, __ATOMIC_RELAXED);
@@ -233,13 +262,3 @@ static void unlock_table(void)
 {
     pthread_rwlock_unlock(&table_lock);
 }
-
-/*
- * Local variables:
- * mode: C
- * c-file-style: "Linux"
- * c-basic-offset: 4
- * tab-width: 4
- * indent-tabs-mode: nil
- * End:
- */

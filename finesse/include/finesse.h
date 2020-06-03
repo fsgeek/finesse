@@ -71,20 +71,16 @@ int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, void
 int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct statvfs *buf);
 void FinesseFreeFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
-int FinesseSendStatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, fincomm_message *Message);
+// For stat: NULL Parent, NULL Inode, 0 Follow Link, absolute path
+// For fstat: NULL Parent, Inode, 0 Follow Link, 
+int FinesseSendCommonStatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, uuid_t *Inode, int Flags, const char *Path, fincomm_message *Message);
+#define FinesseSendStatRequest(fch, path, msgptr) FinesseSendCommonStatRequest(fch, NULL, NULL, 0, path, msgptr)
+#define FinesseSendFstatRequest(fch, key, msgptr) FinesseSendCommonStatRequest(fch, NULL, key, 0, NULL, msgptr)
+#define FinesseSendLstatRequest(fch, path, msgptr) FinesseSendCommonStatRequest(fch, NULL, NULL, AT_SYMLINK_NOFOLLOW, path, msgptr)
+#define FinesseSendFstatAtRquest(fch, parent, path, flags, msgptr) FinesseSendCommonStatRequest(fch, parent, NULL, flags, path, msgptr)
 int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
-int FinesseGetStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
-void FinesseFreeStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
-
-int FinesseSendLstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, fincomm_message *Message);
-int FinesseSendLstatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
-int FinesseGetLstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
-void FinesseFreeLstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
-
-int FinesseSendFstatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Inode, fincomm_message *Message);
-int FinesseSendFstatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, struct stat *Stat, double Timeout, int Result);
-int FinesseGetFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr);
-void FinesseFreeFstatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
+int FinesseGetStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr, double *Timeout, int *Result);
+void FinesseFreeStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response); 
 
 int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, mode_t Mode, fincomm_message *Message);
 int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, int Result);
@@ -94,7 +90,7 @@ void FinesseFreeAccessResponse(finesse_client_handle_t FinesseClientHandle, finc
 
 int FinesseSendCreateRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, const char *Path, struct stat *Stat, fincomm_message *Message);
 int FinesseSendCreateResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *Key, uint64_t Generation, struct stat *Stat, double Timeout, int Result);
-int FinesseGetCreateResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, uuid_t *Key, uint64_t *Generation, struct stat *Stat,  double *Timeout);
+int FinesseGetCreateResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, uuid_t *Key, uint64_t *Generation, struct stat *Stat,  double *Timeout, int *Result);
 void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
 
@@ -111,6 +107,11 @@ int finesse_statvfs(const char *path, struct statvfs *buf);
 int finesse_fstatvfs(int fd, struct statvfs *buf);
 int finesse_fstatfs(int fd, struct statfs *buf);
 int finesse_statfs(const char *path, struct statfs *buf);
+int finesse_stat(const char *file_name, struct stat *buf);
+int finesse_fstat(int filedes, struct stat *buf);
+int finesse_lstat(const char *pathname, struct stat *statbuf);
+int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags);
+
 int finesse_mkdir(const char *path, mode_t mode);
 int finesse_mkdirat(int fd, const char *path, mode_t mode);
 int finesse_access(const char *pathname, int mode);

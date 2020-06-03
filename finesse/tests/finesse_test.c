@@ -495,6 +495,8 @@ test_msg_stat (
     uuid_t key;
     uuid_t parent;
     struct stat statbuf1, statbuf2;
+    double timeout;
+    int result;
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
@@ -506,7 +508,7 @@ test_msg_stat (
 
     // client sends request
     memset(&parent, 0, sizeof(uuid_t));
-    status = FinesseSendStatRequest(fch, &parent, "/foo", &message);
+    status = FinesseSendStatRequest(fch, "/foo", &message);
     munit_assert(0 == status);
 
     // server gets a request
@@ -519,10 +521,11 @@ test_msg_stat (
 
     munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
     munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
-    munit_assert(FINESSE_FUSE_REQ_GETATTR == test_message->Message.Fuse.Request.Type);
-    munit_assert(GETATTR_STAT == test_message->Message.Fuse.Request.Parameters.GetAttr.StatType);
-    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Parent));
-    munit_assert(0 == strcmp("/foo", test_message->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name));
+    munit_assert(FINESSE_FUSE_REQ_STAT == test_message->Message.Fuse.Request.Type);
+    munit_assert(0 == test_message->Message.Fuse.Request.Parameters.Stat.Flags);
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.ParentInode));
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.Inode));
+    munit_assert(0 == strcmp("/foo", test_message->Message.Fuse.Request.Parameters.Stat.Name));
 
     // server responds
     status = stat(".", &statbuf1);
@@ -531,7 +534,7 @@ test_msg_stat (
     munit_assert(0 == status);
 
     // client gets the response
-    status = FinesseGetStatResponse(fch, message, &statbuf2);
+    status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
 
@@ -553,29 +556,30 @@ test_msg_stat (
 
     munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
     munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
-    munit_assert(FINESSE_FUSE_REQ_GETATTR == test_message->Message.Fuse.Request.Type);
-    munit_assert(GETATTR_FSTAT == test_message->Message.Fuse.Request.Parameters.GetAttr.StatType);
-    munit_assert(0 == uuid_compare(key, test_message->Message.Fuse.Request.Parameters.GetAttr.Options.Inode));
+    munit_assert(FINESSE_FUSE_REQ_STAT == test_message->Message.Fuse.Request.Type);
+    munit_assert(0 == uuid_compare(key, test_message->Message.Fuse.Request.Parameters.Stat.Inode));
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.ParentInode));
+    munit_assert(0 == strlen(test_message->Message.Fuse.Request.Parameters.Stat.Name)); // no name for fstat
     munit_assert(0 == status);
 
     // server responds
-    FinesseSendFstatResponse(fsh, client, fm_server, &statbuf1, 1.0, 0);
+    FinesseSendStatResponse(fsh, client, fm_server, &statbuf1, 1.0, 0);
     munit_assert(0 == status);
 
     // client gets the response
     memset(&statbuf2, 0, sizeof(statbuf2));
-    FinesseGetFstatResponse(fch, message, &statbuf2);
+    FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
 
     // Release the message
-    FinesseFreeFstatfsResponse(fch, message);
+    FinesseFreeStatResponse(fch, message);
 
     // Now... to test LSTAT
 
     // client sends request
     memset(&parent, 0, sizeof(uuid_t));
-    status = FinesseSendLstatRequest(fch, &parent, "/foo", &message);
+    status = FinesseSendLstatRequest(fch, "/foo", &message);
     munit_assert(0 == status);
 
     // server gets a request
@@ -588,10 +592,11 @@ test_msg_stat (
 
     munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
     munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
-    munit_assert(FINESSE_FUSE_REQ_GETATTR == test_message->Message.Fuse.Request.Type);
-    munit_assert(GETATTR_LSTAT == test_message->Message.Fuse.Request.Parameters.GetAttr.StatType);
-    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Parent));
-    munit_assert(0 == strcmp("/foo", test_message->Message.Fuse.Request.Parameters.GetAttr.Options.Path.Name));
+    munit_assert(FINESSE_FUSE_REQ_STAT == test_message->Message.Fuse.Request.Type);
+    munit_assert(AT_SYMLINK_NOFOLLOW == (test_message->Message.Fuse.Request.Parameters.Stat.Flags & AT_SYMLINK_NOFOLLOW));
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.Inode));
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.ParentInode));
+    munit_assert(0 == strcmp("/foo", test_message->Message.Fuse.Request.Parameters.Stat.Name));
 
     // server responds
     status = stat(".", &statbuf1);
@@ -601,11 +606,55 @@ test_msg_stat (
 
     // client gets the response
     memset(&statbuf2, 0, sizeof(statbuf2));
-    status = FinesseGetStatResponse(fch, message, &statbuf2);
+    timeout = 0.0;
+    result = 1;
+ 
+    status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
+    munit_assert(1.0 == timeout);
+    munit_assert(0 == result);
 
     // Release the message
+    FinesseFreeStatfsResponse(fch, message);
+
+    // Finally - let's try fstatat
+    uuid_generate(key);
+    status = FinesseSendFstatAtRquest(fch, &key, "/bar", AT_SYMLINK_NOFOLLOW, &message);
+    munit_assert(0 == status);
+
+    status = FinesseGetRequest(fsh, &client, &request);
+    assert(0 == status);
+    assert(NULL != request);
+    fm_server = (fincomm_message)request;
+    munit_assert(FINESSE_REQUEST == fm_server->MessageType);
+    test_message = (finesse_msg *)fm_server->Data;
+    munit_assert(FINESSE_MESSAGE_VERSION == test_message->Version);
+    munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
+    munit_assert(FINESSE_FUSE_REQ_STAT == test_message->Message.Fuse.Request.Type);
+    munit_assert(AT_SYMLINK_NOFOLLOW == (test_message->Message.Fuse.Request.Parameters.Stat.Flags & AT_SYMLINK_NOFOLLOW));
+    munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.Inode));
+    munit_assert(!uuid_is_null(test_message->Message.Fuse.Request.Parameters.Stat.ParentInode)); // it _could_ be either
+    munit_assert(0 == strcmp("/bar", test_message->Message.Fuse.Request.Parameters.Stat.Name));
+
+    // server responds
+    status = stat(".", &statbuf1);
+    munit_assert(0 == status);
+    status = FinesseSendStatResponse(fsh, client, fm_server, &statbuf1, 2.0, 0);
+    munit_assert(0 == status);
+
+    // client gets the response
+    memset(&statbuf2, 0, sizeof(statbuf2));
+    timeout = 0.0;
+    result = sizeof(statbuf2);
+ 
+    status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
+    munit_assert(0 == status);
+    munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
+    munit_assert(2.0 == timeout);
+    munit_assert(0 == result); // not the way it _really_ works but good for testing...
+
+    // message cleanup
     FinesseFreeStatfsResponse(fch, message);
 
     // cleanup    
@@ -639,6 +688,7 @@ test_msg_create (
     struct stat statbuf_out;
     double timeout;
     uint64_t generation;
+    int result;
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
@@ -677,10 +727,13 @@ test_msg_create (
     memset(&outkey, 0, sizeof(outkey));
     memset(&statbuf_out, 0, sizeof(statbuf_out));
     timeout = 0.0;
+    result = 1;
 
-    status = FinesseGetCreateResponse(fch, message, &outkey, &generation, &statbuf_out, &timeout);
+    status = FinesseGetCreateResponse(fch, message, &outkey, &generation, &statbuf_out, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf, &statbuf_out, sizeof(statbuf)));
+    munit_assert(timeout == 1.0);
+    munit_assert(0 == result);
 
     // Release the message
     FinesseFreeCreateResponse(fch, message);

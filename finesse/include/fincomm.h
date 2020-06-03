@@ -161,47 +161,48 @@ typedef struct server_connection_state {
 // This declares the operations that correspond to various message types
 typedef enum _FINESSE_FUSE_REQ_TYPE {
     FINESSE_FUSE_REQ_LOOKUP = 42,
-    FINESSE_FUSE_REQ_FORGET = 43,
-    FINESSE_FUSE_REQ_GETATTR = 44,
-    FINESSE_FUSE_REQ_SETATTR = 45,
-    FINESSE_FUSE_REQ_READLINK = 46,
-    FINESSE_FUSE_REQ_MKNOD = 47,
-    FINESSE_FUSE_REQ_MKDIR = 48,
-    FINESSE_FUSE_REQ_UNLINK = 49,
-    FINESSE_FUSE_REQ_RMDIR = 50,
-    FINESSE_FUSE_REQ_SYMLINK = 51,
-    FINESSE_FUSE_REQ_RENAME = 52,
-    FINESSE_FUSE_REQ_LINK = 53,
-    FINESSE_FUSE_REQ_OPEN = 54,
-    FINESSE_FUSE_REQ_READ = 55,
-    FINESSE_FUSE_REQ_WRITE = 56,
-    FINESSE_FUSE_REQ_FLUSH = 57,
-    FINESSE_FUSE_REQ_RELEASE = 58,
-    FINESSE_FUSE_REQ_FSYNC = 59,
-    FINESSE_FUSE_REQ_OPENDIR = 60,
-    FINESSE_FUSE_REQ_READDIR = 61,
-    FINESSE_FUSE_REQ_RELEASEDIR = 62,
-    FINESSE_FUSE_REQ_FSYNCDIR = 63,
-    FINESSE_FUSE_REQ_STATFS = 64,
-    FINESSE_FUSE_REQ_SETXATTR = 65,
-    FINESSE_FUSE_REQ_GETXATTR = 66,
-    FINESSE_FUSE_REQ_LISTXATTR = 67,
-    FINESSE_FUSE_REQ_REMOVEXATTR = 68,
-    FINESSE_FUSE_REQ_ACCESS = 69,
-    FINESSE_FUSE_REQ_CREATE = 70,
-    FINESSE_FUSE_REQ_GETLK = 71,
-    FINESSE_FUSE_REQ_SETLK = 72,
-    FINESSE_FUSE_REQ_BMAP = 73,
-    FINESSE_FUSE_REQ_IOCTL = 74,
-    FINESSE_FUSE_REQ_POLL = 75,
-    FINESSE_FUSE_REQ_WRITE_BUF = 76,
-    FINESSE_FUSE_REQ_RETRIEVE_REPLY = 77,
-    FINESSE_FUSE_REQ_FORGET_MULTI = 78,
-    FINESSE_FUSE_REQ_FLOCK = 79,
-    FINESSE_FUSE_REQ_FALLOCATE = 80,
-    FINESSE_FUSE_REQ_READDIRPLUS = 81,
-    FINESSE_FUSE_REQ_COPY_FILE_RANGE = 82,
-    FINESSE_FUSE_REQ_LSEEK = 83,
+    FINESSE_FUSE_REQ_FORGET,
+    FINESSE_FUSE_REQ_STAT,
+    FINESSE_FUSE_REQ_GETATTR,
+    FINESSE_FUSE_REQ_SETATTR,
+    FINESSE_FUSE_REQ_READLINK,
+    FINESSE_FUSE_REQ_MKNOD,
+    FINESSE_FUSE_REQ_MKDIR,
+    FINESSE_FUSE_REQ_UNLINK,
+    FINESSE_FUSE_REQ_RMDIR,
+    FINESSE_FUSE_REQ_SYMLINK,
+    FINESSE_FUSE_REQ_RENAME,
+    FINESSE_FUSE_REQ_LINK,
+    FINESSE_FUSE_REQ_OPEN,
+    FINESSE_FUSE_REQ_READ,
+    FINESSE_FUSE_REQ_WRITE,
+    FINESSE_FUSE_REQ_FLUSH,
+    FINESSE_FUSE_REQ_RELEASE,
+    FINESSE_FUSE_REQ_FSYNC,
+    FINESSE_FUSE_REQ_OPENDIR,
+    FINESSE_FUSE_REQ_READDIR,
+    FINESSE_FUSE_REQ_RELEASEDIR,
+    FINESSE_FUSE_REQ_FSYNCDIR,
+    FINESSE_FUSE_REQ_STATFS,
+    FINESSE_FUSE_REQ_SETXATTR,
+    FINESSE_FUSE_REQ_GETXATTR,
+    FINESSE_FUSE_REQ_LISTXATTR,
+    FINESSE_FUSE_REQ_REMOVEXATTR,
+    FINESSE_FUSE_REQ_ACCESS,
+    FINESSE_FUSE_REQ_CREATE,
+    FINESSE_FUSE_REQ_GETLK,
+    FINESSE_FUSE_REQ_SETLK,
+    FINESSE_FUSE_REQ_BMAP,
+    FINESSE_FUSE_REQ_IOCTL,
+    FINESSE_FUSE_REQ_POLL,
+    FINESSE_FUSE_REQ_WRITE_BUF,
+    FINESSE_FUSE_REQ_RETRIEVE_REPLY,
+    FINESSE_FUSE_REQ_FORGET_MULTI,
+    FINESSE_FUSE_REQ_FLOCK,
+    FINESSE_FUSE_REQ_FALLOCATE,
+    FINESSE_FUSE_REQ_READDIRPLUS,
+    FINESSE_FUSE_REQ_COPY_FILE_RANGE,
+    FINESSE_FUSE_REQ_LSEEK,
     FINESSE_FUSE_REQ_MAX
 } FINESSE_FUSE_REQ_TYPE;
 
@@ -284,6 +285,13 @@ typedef struct {
             uuid_t Inode;
             uint64_t Nlookup;
         } Forget;
+
+        struct {
+            uuid_t ParentInode;
+            uuid_t Inode;
+            int Flags;
+            char Name[0];
+        } Stat;
 
         struct {
             enum {
@@ -564,10 +572,6 @@ typedef struct {
     FINESSE_FUSE_RSP_TYPE Type;
     union {
         struct {
-            int Err;
-        } ReplyErr;
-
-        struct {
             struct fuse_entry_param EntryParam;
         } EntryParam;
 
@@ -695,9 +699,6 @@ typedef struct {
         } DirMap;
 
         struct {
-            int Result;
-        } Err;
-        struct {
             int     Result;
             uuid_t  Key;
         } Map;
@@ -727,6 +728,7 @@ typedef struct {
 typedef struct _finesse_message {
     uint64_t                Version;
     FINESSE_MESSAGE_CLASS   MessageClass;
+    int                     Result; // this is the result of the request; requester should set this to non-zero
     union {
         union {
             finesse_fuse_request    Request;

@@ -25,6 +25,7 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_NATIVE_MESSAGE;
+    fmsg->Result = ENOSYS;
     fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_MAP;
     assert(NULL != NameToMap);
 

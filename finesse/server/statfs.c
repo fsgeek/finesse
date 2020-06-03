@@ -29,7 +29,7 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         // bad handle
         status = FinesseSendFstatfsResponse(fsh, Client, Message, NULL, EBADF);
         assert(0 == status);
-        FinesseCountFuseRequest(FINESSE_FUSE_REQ_STATFS);
+        FinesseCountFuseResponse(FINESSE_FUSE_REQ_STATFS);
         return 0;
     }
 

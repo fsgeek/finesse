@@ -24,6 +24,7 @@ int FinesseSendCreateRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
+    fmsg->Result = ENOSYS;
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_CREATE;
     memcpy(&fmsg->Message.Fuse.Request.Parameters.Create.Parent, Parent, sizeof(uuid_t));
     fmsg->Message.Fuse.Request.Parameters.Create.Attr = *Stat;
@@ -65,7 +66,7 @@ int FinesseSendCreateResponse(
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
     
-    Message->Result = Result;
+    Message->Result = 0;
     Message->MessageType = FINESSE_RESPONSE;
 
     assert(NULL != Stat);
@@ -73,6 +74,7 @@ int FinesseSendCreateResponse(
     memset(ffm, 0, sizeof(finesse_msg)); // not necessary for production
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
+    ffm->Result = Result;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_CREATE;
     memcpy(&ffm->Message.Fuse.Response.Parameters.Create.Key, Key, sizeof(uuid_t));
     ffm->Message.Fuse.Response.Parameters.Create.Generation = Generation;
@@ -90,7 +92,8 @@ int FinesseGetCreateResponse(
     uuid_t *Key,
     uint64_t *Generation,
     struct stat *Stat, 
-    double *Timeout
+    double *Timeout,
+    int *Result
 )
 {
     int status = 0;
@@ -117,6 +120,7 @@ int FinesseGetCreateResponse(
     *Generation = fmsg->Message.Fuse.Response.Parameters.Create.Generation;
     *Stat = fmsg->Message.Fuse.Response.Parameters.Create.Attr;
     *Timeout = fmsg->Message.Fuse.Response.Parameters.Create.Timeout;
+    *Result = fmsg->Result;
     return status;
 
 }

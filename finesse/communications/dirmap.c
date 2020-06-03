@@ -20,6 +20,7 @@ int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     message = FinesseGetRequestBuffer(fsmr);
     assert(NULL != message);
     message->MessageType = FINESSE_REQUEST;
+    message->Result = ENOSYS;
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_NATIVE_MESSAGE;

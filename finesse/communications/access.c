@@ -23,6 +23,7 @@ int FinesseSendAccessRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     message = FinesseGetRequestBuffer(fsmr);
     assert(NULL != message);
     message->MessageType = FINESSE_REQUEST;
+    message->Result = ENOSYS;
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
@@ -61,7 +62,7 @@ int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void 
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
     
-    Message->Result = 0;
+    Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
 
     ffm = (finesse_msg *)Message->Data;
@@ -69,7 +70,6 @@ int FinesseSendAccessResponse(finesse_server_handle_t FinesseServerHandle, void 
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR; // No data returned here
-    ffm->Message.Fuse.Response.Parameters.ReplyErr.Err = Result;
     FinesseResponseReady(fsmr, Message, 0);
 
     return status;
@@ -97,7 +97,7 @@ int FinesseGetAccessResponse(finesse_client_handle_t FinesseClientHandle, fincom
     assert(FINESSE_MESSAGE_VERSION == fmsg->Version);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_FUSE_RSP_ERR == fmsg->Message.Fuse.Response.Type);
-    *Result = fmsg->Message.Fuse.Response.Parameters.ReplyErr.Err;
+    *Result = fmsg->Result;
 
     return status;
 }

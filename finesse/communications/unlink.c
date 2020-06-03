@@ -24,6 +24,7 @@ int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
+    fmsg->Result = ENOSYS;
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_UNLINK;
     memcpy(&fmsg->Message.Fuse.Request.Parameters.Unlink.Parent, Parent, sizeof(uuid_t)); // at least for now, we only support 
     assert(NULL != NameToUnlink);
@@ -60,7 +61,6 @@ int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void 
     ffm->Version = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
-    ffm->Message.Fuse.Response.Parameters.ReplyErr.Err = Result;
 
     FinesseResponseReady(fsmr, Message, 0);
 

@@ -6,6 +6,7 @@ libfinesse_api_sources = [
    'init.c',
    'mkdir.c',
    'openclose.c',
+   'stat.c',
    'statfs.c',
    'unlink.c'
 ]

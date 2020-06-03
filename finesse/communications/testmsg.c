@@ -25,6 +25,7 @@ int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, fincomm_
     fmsg = (finesse_msg *)message->Data;
     fmsg->Version = FINESSE_MESSAGE_VERSION;
     fmsg->MessageClass = FINESSE_NATIVE_MESSAGE;
+    fmsg->Result = ENOSYS;
     fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_TEST;
     fmsg->Message.Native.Request.Parameters.Test.Version = TEST_VERSION;
 

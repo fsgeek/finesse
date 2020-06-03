@@ -9,11 +9,13 @@ if libdl.found()
 endif
 
 finesse_server_sources = [
+   'access.c',
    'finesse-req.c',
    'fuse.c',
    'namemap.c',
    'native.c',
    'serverstat.c',
+   'stat.c',
    'statfs.c',
    'test.c',
    'util.c',
