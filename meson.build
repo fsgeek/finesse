@@ -99,7 +99,7 @@ libuuid = cc.find_library('uuid')
 #
 # Read build files from sub-directories
 #
-subdirs = [ 'finesse', 'lib', 'include', 'test' ]
+subdirs = [ 'finesse', 'lib', 'include', 'test', 'finesse/bitbucket' ]
 if get_option('utils') and not platform.endswith('bsd') and platform != 'dragonfly'
   subdirs += [ 'util', 'doc' ]
 endif

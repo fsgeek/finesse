@@ -1296,7 +1296,7 @@ static void stackfs_ll_getxattr(fuse_req_t req, fuse_ino_t ino,
 }
 #endif
 
-static struct fuse_lowlevel_ops hello_ll_oper = {
+static struct fuse_lowlevel_ops bitbucket_ll_oper = {
 	.init           =       stackfs_ll_init,
         .lookup		=	stackfs_ll_lookup,
 	.getattr	=	stackfs_ll_getattr,
@@ -1470,7 +1470,7 @@ int main(int argc, char **argv)
         
         /*Begin modifications*/
 	optimization_flags = fuse_parse_conn_info_opts(&args);
-        se = fuse_session_new(&args, &hello_ll_oper, sizeof(hello_ll_oper), lo);
+        se = fuse_session_new(&args, &bitbucket_ll_oper, sizeof(bitbucket_ll_oper), lo);
         conn = fuse_session_get_conn(se);
 	fuse_apply_conn_info_opts(optimization_flags, conn);	
 
