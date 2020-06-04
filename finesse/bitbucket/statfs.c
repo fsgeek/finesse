@@ -7,5 +7,9 @@
 
 void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 {
+
+	(void) req;
+	(void) ino;
+
 	assert(0); // Not implemented
 }

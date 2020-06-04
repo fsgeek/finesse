@@ -7,5 +7,11 @@
 
 void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi)
 {
+	(void) req;
+	(void) ino;
+	(void) bufv;
+	(void) off;
+	(void) fi;
+
 	assert(0); // Not implemented
 }

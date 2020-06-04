@@ -12,6 +12,7 @@
 
 #include <fuse_lowlevel.h>
 #include <assert.h>
+#include "bitbucketdata.h"
 
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn);
 void bitbucket_destroy(void *userdata);
@@ -57,6 +58,8 @@ void bitbucket_fallocate(fuse_req_t req, fuse_ino_t ino, int mode, off_t offset,
 void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
 void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags);
 void bitbucket_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, struct fuse_file_info *fi);
+
+bitbucket_dir_t *BitbucketCreateDirectory(bitbucket_dir_t *Parent, const char *DirName);
 
 
 #endif // __BITBUCKET_H__

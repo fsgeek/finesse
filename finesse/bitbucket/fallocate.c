@@ -7,5 +7,12 @@
 
 void bitbucket_fallocate(fuse_req_t req, fuse_ino_t ino, int mode, off_t offset, off_t length, struct fuse_file_info *fi)
 {
+	(void) req;
+	(void) ino;
+	(void) mode;
+	(void) offset;
+	(void) length;
+	(void) fi;
+	
 	assert(0); // Not implemented
 }

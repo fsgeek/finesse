@@ -7,5 +7,6 @@
 
 void bitbucket_destroy(void *userdata)
 {
+	(void)userdata;
 	assert(0); // Not implemented
 }

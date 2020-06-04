@@ -7,5 +7,9 @@
 
 void bitbucket_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
 {
+	(void) req;
+	(void) ino;
+	(void) size;
+
 	assert(0); // Not implemented
 }

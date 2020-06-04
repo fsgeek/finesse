@@ -7,5 +7,9 @@
 
 void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
+	(void) req;
+	(void) parent;
+	(void) name;
+
 	assert(0); // Not implemented
 }
