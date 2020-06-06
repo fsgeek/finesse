@@ -61,6 +61,7 @@ MunitSuite *SetupMunitSuites()
     testbitbucket_suites[index++] = object_suite;
     testbitbucket_suites[index++] = inode_suite;
     testbitbucket_suites[index++] = trie_suite;
+    testbitbucket_suites[index++] = dir_suite;
     return testbitbucket_suites;
 }
 

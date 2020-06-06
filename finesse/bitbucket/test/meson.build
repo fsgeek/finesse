@@ -7,6 +7,7 @@ munit = dependency('munit', fallback: ['munit', 'munit_dep'])
 
 test_bitbucket_sources = [
     'test_bitbucket.c',
+    'test_dir.c',
     'test_inode.c',
     'test_object.c',
     'test_trie.c'

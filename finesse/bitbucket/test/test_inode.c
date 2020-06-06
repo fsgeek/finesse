@@ -133,7 +133,6 @@ test_inode_table_usage(
 }
 
 
-
 static const MunitTest inode_tests[] = {
         TEST("/null", test_null, NULL),
         TEST("/create", test_create_inode_table, NULL),

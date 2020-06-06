@@ -42,10 +42,14 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 			(unsigned long long) parent, name, (unsigned long long) inode->Attributes.st_ino);
 	}
 
+#if 0
+	// Note: lookup DOES NOT dereference the inode - that will be done later in release
+	// This allows things like "zero link counts" to function properly.
 	if (NULL != inode) {
 		BitbucketDereferenceInode(inode);
 		inode = NULL;
 	}
+#endif // 0
 
 	if (FUSE_ROOT_ID == parent) {
 		BitbucketDereferenceInode(parentInode);

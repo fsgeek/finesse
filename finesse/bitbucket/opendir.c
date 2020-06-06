@@ -27,11 +27,11 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 		inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino);
 	}
 
-	while (NULL != inode){
-		if (NULL == inode) {
-			status = ENOENT;
-		}
+	if (NULL == inode) {
+		status = ENOENT;
+	}
 
+	while (NULL != inode){
 		if (!S_ISDIR(inode->Attributes.st_mode)) {
 			// This inode is not a directory inode
 			status = ENOTDIR;

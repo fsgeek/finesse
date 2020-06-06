@@ -55,6 +55,7 @@ typedef struct _bitbucket_dir {
     struct Trie          *Children;
     list_entry_t          EAs;
     struct Trie          *ExtendedAttributes;
+    uint64_t              Epoch; // increment each time the directory changes shape (add/remove entries)
 } bitbucket_dir_t;
 
 #define BITBUCKET_DIR_MAGIC (0x895fe26d657f24bd)
@@ -152,6 +153,38 @@ typedef struct _bitbucket_inode {
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
 #define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
+
+typedef struct _bitbucket_dir_entry {
+    uint64_t            Magic;
+    list_entry_t        ListEntry;
+    bitbucket_inode_t   *Inode;
+    char                Name[0];
+} bitbucket_dir_entry_t;
+
+#define BITBUCKET_DIR_ENTRY_MAGIC (0xdb88e347869a9599)
+#define CHECK_BITBUCKET_DIR_ENTRY_MAGIC(de) verify_magic("bitbucket_dir_entry_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DIR_MAGIC, (de)->Magic)
+
+
+typedef struct _bitbucket_dir_enum_context {
+    uint64_t               Magic;
+    bitbucket_inode_t     *Directory;
+    bitbucket_dir_entry_t *NextEntry;
+    size_t                 NextEntrySize;
+    uint64_t               Offset;
+    uint64_t               Epoch;
+    int                    LastError;
+} bitbucket_dir_enum_context_t;
+
+#define BITBUCKET_DIR_ENUM_CONTEXT_MAGIC (0xb058a92686f1e02d)
+#define CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(dec) verify_magic("bitbucket_dir_enum_context_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DIR_ENUM_CONTEXT_MAGIC, (dec)->Magic)
+
+void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t *EnumerationContext);
+const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_t *EnumerationContext);
+int BitbucketSeekDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_t *EnumerationContext, uint64_t Offset);
+void BitbucketLockDirectory(bitbucket_inode_t *Directory, int Exclusive);
+void BitbucketUnlockDirectory(bitbucket_inode_t *Directory);
+
+
 // Create a reference counted object;  On return the region returned will be at least
 // ObjectSize bytes long and may be used as the caller sees fit.
 //
@@ -203,10 +236,6 @@ uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode);
 
 // More random numbers
 // 
-// 
-// 
-//  
-// b0 58 a9 26 86 f1 e0 2d
 // fe 15 bc e7 d8 48 e1 c8 
 // d5 a7 31 20 77 dc 4c 89
 // a9 e1 65 46 9a 58 d6 0c  
