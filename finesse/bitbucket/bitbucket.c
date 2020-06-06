@@ -66,8 +66,12 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .lseek = bitbucket_lseek,
 };
 
-bitbucket_user_data_t BBud = {
+static bitbucket_user_data_t BBud = {
     .Magic = BITBUCKET_USER_DATA_MAGIC,
+    .Debug = 0,
+    .RootDirectory = NULL,
+    .InodeTable = NULL,
+    .AttrTimeout = 5.0, // pretty arbitrary value
 };
 
 int main(int argc, char *argv[])
@@ -99,6 +103,10 @@ int main(int argc, char *argv[])
 		ret = 1;
 		goto err_out1;
 	}
+
+    if(opts.debug) {
+        BBud.Debug = 1;
+    }
 
 	se = fuse_session_new(&args, &bitbucket_ll_oper,
 			      sizeof(bitbucket_ll_oper), &BBud);

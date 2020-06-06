@@ -66,8 +66,11 @@ typedef struct _bitbucket_inode_table bitbucket_inode_table_t;
 
 typedef struct _bitbucket_userdata {
     uint64_t            Magic;
+    uint8_t             Debug;
+    uint8_t             Unused[7]; // For storing additional options!
     bitbucket_inode_t  *RootDirectory;
     void               *InodeTable;
+    double              AttrTimeout; // Arbitrary for now.
 } bitbucket_user_data_t;
 
 #define BITBUCKET_USER_DATA_MAGIC 0xb2035aef09927b87  

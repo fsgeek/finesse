@@ -4,6 +4,7 @@
 //
 
 #include "bitbucket.h"
+#include "bitbucketdata.h"
 #include "trie.h"
 #include <unistd.h>
 #include <sys/types.h>
@@ -102,11 +103,12 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     size_t name_length = 0;
     void *tobj = NULL;
 
+    assert(NULL != DirInode);
+    assert(NULL != Inode);
+    assert(NULL != Name);
+
     assert(BITBUCKET_DIR_TYPE == DirInode->InodeType);
     CHECK_BITBUCKET_DIR_MAGIC(&DirInode->Instance.Directory);
-
-    // Either we get identical Inodes AND a NULL name or we get different Inodes AND a non-NULL Name pointer
-    assert(((DirInode == Inode) && (NULL == Name)) || ((DirInode != Inode) && (NULL != Name)));
 
     if (NULL != Name) {
         name_length = strlen(Name) + 1;
@@ -120,7 +122,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
 
     newentry->Magic = BITBUCKET_DIR_ENTRY_MAGIC;
     newentry->Inode = Inode;
-    BitbucketObjectReference(Inode);
+    BitbucketReferenceInode(Inode);
     initialize_list_entry(&newentry->ListEntry);
     if (NULL != Name) {
         strncpy(newentry->Name, Name, name_length);
@@ -130,7 +132,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     if (BITBUCKET_DIR_TYPE == Inode->InodeType) {
         // Here we need to store the reference
         Inode->Instance.Directory.Parent = DirInode;
-        BitbucketObjectReference(DirInode);
+        BitbucketReferenceInode(DirInode);
     }
 
 
@@ -199,7 +201,9 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
     int status = 0;
     bitbucket_inode_table_t *table = NULL;
 
-    assert(NULL != DirName);
+    // Either we have BOTH (normal subdir) or we have NEITHER (root directory case)
+    assert(((NULL == Parent) && (NULL == DirName)) || ((NULL != Parent) && (NULL != DirName)));
+
     if (NULL != Parent) {
         CHECK_BITBUCKET_INODE_MAGIC(Parent);
         assert(BITBUCKET_DIR_TYPE == Parent->InodeType); // don't support anything else with "contents" (for now)
@@ -214,18 +218,27 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
     assert(BITBUCKET_DIR_TYPE == newdir->InodeType); // don't support anything else with "contents"
     CHECK_BITBUCKET_DIR_MAGIC(&newdir->Instance.Directory);
 
+    if (NULL == Parent) {
+        Parent = newdir; // Root is it's own Parent directory.
+    }
+
+    // All new directories point to themselves.
     status = BitbucketInsertDirectoryEntry(newdir, newdir, ".");
     assert(0 == status);
 
-    if (NULL != Parent) {
-        // This is a new subdirectory
-        status = BitbucketInsertDirectoryEntry(Parent, newdir, "..");
+    // Child points to its parent (no name required)
+    status = BitbucketInsertDirectoryEntry(newdir, Parent, "..");
+
+    // Parent points to the child (if there's a name)
+    if (NULL != DirName) {
+        status = BitbucketInsertDirectoryEntry(Parent, newdir, DirName);
         assert(0 == status);
     }
-    else {
-        // This is a new root directory
-        status = BitbucketInsertDirectoryEntry(newdir, newdir, ".");
-        assert(0 == status);
+
+    if (Parent != newdir) {
+        // We don't need to keep the parent reference
+        BitbucketDereferenceInode(Parent);
+        Parent = NULL;
     }
 
     return newdir;
@@ -270,7 +283,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     }
     DirectoryUnlock(Directory);
 
-    BitbucketObjectDereference(dirent->Inode);
+    BitbucketDereferenceInode(dirent->Inode);
     dirent->Inode = NULL;
     memset(dirent, 0, sizeof(bitbucket_dir_entry_t));
     free(dirent);
