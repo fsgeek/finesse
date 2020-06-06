@@ -10,9 +10,23 @@
 
 #include <assert.h>
 
+
+
 #if !defined(FORCEDINLINE)
 #define FORCEDINLINE __attribute__((always_inline)) inline
 #endif // FORCEDINLINE
+
+
+#if !defined(offsetof)
+#define offsetof(type, member)  __builtin_offsetof (type, member)
+#endif // offsetof
+
+#define container_of(ptr, type, member) ({         \
+    const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+    (type *)( (char *)__mptr - offsetof(type,member) );})
+
+#define list_item(_item, _type, _field)                                 \
+    ((_type *)container_of(_item, _type, _field))
 
 typedef struct _list_entry_t list_entry_t;
 

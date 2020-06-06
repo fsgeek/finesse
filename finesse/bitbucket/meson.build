@@ -18,6 +18,7 @@ bitbucket_sources = [
 	'getlk.c',
 	'getxattr.c',
 	'init.c',
+	'inode.c',
 	'ioctl.c',
 	'link.c',
 	'listxattr.c',
@@ -25,6 +26,7 @@ bitbucket_sources = [
 	'lseek.c',
 	'mkdir.c',
 	'mknod.c',
+	'object.c',
 	'open.c',
 	'opendir.c',
 	'poll.c',
@@ -56,3 +58,4 @@ executable ('bitbucket',
             install: false
 )
 
+subdir('test')

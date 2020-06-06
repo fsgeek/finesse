@@ -66,6 +66,10 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .lseek = bitbucket_lseek,
 };
 
+bitbucket_user_data_t BBud = {
+    .Magic = BITBUCKET_USER_DATA_MAGIC,
+};
+
 int main(int argc, char *argv[])
 {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
@@ -97,7 +101,7 @@ int main(int argc, char *argv[])
 	}
 
 	se = fuse_session_new(&args, &bitbucket_ll_oper,
-			      sizeof(bitbucket_ll_oper), NULL);
+			      sizeof(bitbucket_ll_oper), &BBud);
 	if (se == NULL)
 	    goto err_out1;
 

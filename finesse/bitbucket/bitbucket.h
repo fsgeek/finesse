@@ -59,7 +59,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags);
 void bitbucket_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, struct fuse_file_info *fi);
 
-bitbucket_dir_t *BitbucketCreateDirectory(bitbucket_dir_t *Parent, const char *DirName);
+bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const char *DirName);
 
 
 #endif // __BITBUCKET_H__

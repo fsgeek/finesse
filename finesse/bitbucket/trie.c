@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "bitbucket.h"
 #include "trie.h"
 
@@ -9,7 +10,7 @@
 //
 
 // define character size
-#define CHAR_SIZE MAX_FILE_NAME_SIZE
+#define CHAR_SIZE 256 // ASCII minus '\0'
 
 // A Trie node
 struct Trie
@@ -24,8 +25,9 @@ struct Trie* TrieCreateNode(void)
 	struct Trie* node = (struct Trie*)malloc(sizeof(struct Trie));
     node->Object = NULL;
 
-	for (int i = 0; i < CHAR_SIZE; i++)
+	for (int i = 0; i < CHAR_SIZE; i++) {
 		node->character[i] = NULL;
+	}
 
 	return node;
 }
@@ -38,11 +40,12 @@ void TrieInsert(struct Trie *head, const char* str, void *object)
 	while (*str)
 	{
 		// create a new node if path doesn't exists
-		if (curr->character[*str - 'a'] == NULL)
-			curr->character[*str - 'a'] = TrieCreateNode();
+		if (curr->character[(uint8_t)*str] == NULL) {
+			curr->character[(uint8_t)*str] = TrieCreateNode();
+		}
 
 		// go to next node
-		curr = curr->character[*str - 'a'];
+		curr = curr->character[(uint8_t)*str];
 
 		// move to next character
 		str++;
@@ -57,14 +60,15 @@ void TrieInsert(struct Trie *head, const char* str, void *object)
 void *TrieSearch(struct Trie* head, const char* str)
 {
 	// return 0 if Trie is empty
-	if (head == NULL)
+	if (head == NULL){
 		return 0;
+	}
 
 	struct Trie* curr = head;
 	while (*str)
 	{
 		// go to next node
-		curr = curr->character[*str - 'a'];
+		curr = curr->character[(uint8_t)*str];
 
 		// if string is invalid (reached end of path in Trie)
 		if (curr == NULL)
@@ -82,63 +86,69 @@ void *TrieSearch(struct Trie* head, const char* str)
 // returns 1 if given node has any children
 static int haveChildren(struct Trie* curr)
 {
-	for (int i = 0; i < CHAR_SIZE; i++)
-		if (curr->character[i])
+	for (int i = 0; i < CHAR_SIZE; i++) {
+		if (NULL != curr->character[i]) {
 			return 1;	// child found
-
+		}
+	}
 	return 0;
 }
 
 // Recursive function to delete a string in Trie
 int TrieDeletion(struct Trie **curr, const char* str)
 {
-	// return if Trie is empty
-	if (*curr == NULL)
-		return 0;
+	int status = -ENOENT;
 
-	// if we have not reached the end of the string
-	if (*str)
-	{
-		// recur for the node corresponding to next character in
-		// the string and if it returns 1, delete current node
-		// (if it is non-leaf)
-		if ((*curr != NULL) && ((*curr)->character[*str - 'a'] != NULL) &&
-			TrieDeletion(&((*curr)->character[*str - 'a']), str + 1) &&
-			(NULL == (*curr)))
+	while (NULL != *curr) {
+
+		// if we have not reached the end of the string
+		if (*str)
 		{
+			// recur for the node corresponding to next character in
+			// the string and if it returns 1, delete current node
+			// (if it is non-leaf)
+			if ((*curr != NULL) && ((*curr)->character[(uint8_t)*str] != NULL) &&
+				(0 <= TrieDeletion(&((*curr)->character[(uint8_t)*str]), str + 1)) &&
+				(NULL == (*curr)->Object))
+			{
+				if (!haveChildren(*curr))
+				{
+					free(*curr);
+					(*curr) = NULL;
+					status = 0; // success
+					break;
+				}
+				else {
+					status = ENOTEMPTY; // has children
+					break;
+				}
+			}
+		}
+
+		// if we have reached the end of the string
+		if (*str == '\0')
+		{
+			// if current node is a leaf node and don't have any children
 			if (!haveChildren(*curr))
 			{
-				free(*curr);
+				free(*curr); // delete current node
 				(*curr) = NULL;
-				return 1;
+				status = 0;
+				break;
 			}
-			else {
-				return 0;
+
+			// if current node is a leaf node and has children
+			else
+			{
+				// mark current node as non-leaf node (DON'T DELETE IT)
+				(*curr)->Object = NULL;
+				status = ENOTEMPTY;
+				break;
 			}
 		}
 	}
 
-	// if we have reached the end of the string
-	if (*str == '\0' && (NULL != (*curr)->Object))
-	{
-		// if current node is a leaf node and don't have any children
-		if (!haveChildren(*curr))
-		{
-			free(*curr); // delete current node
-			(*curr) = NULL;
-			return 1; // delete non-leaf parent nodes
-		}
-
-		// if current node is a leaf node and have children
-		else
-		{
-			// mark current node as non-leaf node (DON'T DELETE IT)
-			(*curr)->Object = NULL;
-			return 0;	   // don't delete its parent nodes
-		}
-	}
-
-	return 0;
+	return status;
 }
 
 #if 0
