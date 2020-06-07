@@ -35,10 +35,13 @@ static void DirectoryInitialize(void *Inode, size_t Length)
 
 static void DirectoryDeallocate(void *Inode, size_t Length)
 {
-    bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
-
+    bitbucket_inode_t *bbi;
+    
+    
+    assert(NULL != Inode);
+    bbi = (bitbucket_inode_t *)Inode;
     assert(NULL != bbi);
-    assert(0 == Length); // we don't have any extra data
+    assert(bbi->InodeLength == Length);
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_DIR_MAGIC(&bbi->Instance.Directory); // layers of sanity checking
 
@@ -164,6 +167,7 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Directory->Children, Name);
         if (NULL != dirent) {
             *Object = dirent->Inode;
+            BitbucketReferenceInode(dirent->Inode); // ensures that it doesn't go away.
         }
         DirectoryUnlock(Inode);
     }
@@ -229,11 +233,13 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
         assert(0 == status);
     }
 
+#if 0
     if (Parent != newdir) {
         // We don't need to keep the parent reference
         BitbucketDereferenceInode(Parent);
         Parent = NULL;
     }
+#endif // 0
 
     return newdir;
 
@@ -267,6 +273,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     bitbucket_inode_t *inode = NULL;
     bitbucket_dir_entry_t *dirent = NULL;
     int status = ENOSYS;
+    bitbucket_dir_entry_t *de = NULL;
 
     assert(NULL != Directory);
     assert(NULL != Name);
@@ -277,41 +284,69 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
 
     // Now let's go find the entry
 
-    BitbucketLookupObjectInDirectory(Directory, Name, &inode);
-    if (NULL == inode) {
-        return ENOENT;
+    while (ENOSYS == status) {
+
+        BitbucketLookupObjectInDirectory(Directory, Name, &inode);
+        if (NULL == inode) {
+            status = ENOENT;
+            break;
+        }
+
+        dirent = RemoveDirEntryFromDirectory(Directory, Name);
+        if (NULL == dirent) {
+            assert(dirent->Inode == inode); // otherwise, something is wrong!
+            status = ENOENT;
+            break;
+        }
+
+        if (BITBUCKET_DIR_TYPE == dirent->Inode->InodeType) {
+
+            // For directories, we break the linkage here
+            // So parent no longer points to child (directory), we
+            // fix up the child to no longer point to the parent.
+            de = RemoveDirEntryFromDirectory(dirent->Inode, "..");
+
+            // Note that when we try to delete the child from the parent, we will find '..'
+            // But when we try to delete '.' from the child, we won't find '..'
+
+            if (NULL != de) {
+            
+                assert(de->Inode == Directory); // how could it not point to the parent?
+                assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
+
+                BitbucketDereferenceInode(de->Inode);
+                de->Inode = NULL;
+
+                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent);
+                dirent->Inode->Instance.Directory.Parent = NULL;
+
+                memset(de, 0, sizeof(bitbucket_dir_entry_t));
+                free(de);
+                de = NULL;
+            }
+
+        }
+
+        status = 0;
+        break;
     }
 
-    dirent = RemoveDirEntryFromDirectory(Directory, Name);
-
-    if (BITBUCKET_DIR_TYPE == dirent->Inode->InodeType) {
-        bitbucket_dir_entry_t *de = NULL;
-
-        // For directories, we break the linkage here
-        // So parent no longer points to child (directory), we
-        // fix up the child to no longer point to the parent.
-        de = RemoveDirEntryFromDirectory(dirent->Inode, "..");
-        
-        assert(NULL != de); // why would we be missing the ".." entry?
-        assert(de->Inode == Directory); // how could it not point to the parent?
-        assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
-
-        BitbucketDereferenceInode(de->Inode);
-        de->Inode = NULL;
-
-        BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent);
-        dirent->Inode->Instance.Directory.Parent = NULL;
-
-        memset(de, 0, sizeof(bitbucket_dir_entry_t));
-        free(de);
-        de = NULL;
+    if (NULL != inode) {
+        BitbucketDereferenceInode(inode);
+        inode = NULL;
     }
 
-    BitbucketDereferenceInode(dirent->Inode);
-    dirent->Inode = NULL;
-    memset(dirent, 0, sizeof(bitbucket_dir_entry_t));
-    free(dirent);
-    dirent = NULL;
+    if (NULL != dirent) {
+        BitbucketDereferenceInode(dirent->Inode);
+        dirent->Inode = NULL;
+        memset(dirent, 0, sizeof(bitbucket_dir_entry_t));
+        free(dirent);
+        dirent = NULL;
+    }
+
+    assert(NULL == dirent);
+    assert(NULL == inode);
+    assert(NULL == de);
 
     return status;
 }
@@ -348,7 +383,7 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
         // we consider it to be empty.
         if (!empty_list(&Inode->Instance.Directory.Entries) 
             &&
-            (Inode->Instance.Directory.Entries.next->next != Inode->Instance.Directory.Entries.next)) {
+            (Inode->Instance.Directory.Entries.next->next != &Inode->Instance.Directory.Entries)) {
             status = ENOTEMPTY;
             break;
         }
@@ -358,6 +393,7 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
         // the only other references should be opens on the directory itself
         // When they "go away" the directory should go away as well.
         // Admittedly, it's not a very interesting directory at this point.
+        break;
     }
 
     if (0 == status) {
