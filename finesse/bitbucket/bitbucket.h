@@ -61,6 +61,8 @@ void bitbucket_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, stru
 
 bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const char *DirName);
 int BitbucketDeleteDirectory(bitbucket_inode_t *Inode);
+bitbucket_inode_t *BitbucketCreateRootDirectory(bitbucket_inode_table_t *Table);
+void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory);
 
 
 #endif // __BITBUCKET_H__

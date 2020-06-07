@@ -20,12 +20,31 @@ test_create_dir(
     void *prv __notused)
 {
     bitbucket_inode_t *rootdir = NULL;
-    
-    rootdir = BitbucketCreateDirectory(NULL, NULL);
+    bitbucket_inode_table_t *Table = NULL;
+    uint32_t refcount = 0;
+
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    munit_assert(NULL != Table);
+
+    rootdir = BitbucketCreateRootDirectory(Table); 
 
     munit_assert(NULL != rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
 
-    BitbucketDereferenceInode(rootdir);
+    // TODO: this is a strange case, since the root directory has multiple references to itself:
+    //  (1) for the table reference on the inode
+    //  (2) for the directory entries ("." and "..")
+    //  (1) for the parent reference (on itself).
+    //  (1) for the pointer returned from CreateRootDirectory (a "lookup" reference)
+    //
+    // Thus, tearing down a root directory requires more work than tearing down a regular
+    // directory, due to the self-referential nature of the root directory.
+    BitbucketDeleteRootDirectory(rootdir);
+    rootdir = NULL;
+
+    BitbucketDestroyInodeTable(Table);
+    Table = NULL;
 
     return MUNIT_OK;
 }
@@ -44,11 +63,17 @@ test_create_subdir(
     } *subdir_data;
     int status = 0;
     uint64_t refcount;
+    uint64_t predictedRefCount = 0;
+    bitbucket_inode_table_t *Table = NULL;
 
-    rootdir = BitbucketCreateDirectory(NULL, NULL);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    munit_assert(NULL != Table);
+
+    rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(4 == refcount); // we have one, there are three internal (for '.', '..', and Directory.Parent)
+    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    predictedRefCount = refcount;
 
     subdir_data = (struct _subdir_data *)malloc(sizeof(struct _subdir_data) * subdir_count);
     munit_assert(NULL != subdir_data);
@@ -58,24 +83,37 @@ test_create_subdir(
         uuid_unparse(subdir_data[index].Uuid, subdir_data[index].UuidString);
         subdir_data[index].inode = BitbucketCreateDirectory(rootdir, subdir_data[index].UuidString);
         munit_assert(NULL != subdir_data[index].inode);
+        predictedRefCount += 2; // + 1 for parent, +1 for ".."
+        refcount = BitbucketGetInodeReferenceCount(rootdir);
+        munit_assert(predictedRefCount == refcount);
     }
 
     for (unsigned index = 0; index < subdir_count; index++) {
         refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
-        munit_assert(3 == refcount); // our reference + '.', and the root->subdir reference.
+        munit_assert(4 == refcount); // table + lookup + 2 dir
 
         status = BitbucketDeleteDirectoryEntry(rootdir, subdir_data[index].UuidString);
         munit_assert(0 == status);
 
         refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
-        munit_assert(2 == refcount);
+        munit_assert(3 == refcount); // table + lookup + 1 dir (".")
 
         status = BitbucketDeleteDirectory(subdir_data[index].inode);
         munit_assert(0 == status);
+        refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
+        munit_assert(1 == refcount); // lookup
+
+        BitbucketDereferenceInode(subdir_data[index].inode, INODE_LOOKUP_REFERENCE);
+        subdir_data[index].inode = NULL;
     }
 
-
-    BitbucketDereferenceInode(rootdir);
+    BitbucketDeleteRootDirectory(rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(1 == refcount);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    rootdir = NULL;
+    
+    BitbucketDestroyInodeTable(Table);
 
     return MUNIT_OK;
 }

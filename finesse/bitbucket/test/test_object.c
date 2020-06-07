@@ -89,20 +89,31 @@ test_create_object(
     test_object_t *toc = NULL;
     bitbucket_object_attributes_t oa = {
         .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
+        .ReasonCount = BITBUCKET_MAX_REFERENCE_REASONS,
+        .ReferenceReasonsNames = {
+        "TestReason0",
+        "TestReason1",
+        "TestReason2",
+        "TestReason3",
+        "TestReason4",
+        "TestReason5",
+        "TestReason6",
+        "TestReason7",
+        },
         .Initialize = test_co_init,
         .Deallocate = test_co_dealloc,
         .Lock = test_co_lock,
         .Unlock = test_co_unlock,
     };
 
-    object = BitbucketObjectCreate(&oa, length);
+    object = BitbucketObjectCreate(&oa, length, 0);
     munit_assert(NULL != object);
 
     toc = (test_object_t *)object;
     toc->Save = &to;
-    BitbucketObjectReference(toc);
-    BitbucketObjectDereference(toc);
-    BitbucketObjectDereference(object);
+    BitbucketObjectReference(toc, 1);
+    BitbucketObjectDereference(toc, 1);
+    BitbucketObjectDereference(object, 0);
     // No easy way to verify it has been deleted, is there...
 
     munit_assert(42 == to.Magic);
@@ -126,10 +137,10 @@ test_create_object_with_defaults(
     size_t length = 128;
     void *object = NULL;
 
-    object = BitbucketObjectCreate(NULL, length);
+    object = BitbucketObjectCreate(NULL, length, 0);
     munit_assert(NULL != object);
 
-    BitbucketObjectDereference(object);
+    BitbucketObjectDereference(object, 0);
     // No easy way to verify it has been deleted, is there...
 
     return MUNIT_OK;

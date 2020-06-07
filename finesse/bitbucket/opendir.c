@@ -51,7 +51,7 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
 	}
 

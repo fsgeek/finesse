@@ -52,7 +52,7 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 #endif // 0
 
 	if (FUSE_ROOT_ID == parent) {
-		BitbucketDereferenceInode(parentInode);
+		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
 	}
 
 }

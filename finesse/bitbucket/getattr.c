@@ -30,7 +30,7 @@ void bitbucket_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 
 	fuse_reply_attr(req, &inode->Attributes, BBud->AttrTimeout);
 
-	BitbucketDereferenceInode(inode);
+	BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	inode = NULL;
 
 }

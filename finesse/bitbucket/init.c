@@ -14,11 +14,9 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 	BBud->InodeTable = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
 	assert(NULL != BBud->InodeTable);
-	BBud->RootDirectory = BitbucketCreateDirectory(NULL, NULL); // create root directory
+	BBud->RootDirectory = BitbucketCreateRootDirectory(BBud->InodeTable);
 	assert(NULL != BBud->RootDirectory);
-	// Should I swap the inode number here?  I'm going to skip doing it now
-	// because FUSE_ROOT_ID can be satisfied by explicitly picking the root
-	// directory from BBud...
-	BitbucketInsertInodeInTable(BBud->InodeTable, BBud->RootDirectory);
 
+	// Note: at this point we own one (LOOKUP) reference on this inode.
+	
 }

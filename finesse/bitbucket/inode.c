@@ -173,9 +173,12 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
     CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);       
     assert(0 != Inode);
     assert(BITBUCKET_UNKNOWN_TYPE != Inode->InodeType); // shouldn't insert an unknown Inode
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+    assert(NULL == Inode->Table);
     ite = (bitbucket_inode_table_entry_t *)malloc(sizeof(bitbucket_inode_table_entry_t));
     ite->Magic = BITBUCKET_INODE_TABLE_ENTRY_MAGIC;
     ite->Inode = Inode;
+    BitbucketReferenceInode(ite->Inode, INODE_TABLE_REFERENCE);
     assert(FUSE_ROOT_ID != Inode->Attributes.st_ino); // we don't use this value
     assert(0 != Inode->Attributes.st_ino);
     assert(FUSE_ROOT_ID != Inode->Attributes.st_ino); // for now, we don't allow this - keep it in the userdata
@@ -197,6 +200,8 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
     }
     UnlockInodeBucket(table, bucketId);
 
+    Inode->Table = table;
+
     if (NULL != ite) {
         free(ite);
         ite = NULL;
@@ -209,6 +214,8 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
 // Given an inode number it removes it from the table, if
 // it exists.  Return value is the object pointer of the
 // deleted entry (NULL otherwise).
+//
+// Note: this call will release the inode table reference.
 void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode)
 {
     bitbucket_inode_table_entry_t *ite = NULL;
@@ -234,7 +241,7 @@ void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode)
 
     if (NULL != ite) {
         if (NULL != ite->Inode) {
-            BitbucketObjectDereference(ite->Inode); // drop our reference
+            BitbucketDereferenceInode(ite->Inode, INODE_TABLE_REFERENCE); // drop our reference
             ite->Inode = NULL;
         }
         free(ite);
@@ -258,7 +265,7 @@ bitbucket_inode_t *BitbucketLookupInodeInTable(void *Table, ino_t Inode)
     ite = LookupInodeInTableLocked(table, Inode);
     if (NULL != ite) {
         inode = ite->Inode;
-        BitbucketReferenceInode(inode);
+        BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
     }
     UnlockInode(table, Inode);
 
@@ -277,6 +284,7 @@ void *BitbucketCreateInodeTable(uint16_t BucketCount)
     }
 
     inode_table->Magic = BITBUCKET_INODE_TABLE_MAGIC;
+    inode_table->BucketCount = BucketCount;
     for (unsigned index = 0; index < BucketCount; index++) {
         inode_table->Buckets[index].Count = 0;
         pthread_rwlock_init(&inode_table->Buckets[index].Lock, NULL); // default attributes (process private)
@@ -311,10 +319,11 @@ typedef struct _bitbucket_private_inode {
     size_t                          Length; // size of this object
     bitbucket_object_attributes_t   RegisteredAttributes; // not ours, the component creating this inode
     bitbucket_inode_table_t        *Table; // the table containing this inode
-    // char                            Unused0[0]; // align next field to 64 bytes
+    char                            Unused0[48]; // align next field to 64 bytes
     bitbucket_inode_t               PublicInode; // this is what we return to the caller - must be last field
 } bitbucket_private_inode_t;
 
+// const char foo[(64 * 6) - offsetof(bitbucket_private_inode_t, PublicInode)];
 _Static_assert((0 == offsetof(bitbucket_private_inode_t, PublicInode) % 64), "Alignment issue in private inode struct");
 
 #define BITBUCKET_PRIVATE_INODE_MAGIC (0xe7820c4eb6a8f620)
@@ -403,6 +412,17 @@ static void InodeUnlock(void *Object)
 static bitbucket_object_attributes_t InodePrivateObjectAttributes = 
 {
     .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
+    .ReasonCount = BITBUCKET_MAX_REFERENCE_REASONS,
+    .ReferenceReasonsNames = {
+        "Creation",
+        "InodeTable",
+        "Dir:Parent",
+        "Dir:Entry",
+        "Lookup",
+        "Reason5",
+        "Reason6",
+        "Reason7",
+    },
     .Initialize = InodeInitialize,
     .Deallocate = InodeDeallocate,
     .Lock = InodeLock,
@@ -413,16 +433,26 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
 // Object attributes are used for registering callbacks on various events (initialization, destruction, lock, unlock)
 // These are optional (defaults are provided) but strongly recommended.
 // These are reference counted objects.
+//
+// Upon return, this object will have an INODE_LOOKUP_REFERENCE
+// Note: when this object is returned, it will have an INODE_LOOKUP_REFERENCE for the returned pointer.  It will also
+// have an INODE_TABLE_REFERENCE for the table entry.
+//
 bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucket_object_attributes_t *ObjectAttributes, size_t DataLength)
 {
     size_t length = (sizeof(bitbucket_private_inode_t) + DataLength + 0x3F) & ~0x3F; // round up to next 64 byte value
     void *object = NULL;
     bitbucket_private_inode_t *bbpi = NULL;
+    uint32_t refcount = 0;
 
     assert(length < 65536); // arbitrary, but seems somewhat sane at this point.
+    assert(NULL != Table); // must have a table
 
-    object = BitbucketObjectCreate(&InodePrivateObjectAttributes, length);
+    object = BitbucketObjectCreate(&InodePrivateObjectAttributes, length, INODE_LOOKUP_REFERENCE);
     assert(NULL != object);
+    // Make sure the ref count is correct.
+    refcount = BitbucketGetObjectReferenceCount(object);
+    assert(1 == refcount);
 
     bbpi = (bitbucket_private_inode_t *)object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
@@ -435,10 +465,12 @@ bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucke
         }
     }
 
-    if (NULL != Table) {
-        // Insert this inode into the table
-        BitbucketInsertInodeInTable(Table, &bbpi->PublicInode);
-    }
+    // Insert this inode into the table
+    BitbucketInsertInodeInTable(Table, &bbpi->PublicInode);
+
+    // Make sure the ref count is correct.
+    refcount = BitbucketGetObjectReferenceCount(object);
+    assert(2 == refcount);
 
     return &bbpi->PublicInode;
 }
@@ -446,23 +478,23 @@ bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucke
 //
 // Increment reference count on this inode
 //
-void BitbucketReferenceInode(bitbucket_inode_t *Inode)
+void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
 {
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
-    BitbucketObjectReference(bbpi);
+    BitbucketObjectReference(bbpi, Reason);
 }
 
 //
 // Note: caller should destroy their reference after this call in most cases.
 //
-void BitbucketDereferenceInode(bitbucket_inode_t *Inode)
+void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
 {
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
-    BitbucketObjectDereference(bbpi);
+    BitbucketObjectDereference(bbpi, Reason);
     bbpi = NULL;
 }
 

@@ -120,7 +120,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
 
     newentry->Magic = BITBUCKET_DIR_ENTRY_MAGIC;
     newentry->Inode = Inode;
-    BitbucketReferenceInode(Inode);
+    BitbucketReferenceInode(Inode, INODE_DIRENT_REFERENCE);
     initialize_list_entry(&newentry->ListEntry);
     if (NULL != Name) {
         strncpy(newentry->Name, Name, name_length);
@@ -167,7 +167,7 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Directory->Children, Name);
         if (NULL != dirent) {
             *Object = dirent->Inode;
-            BitbucketReferenceInode(dirent->Inode); // ensures that it doesn't go away.
+            BitbucketReferenceInode(dirent->Inode, INODE_LOOKUP_REFERENCE); // ensures that it doesn't go away.
         }
         DirectoryUnlock(Inode);
     }
@@ -185,40 +185,41 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
 //
 // Create a new directory with the given name, insert it into the parent directory, and
 // return a pointer to that directory.
-// Note: if the Parent is NULL, a root directory is created (so it contains itself)
+//
+// To create a root directory call BitbucketCreateRootDirectory
+//
+// Upon return, this inode will have a lookup reference (for the caller's copy) plus
+// references for the directory entries ('.' and '..') and the Inode table reference.
+// (In theory it could have more if someone were to find it in the Inode table before
+//  this call returns).
 //
 bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const char *DirName)
 {
     bitbucket_inode_t *newdir = NULL;
     int status = 0;
-    bitbucket_inode_table_t *table = NULL;
 
-    // Either we have BOTH (normal subdir) or we have NEITHER (root directory case)
-    assert(((NULL == Parent) && (NULL == DirName)) || ((NULL != Parent) && (NULL != DirName)));
+    // Both parameters are required
+    assert(NULL != Parent);
+    assert(NULL != DirName);
 
-    if (NULL != Parent) {
-        CHECK_BITBUCKET_INODE_MAGIC(Parent);
-        assert(BITBUCKET_DIR_TYPE == Parent->InodeType); // don't support anything else with "contents" (for now)
-        CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
+    CHECK_BITBUCKET_INODE_MAGIC(Parent);
+    assert(BITBUCKET_DIR_TYPE == Parent->InodeType); // don't support anything else with "contents" (for now)
+    CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
+    assert(NULL != Parent->Table); // Parent must be in a table
 
-        table = Parent->Table; // it lives in the same table as the parent.
-    }
-
-    newdir = BitbucketCreateInode(table, &DirectoryObjectAttributes, 0);
+    newdir = BitbucketCreateInode(Parent->Table, &DirectoryObjectAttributes, 0);
     assert(NULL != newdir);
     CHECK_BITBUCKET_INODE_MAGIC(newdir);
     assert(BITBUCKET_DIR_TYPE == newdir->InodeType); // don't support anything else with "contents"
     CHECK_BITBUCKET_DIR_MAGIC(&newdir->Instance.Directory);
 
-    if (NULL == Parent) {
-        Parent = newdir; // Root is it's own Parent directory.
-    }
+    assert(Parent != newdir); // not permitted
 
     // We maintain a pointer from the child to the parent.
     // Question: could we avoid this entirely and just keep the directory entry?
-    // I'm of course thinking about a less traditional hierarchical model here... 
+    // I'm of course thinking about a less traditional non-hierarchical model here... 
     newdir->Instance.Directory.Parent = Parent;
-    BitbucketReferenceInode(Parent); 
+    BitbucketReferenceInode(Parent, INODE_PARENT_REFERENCE); 
 
     // All new directories point to themselves.
     status = BitbucketInsertDirectoryEntry(newdir, newdir, ".");
@@ -233,13 +234,8 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
         assert(0 == status);
     }
 
-#if 0
-    if (Parent != newdir) {
-        // We don't need to keep the parent reference
-        BitbucketDereferenceInode(Parent);
-        Parent = NULL;
-    }
-#endif // 0
+    // Four references: one for lookup, one for the parent, and two from the directory entry
+    assert(4 <= BitbucketGetInodeReferenceCount(newdir));
 
     return newdir;
 
@@ -314,10 +310,10 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
                 assert(de->Inode == Directory); // how could it not point to the parent?
                 assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
 
-                BitbucketDereferenceInode(de->Inode);
+                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE);
                 de->Inode = NULL;
 
-                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent);
+                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
                 dirent->Inode->Instance.Directory.Parent = NULL;
 
                 memset(de, 0, sizeof(bitbucket_dir_entry_t));
@@ -332,12 +328,12 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     }
 
     if (NULL != inode) {
-        BitbucketDereferenceInode(inode);
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
         inode = NULL;
     }
 
     if (NULL != dirent) {
-        BitbucketDereferenceInode(dirent->Inode);
+        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE);
         dirent->Inode = NULL;
         memset(dirent, 0, sizeof(bitbucket_dir_entry_t));
         free(dirent);
@@ -355,13 +351,15 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
 // Invoke this when you want to initiate teardown of a directory.
 // This will do two things: 
 //   (1) it will remove the '.' entry for the directory
-//   (2) it will drop the caller's reference on the directory
+//   (2) it will remove the directory from the Inode table.
+//
 // This call will fail if the directory has children.
 // This call will fail if the directory has a parent reference (meaning it is still reachable)
 // This call **may** delete the Directory.  If there are outstanding references, the directory
 // will continue to exist; the caller doesn't know.
-// The caller's reference on the directory is consumed by this call; the caller should assume
-// the pointer is not valid after this call (assuming this is the only reference the caller has).
+//
+// Note: the caller should own a reference when calling this function.  The caller should
+// release that reference after this call returns (which could trigger deletion).
 //
 int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
 {
@@ -397,9 +395,17 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
     }
 
     if (0 == status) {
-        // Drop the caller's reference on this inode
-        BitbucketDereferenceInode(Inode);
+        // at this point we should have at least two references:
+        // (1) lookup reference (from the caller)
+        // (1) table reference (from the original creation)
+        assert(2 <= BitbucketGetInodeReferenceCount(Inode));
+
+        // Remove this inode from the table
+        BitbucketRemoveInodeFromTable(Inode);
+
+        // Let the caller drop their own reference.
     }
+
     
     return status;
 }
@@ -545,4 +551,111 @@ int BitbucketSeekDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_
 
     return status;
 
+}
+
+//
+// This routine creates a root directory inode and inserts it
+// into the specified inode table.
+//
+// Upon return this object has five references:
+//   (1) for it's table reference
+//   (1) for the reference returned to the caller
+//   (1) for it's self reference (Child Dir -> Parent Dir)
+//   (2) for it's directory entries ('.' -> Self, '..' -> Self)
+//
+// Note: while I call this a "root directory inode" it is not required
+// to be unique and could coexist with other root directory inodes.
+// Disambiguating them would be entirely the responsibility of some
+// higher layer.
+//
+bitbucket_inode_t *BitbucketCreateRootDirectory(bitbucket_inode_table_t *Table)
+{
+	bitbucket_inode_t *inode = NULL;
+    int status = 0;
+
+	while (NULL == inode) {
+        inode = BitbucketCreateInode(Table, &DirectoryObjectAttributes, 0);
+        assert(NULL != inode);
+        CHECK_BITBUCKET_INODE_MAGIC(inode);
+        assert(BITBUCKET_DIR_TYPE == inode->InodeType);
+        CHECK_BITBUCKET_DIR_MAGIC(&inode->Instance.Directory);
+
+        // Two refs here: the inode table and the lookup reference
+        // returned to us.  Technically this assert isn't quite right,
+        // since once we've inserted it, someone else could find it,
+        // but that's SUPER unlikely and this is useful for sanity
+        // checking.  If it breaks in the future, remove it or
+        // weaken it.
+        assert(2 == BitbucketGetInodeReferenceCount(inode));
+
+        // A root directory is its own parent
+        inode->Instance.Directory.Parent = inode;
+        BitbucketReferenceInode(inode, INODE_PARENT_REFERENCE);
+        assert(3 == BitbucketGetInodeReferenceCount(inode));
+
+        // All directories point to themselves.
+        status = BitbucketInsertDirectoryEntry(inode, inode, ".");
+        assert(0 == status);
+        assert(4 == BitbucketGetInodeReferenceCount(inode));
+
+        // A root directory is its own parent (this time in the directory)
+        status = BitbucketInsertDirectoryEntry(inode, inode, "..");
+        assert(0 == status);
+        assert(5 == BitbucketGetInodeReferenceCount(inode));
+
+        // We have a complete inode now.
+        break;
+	}
+
+	return inode;
+}
+
+//
+// This routine:
+//   - Removes the given root directory inode from the inode table
+//   - Removes the "." and ".." references for this root directory.
+//   - Removes the self-reference (from Parent)
+//
+// Thus, assuming the caller holds a lookup reference, it won't
+// go away.  
+// This routine creates a root directory inode and inserts it
+// into the specified inode table.
+//
+// Upon return this object has five references:
+//   (1) for it's table reference
+//   (1) for the reference returned to the caller
+//   (1) for it's self reference (Child Dir -> Parent Dir)
+//   (2) for it's directory entries ('.' -> Self, '..' -> Self)
+//
+// Note: while I call this a "root directory inode" it is not required
+// to be unique and could coexist with other root directory inodes.
+// Disambiguating them would be entirely the responsibility of some
+// higher layer.
+//
+
+void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory)
+{
+    int status = 0;
+
+    CHECK_BITBUCKET_INODE_MAGIC(RootDirectory);
+    assert(BITBUCKET_DIR_TYPE == RootDirectory->InodeType);
+
+    // Make sure it doesn't go away on us
+    BitbucketReferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE);
+
+    // We need to get rid of the parent reference
+    assert(NULL != RootDirectory->Instance.Directory.Parent);
+    BitbucketDereferenceInode(RootDirectory->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+    RootDirectory->Instance.Directory.Parent = NULL;
+    status = BitbucketDeleteDirectoryEntry(RootDirectory, "..");
+    assert(0 == status);
+
+    // Now we can just call the standard deletion routine
+    status = BitbucketDeleteDirectory(RootDirectory);
+    assert(0 == status);
+    // has to be at least one
+    assert(1 <= BitbucketGetInodeReferenceCount(RootDirectory));
+
+    // Release our reference
+    BitbucketDereferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE);
 }

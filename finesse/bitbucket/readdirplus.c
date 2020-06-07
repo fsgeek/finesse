@@ -41,7 +41,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 
 	if (FUSE_ROOT_ID == ino) {
 		inode = BBud->RootDirectory;
-		BitbucketReferenceInode(inode);
+		BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	}
 	else {
 		inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino);
@@ -132,7 +132,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 
 	if (NULL != inode) {
 		// release our reference on the directory
-		BitbucketDereferenceInode(inode);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	}
 	
 	if (0 != status) {

@@ -100,8 +100,12 @@ void BitbucketDestroyInodeTable(void *Table);
 // The lock/unlock operation(s) are optional.  If they are not provided, the object package will
 // use an internal default lock
 //
+#define BITBUCKET_MAX_REFERENCE_REASONS (8)
+#define BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH (32)
 typedef struct _bitbucket_object_attributes {
     uint64_t            Magic;
+    uint8_t             ReasonCount;
+    char                ReferenceReasonsNames[BITBUCKET_MAX_REFERENCE_REASONS][BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH+1];
     void              (*Initialize)(void *Object, size_t Length); //
     void              (*Deallocate)(void *Object, size_t Length); // Call this when the reference count drops to zero
     void              (*Lock)(void *Object, int Exclusive);
@@ -153,6 +157,10 @@ typedef struct _bitbucket_inode {
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
 #define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
+#define INODE_TABLE_REFERENCE    (0)
+#define INODE_LOOKUP_REFERENCE   (1)
+#define INODE_PARENT_REFERENCE   (2)
+#define INODE_DIRENT_REFERENCE   (3)
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
@@ -197,16 +205,16 @@ void BitbucketUnlockDirectory(bitbucket_inode_t *Directory);
 // Default values are provided if NULL is passed
 //
 // Upon return, this object has a reference count of 1.
-void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, size_t ObjectSize);
+void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, size_t ObjectSize, uint8_t InitialReason);
 
 // Increment the reference count on this object
-void BitbucketObjectReference(void *Object);
+void BitbucketObjectReference(void *Object, uint8_t Reason);
 
 // Decrement the reference count on this object; if it drops to zero,
 // call the deallocate callback and then delete the object.
 // Note: this is done in a thread-safe fashion, provided that the
 // object owner is locking it prior to lookup and reference counting it.
-void BitbucketObjectDereference(void *Object);
+void BitbucketObjectDereference(void *Object, uint8_t Reason);
 
 // Return the number of objects outstanding in the system
 uint64_t BitbucketObjectCount(void);
@@ -229,9 +237,11 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
 int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name);
 
 
-void BitbucketReferenceInode(bitbucket_inode_t *Inode);
-void BitbucketDereferenceInode(bitbucket_inode_t *Inode);
+void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
+void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
 uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode);
+void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries);
+const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);
 
 
 // More random numbers

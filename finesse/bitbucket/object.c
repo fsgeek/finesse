@@ -14,11 +14,13 @@ typedef struct _bitbucket_object_header {
     uint64_t                        Magic; // object magic number.
     bitbucket_object_attributes_t   ObjectAttributes;
     uint64_t                        ReferenceCount;
+    uint32_t                        ReferenceReasons[BITBUCKET_MAX_REFERENCE_REASONS];
     size_t                          DataLength;
-    // char                            Unused[0]; // used to pad so Data starts on a 64 byte boundary
+    char                            Unused[16]; // used to pad so Data starts on a 64 byte boundary
     uint64_t                        Data[0];
 } bitbucket_object_header_t;
 
+// const char foo[(64 * 5) - offsetof(bitbucket_object_header_t, Data)];
 _Static_assert(0 == (offsetof(bitbucket_object_header_t, Data) % 64), "Bad alignment");
 
 #define BITBUCKET_OBJECT_HEADER_MAGIC (0xc24e22f696a3861d)
@@ -107,6 +109,17 @@ static void UnlockObject(bitbucket_object_header_t *Object)
 
 static bitbucket_object_attributes_t default_object_attributes = {
     .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
+    .ReasonCount = BITBUCKET_MAX_REFERENCE_REASONS,
+    .ReferenceReasonsNames = {
+        "ObjectReason0",
+        "ObjectReason1",
+        "ObjectReason2",
+        "ObjectReason3",
+        "ObjectReason4",
+        "ObjectReason5",
+        "ObjectReason6",
+        "ObjectReason7",
+    },
     .Initialize = default_initialize,
     .Deallocate = default_deallocate,
     .Lock = default_lock,
@@ -114,7 +127,12 @@ static bitbucket_object_attributes_t default_object_attributes = {
 };
 
 
-void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, size_t ObjectSize)
+//
+// Create a new object, with the specified attributes.
+// Reserve additional space (ObjectSize)
+// Indicate reason for initial reference.
+//
+void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, size_t ObjectSize, uint8_t InitialReason)
 {
     size_t length = sizeof(bitbucket_object_header_t) + ObjectSize;
     bitbucket_object_header_t *newobj = NULL;
@@ -129,10 +147,16 @@ void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, siz
     length = (length + 0x3F) & ~0x3F; // round up to the next 64 byte boundary
     newobj = (bitbucket_object_header_t *)malloc(length);
 
+    assert(ObjectAttributes->ReasonCount <= BITBUCKET_MAX_REFERENCE_REASONS);
+    for (unsigned index = 0; index < ObjectAttributes->ReasonCount; index++) {
+        assert(strlen(ObjectAttributes->ReferenceReasonsNames[index]) <= BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH);
+    }
+    assert(InitialReason < ObjectAttributes->ReasonCount);
     memset(newobj, 0, length);
     newobj->Magic = BITBUCKET_OBJECT_HEADER_MAGIC;
     newobj->ObjectAttributes = *ObjectAttributes;
     newobj->ReferenceCount = 1;
+    newobj->ReferenceReasons[InitialReason] = 1;
     newobj->DataLength = ObjectSize;
 
     newobj->ObjectAttributes.Initialize(newobj->Data, ObjectSize);
@@ -144,32 +168,43 @@ void *BitbucketObjectCreate(bitbucket_object_attributes_t *ObjectAttributes, siz
     return (void *)newobj->Data;
 }
 
-void BitbucketObjectReference(void *Object)
+void BitbucketObjectReference(void *Object, uint8_t Reason)
 {
     bitbucket_object_header_t *bbobj = container_of(Object, bitbucket_object_header_t, Data);
     uint64_t refcount;
+    uint64_t reasonRefCount;
+
+    assert(Reason < bbobj->ObjectAttributes.ReasonCount);
 
     // If the caller really doesn't own a reference, this will (at some point) blow up.
     LockObject(bbobj, 0);
     refcount = __atomic_fetch_add(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
+    reasonRefCount = __atomic_fetch_add(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
     UnlockObject(bbobj);
 
     assert(0 != refcount); // if we ever see the 0->1 transition, we've found a bug as this isn't supported
+    assert(reasonRefCount <= refcount); // weak assert - should add them all up
 }
 
-void BitbucketObjectDereference(void *Object) 
+void BitbucketObjectDereference(void *Object, uint8_t Reason) 
 {
     bitbucket_object_header_t *bbobj = container_of(Object, bitbucket_object_header_t, Data);
     uint64_t refcount;
+    uint32_t reasonRefCount;
     int local_unlock = 0;
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
+    assert(Reason < bbobj->ObjectAttributes.ReasonCount);
 
     LockObject(bbobj, 0);
     refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
     if (1 == refcount) {
         // Unsafe to delete since we don't hold the exclusive lock
         __atomic_fetch_add(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
+    }
+    else {
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
+        assert(0 != reasonRefCount);
     }
     UnlockObject(bbobj);
     
@@ -179,6 +214,8 @@ void BitbucketObjectDereference(void *Object)
         LockObject(bbobj, 1);
         refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
         assert(0 != refcount); // this means the ref count went negative, which is a bad thing.
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
+        assert(0 != reasonRefCount); // this means the ref count reason isn't correct
         if (1 == refcount) {
             // Now it is safe for us to delete this
             if (NULL == bbobj->ObjectAttributes.Lock) {
@@ -210,5 +247,35 @@ uint64_t BitbucketGetObjectReferenceCount(void *Object)
     bbobj = container_of(Object, bitbucket_object_header_t, Data);
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
 
-    return bbobj->ReferenceCount;
+    return __atomic_load_n(&bbobj->ReferenceCount, __ATOMIC_RELAXED);
+}
+
+// 
+void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries)
+{
+    bitbucket_object_header_t *bbobj;
+    
+    assert(NULL != Object);
+    assert(NULL != Counts);
+    bbobj = container_of(Object, bitbucket_object_header_t, Data);
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
+
+    assert(CountEntries <= BITBUCKET_MAX_REFERENCE_REASONS);
+    LockObject(bbobj, 1);
+    memcpy(Counts, bbobj->ReferenceReasons, sizeof(uint32_t) * bbobj->ReferenceCount);
+    UnlockObject(bbobj);
+
+}
+
+const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason)
+{
+    bitbucket_object_header_t *bbobj;
+    
+    assert(NULL != Object);
+    bbobj = container_of(Object, bitbucket_object_header_t, Data);
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
+
+    assert(Reason < bbobj->ObjectAttributes.ReasonCount);
+    return bbobj->ObjectAttributes.ReferenceReasonsNames[Reason];
+
 }
