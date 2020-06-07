@@ -44,7 +44,7 @@ test_insert(
 {
     struct Trie *trie = NULL;
     int status;
-    const unsigned object_count = 4096;
+    const unsigned object_count = 2;
     const unsigned iterations = 1; // TODO: bump this up
     trie_test_object_t *trie_objects = NULL;
 
@@ -75,7 +75,7 @@ test_insert(
         trie_test_object_t *testobj = NULL;
 
         status = TrieDeletion(&trie, trie_objects[index].uuid_string);
-        assert(status >= 0);
+        munit_assert(status >= 0);
         testobj = TrieSearch(trie, trie_objects[index].uuid_string);
         munit_assert(NULL == testobj); // shouldn't be able to find it any longer
         trie_objects[index].uuid_string[0] = '\0';
@@ -87,12 +87,45 @@ test_insert(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_dots(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    struct Trie *trie = NULL;
+    void *result;
+    int status;
+
+    trie = TrieCreateNode();
+    munit_assert(NULL != trie);
+
+    TrieInsert(trie, ".", (void *)0x1);
+    TrieInsert(trie, "..", (void *)0x2);
+
+    result = TrieSearch(trie, ".");
+    munit_assert(result == (void *)0x1);
+
+    result = TrieSearch(trie, "..");
+    munit_assert(result == (void *)0x2);
+
+    status = TrieDeletion(&trie, "..");
+    munit_assert(0 == status);
+    
+    status = TrieDeletion(&trie, ".");
+    munit_assert(0 == status);
+
+    munit_assert(NULL == trie);
+
+    return MUNIT_OK;
+}
+
 
 
 static const MunitTest trie_tests[] = {
         TEST("/null", test_null, NULL),
         TEST("/create", test_create_trie, NULL),
         TEST("/insert", test_insert, NULL),
+        TEST("/dots", test_dots, NULL),
     	TEST(NULL, NULL, NULL),
     };
 

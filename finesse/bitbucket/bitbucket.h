@@ -60,6 +60,7 @@ void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, 
 void bitbucket_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, struct fuse_file_info *fi);
 
 bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const char *DirName);
+int BitbucketDeleteDirectory(bitbucket_inode_t *Inode);
 
 
 #endif // __BITBUCKET_H__

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 #include "bitbucket.h"
 #include "trie.h"
 
@@ -94,6 +95,94 @@ static int haveChildren(struct Trie* curr)
 	return 0;
 }
 
+int TrieDeletion(struct Trie **curr, const char *str) 
+{
+	struct Trie *t;
+	int status = ENOMEM;
+	size_t strlength = strlen(str);
+	struct Trie **path = (struct Trie **)malloc(sizeof(struct Trie *) * (strlength + 1));
+
+	while (NULL != path) {	
+
+		if (0 == strlength)
+		{
+			status = 0;
+			if (!haveChildren(*curr)) {
+				free(*curr);
+				*curr = NULL;
+			}
+			break;
+		}
+
+		memset(path, 0, sizeof(struct Trie *) * (strlen(str) + 1));
+		status = 0;
+		t = *curr;
+		for (unsigned index = 0; index < strlength; index++) {
+			path[index] = t;
+			t = t->character[(uint8_t)str[index]];
+
+			if (NULL == t) {
+				status = ENOENT;
+				break;
+			}
+		}
+
+		// error path - didn't find the entry
+		if (0 != status) {
+			break;
+		}
+
+		// We found an entry - does it have an object?
+		if (NULL == t->Object) {
+			// no
+			status = ENOENT;
+			break;
+		}
+
+		// yes - in this case we may need to delete back up (which is why we saved the path)
+		status = 0;
+		t->Object = NULL;
+		for (int index = strlen(str)-1; index >= 0; index--) {
+			t = path[index];
+			uint8_t ch = str[index];
+			struct Trie *child = t->character[ch];
+
+			if ((NULL != child->Object) || haveChildren(child)) {
+				// we're done - either this is a valid leaf node
+				// or it has children (or both)
+				break;
+			}
+
+			// otherwise, we need to reclaim that space
+			free(child);
+			t->character[ch] = NULL; // this is the reference to child
+
+		}
+
+		if (t == *curr) {
+			// this happens if we get to the end of the loop above
+			if ((NULL != t->Object) || haveChildren(t)) {
+				break; // can't delete this
+			}
+
+			// The trie is empty and we can delete it.
+			free(t);
+			*curr = NULL;
+		}
+
+		// Done.
+		break;
+
+	}
+
+	if (NULL != path) {
+		free(path);
+	}
+
+	return status;
+}
+
+#if 0
 // Recursive function to delete a string in Trie
 int TrieDeletion(struct Trie **curr, const char* str)
 {
@@ -150,6 +239,7 @@ int TrieDeletion(struct Trie **curr, const char* str)
 
 	return status;
 }
+#endif // 0
 
 #if 0
 // Trie Implementation in C - Insertion, Searching and Deletion
