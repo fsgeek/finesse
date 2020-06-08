@@ -24,29 +24,27 @@ uint64_t finesse_free_count;
 
 struct fuse_req *FinesseAllocFuseRequest(struct fuse_session *se)
 {
-    struct fuse_req *req;
     struct finesse_req *freq;
 
     assert(NULL != se);
 
-    req = (struct fuse_req *)calloc(1, sizeof(struct finesse_req));
-    if (req == NULL)
+    freq = (struct finesse_req *)calloc(1, sizeof(struct finesse_req));
+    if (freq == NULL)
     {
         fprintf(stderr, "finesse (fuse): failed to allocate request\n");
     }
     else
     {
-        req->se = se;
-        req->ctr = 1;
-        list_init_req(req);
-        pthread_mutex_init(&req->lock, NULL);
-        finesse_set_provider(req, 1);
-        freq = (struct finesse_req *)req;
+        freq->fuse_request.se = se;
+        freq->fuse_request.ctr = 1;
+        list_init_req(&freq->fuse_request);
+        pthread_mutex_init(&freq->fuse_request.lock, NULL);
+        finesse_set_provider(&freq->fuse_request, 1);
         pthread_mutex_init(&freq->lock, NULL);
         pthread_cond_init(&freq->condition, NULL);
     }
     finesse_alloc_count++;
-    return req;
+    return &freq->fuse_request;
 }
 
 void FinesseDestroyFuseRequest(fuse_req_t req)

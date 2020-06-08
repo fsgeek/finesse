@@ -125,6 +125,7 @@ static int finesse_statfs_handler(struct fuse_session *se, void *Client, fincomm
         // Now it's just an fstat...
         assert(NULL != finobj);
         status = finesse_fstatfs_handler(se, Client, Message, &finobj->uuid);
+        assert(0 == status);
     }
 
     // cleanup

@@ -298,7 +298,7 @@ test_open_dir(
         munit_assert(0 == finesse_init_file_state_mgr());
 
     strncpy(scratch, prefix, sizeof(scratch));
-    strncat(scratch, pathname, sizeof(scratch) - strlen(scratch));
+    strncat(scratch, pathname, sizeof(scratch) - strlen(scratch) - 1);
 
     if (finesse_enabled) {
         fd = finesse_open(scratch, 0);
@@ -371,7 +371,7 @@ test_open_existing_files(
     index = 0;
     while (NULL != test_files[index]) {
         strncpy(scratch, prefix, sizeof(scratch));
-        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch));
+        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch) - 1);
 
         if (finesse_enabled) {
           fd = finesse_open(scratch, 0); // existing
@@ -441,7 +441,7 @@ test_open_nonexistant_files(
     index = 0;
     while (NULL != test_files[index]) {
         strncpy(scratch, prefix, sizeof(scratch));
-        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch));
+        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch) - 1);
 
         if (finesse_enabled) {
             fd = finesse_open(scratch, 0);
@@ -504,7 +504,7 @@ test_fstatfs(
     if (finesse_enabled && (prefix_length > 0)) {
         // Now using the passthrough name, open the file
         strncpy(scratch, prefix, sizeof(scratch));
-        strncat(scratch, test_file, sizeof(scratch) - strlen(scratch));
+        strncat(scratch, test_file, sizeof(scratch) - strlen(scratch) - 1);
 
         fd = finesse_open(scratch, O_RDONLY);
         munit_assert_int(fd, >=, 0);
@@ -536,6 +536,7 @@ test_fstatfs(
         munit_assert(0 == status);
 
         status = fstatvfs(fd, &statfsstruc2);
+        munit_assert(0 == status);
         munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, sizeof(statfsstruc)));
     }
 

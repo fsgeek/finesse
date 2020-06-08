@@ -5,7 +5,7 @@
 
 static int Access(struct fuse_session *se, void *Client, fincomm_message Message)
 {
-    finesse_msg *fmsg = (finesse_msg *)Message->Data;
+    finesse_msg *fmsg = NULL;
     int status = 0;
     finesse_object_t *finobj = NULL;
     finesse_server_handle_t *fsh;

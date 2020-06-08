@@ -88,7 +88,7 @@ static
 lookup_table_t *
 lookup_table_create(unsigned int SizeHint, const char *Name, lookup_table_hash_t Hash, size_t KeySize)
 {
-    lookup_table_t *table = malloc(sizeof(struct lookup_table));
+    lookup_table_t *table = NULL;
     unsigned char entry_count_shift = 0;
     unsigned entrycount;
 

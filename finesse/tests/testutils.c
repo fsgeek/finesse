@@ -4,6 +4,7 @@
 
 #include "finesse_test.h"
 #include "../api/api-internal.h"
+#include <signal.h>
 
 #define __packed __attribute__((packed))
 #define __notused __attribute__((unused))
@@ -92,7 +93,7 @@ static void * ltworker(void *arg)
             assert(NULL == fs);
         }
 
-        // let's make sure we cn still find the even ones
+        // let's make sure we can still find the even ones
         for (int index = params->min_fd; index <= params->max_fd; index++) {
             if (0 != (index & 0x1)) {
                 continue;
@@ -100,6 +101,7 @@ static void * ltworker(void *arg)
 
             fs = finesse_lookup_file_state(index);
             assert(NULL != fs);
+            finesse_delete_file_state(fs);
         }
 
         break;
@@ -344,8 +346,8 @@ test_open_existing_files(
     // now open the files
     index = 0;
     while (NULL != test_files[index]) {
-        strncpy(scratch, prefix, sizeof(scratch));
-        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch));
+        strncpy(scratch, prefix, sizeof(scratch) - 1);
+        strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch) - 1);
 
         if (finesse_enabled) {
           fd = finesse_open(scratch, 0); // existing
@@ -462,8 +464,8 @@ test_open_dir(
     if (finesse_enabled)
         munit_assert(0 == finesse_init_file_state_mgr());
 
-    strncpy(scratch, prefix, sizeof(scratch));
-    strncat(scratch, pathname, sizeof(scratch) - strlen(scratch));
+    strncpy(scratch, prefix, sizeof(scratch) - 1);
+    strncat(scratch, pathname, sizeof(scratch) - strlen(scratch) - 1);
 
     if (finesse_enabled) {
         fd = finesse_open(scratch, 0);
@@ -560,6 +562,7 @@ static const char *ld_library_path[] = {
 "/usr/lib32",
 "/libx32",
 "/usr/libx32",
+NULL,
 };
 
 
@@ -645,6 +648,12 @@ static char **get_env_path(void)
     return paths;    
 }
 
+static void free_env_paths(char **paths)
+{
+    free(paths[0]);
+    free(paths);
+}
+
 static MunitResult
 lib_search_internal(char *prefix)
 {
@@ -705,6 +714,11 @@ path_search_internal(char *prefix)
     }
 
     munit_assert(found + not_found == index);
+
+    if (NULL != paths) {
+        free_env_paths(paths);
+        paths = NULL;
+    }
 
     return MUNIT_OK;
 }

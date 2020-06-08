@@ -196,7 +196,8 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
 
     // We ARE tracking the directory, so we need to do a name map operation.
     status = FinesseSendNameMapRequest(ffs->client, &ffs->key, pathname, &message);
-    
+    assert(0 == status);
+
     // Now call the underlying implementation
     fd = fin_openat(dirfd, pathname, flags, mode);
 
@@ -436,7 +437,7 @@ FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream)
     if (NULL != client_handle) {
         // Now start the name map
         memset(&uuid, 0, sizeof(uuid));
-        status = FinesseSendNameMapRequest(ffs->client, &uuid, pathname, &message);
+        status = FinesseSendNameMapRequest(client_handle, &uuid, pathname, &message);
     }
 
     // invoke the underlying library implementation

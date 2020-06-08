@@ -2858,7 +2858,7 @@ const char *files_in_path[] =
     "zramctl",
     "zsh",
     "zsh5",
-};
+(void *)0};
 const char *libs_in_path[] = 
 {
     "ImageMagick-6.9.7",
@@ -4368,4 +4368,4 @@ const char *libs_in_path[] =
     "xorg",
     "xtables",
     "zsh",
-};
+(void *)0};

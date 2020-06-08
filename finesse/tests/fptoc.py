@@ -33,7 +33,7 @@ def generate_sorted_list(files, structname, fd=None):
     files.sort()
     for f in files:
         print('    "{}",'.format(f))
-    print("};")    
+    print("(void *)0};")    
 
 
 #generate_sorted_list("all_files_in_path", "files_in_path")

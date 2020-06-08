@@ -58,6 +58,7 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
     switch (fmsg->Message.Native.Request.NativeRequestType) {
         case FINESSE_NATIVE_REQ_TEST: {
             status = FinesseServerNativeTestRequest(fsh, Client, Message);
+            assert(0 == status);
             break;
 
         }
@@ -65,6 +66,7 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
 
         case FINESSE_NATIVE_REQ_SERVER_STAT: {
             status = FinesseServerNativeServerStatRequest(fsh, Client, Message);
+            assert(0 == status);
             break;
         }
         

@@ -502,11 +502,13 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     struct finesse_req *freq = NULL;
 
     // Note: we'll probably have to add additional case handling here (right now this is just lookup)
-
+    // TODO: should we be DOING something with error?
+    
     if (error <= -1000 || error > 0)
     {
         fprintf(stderr, "fuse: bad error value: %i\n", error);
-        error = -ERANGE;
+        // error = -ERANGE;
+        assert(0); // this situation isn't handled presently.
     }
 
     assert(NULL != req);
