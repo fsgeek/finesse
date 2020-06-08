@@ -93,6 +93,7 @@ static void destroy_aux_shm(server_connection_state_t *ccs, unsigned Index)
     // close map file
     if (ccs->aux_shm_table[Index].AuxShmFd >= 0) {
         status = close(ccs->aux_shm_table[Index].AuxShmFd);
+        assert(0 == status);
         ccs->aux_shm_table[Index].AuxShmFd = -1;
     }
 
@@ -120,7 +121,8 @@ static void teardown_client_connection(server_connection_state_t *ccs)
     if (ccs->monitor_thread_active) {
         status = pthread_cancel(ccs->monitor_thread);
         assert(0 == status);
-        status = pthread_join(ccs->monitor_thread, NULL);
+        (void) pthread_join(ccs->monitor_thread, NULL);
+        assert(0 == status);
         // assert(ECANCELED == status);
         ccs->monitor_thread_active = 0;
     }
@@ -150,6 +152,13 @@ static void teardown_client_connection(server_connection_state_t *ccs)
     shutdown_aux_shm(ccs);
 
     free(ccs);
+}
+
+static void listener_cleanup(void *arg)
+{
+    if (NULL != arg) {
+        free(arg);
+    }
 }
 
 typedef struct _inbound_request_worker_info {
@@ -189,6 +198,7 @@ static void *inbound_request_worker(void *context)
     //
     // note: the SERVER or this monitor CAN clear that bit.  This code should work either
     // way.
+    pthread_cleanup_push(listener_cleanup, irwi);
     for (;;) {
         // Block until something is available - do NOT hold the lock!
         status = FinesseReadyRequestWait(ccs->client_shm);
@@ -196,8 +206,8 @@ static void *inbound_request_worker(void *context)
             // shutdown;
             break;
         }
-        pthread_mutex_lock(&scs->monitor_mutex);
         locked_count++; // debug
+        pthread_mutex_lock(&scs->monitor_mutex);
         scs->waiting_client_request_bitmap |= pending_bit; // turn on bit - something waiting
         pthread_cond_signal(&scs->server_cond); // notify server we've turned on a bit
         pthread_cond_wait(&scs->monitor_cond, &scs->monitor_mutex); // wait for server to tell us to look again
@@ -205,6 +215,7 @@ static void *inbound_request_worker(void *context)
         pthread_mutex_unlock(&scs->monitor_mutex);
     }
     ccs->monitor_thread_active = 0;
+    pthread_cleanup_pop(0);
 
     free(irwi);
     irwi = NULL;
@@ -227,18 +238,25 @@ static void *listener(void *context)
         server_connection_state_t *new_client = NULL;
         fincomm_registration_info *reg_info = (fincomm_registration_info *)buffer;
         struct stat stat;
+        int new_client_fd = -1;
         
+        new_client_fd = accept(scs->server_connection, 0, 0);
+
         if (NULL == new_client) {
             new_client = (server_connection_state_t *)malloc(sizeof(server_connection_state_t));
         }
+
         assert(NULL != new_client);
         memset(new_client, 0, sizeof(server_connection_state_t));
         new_client->client_shm_fd = -1;
-        new_client->client_connection = -1;
-
-        new_client->client_connection = accept(scs->server_connection, 0, 0);
+        new_client->client_connection = new_client_fd;
+ 
         if (scs->shutdown) {
             // don't care about errors, we're done.
+            if (NULL != new_client) {
+                free(new_client);
+                new_client = NULL;
+            }
             break;
         }
         assert(new_client->client_connection >= 0);
@@ -309,6 +327,7 @@ static void *listener(void *context)
 
         // Notify any waiting server thread(s) that the state of the world has changed
         status = pthread_cond_broadcast(&scs->server_cond);
+        assert(0 == status);
     }
 
     return (void *)0;
@@ -340,7 +359,7 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
 
         status = connect(client_sock, &server_addr, sizeof(server_addr));
         if (status < 0) {
-            status = unlink(scs->server_connection_name);
+            (void)unlink(scs->server_connection_name);
             status = 0;
             break; // 0 = does not exist
         }
