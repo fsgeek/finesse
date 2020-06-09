@@ -155,10 +155,10 @@ static void *server_thread(void *param)
 
         munit_assert(NULL != message);
 
-        munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), message);
+        munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), (void *)message);
 
         if (0 != memcmp(cs_info->request_message, message->Data, sizeof(cs_info->request_message))) {
-            munit_errorf("Mismatched request (0x%p) data, got %s, expected %s\n", message, message->Data, cs_info->request_message);
+            munit_errorf("Mismatched request (0x%p) data, got %s, expected %s\n", (void *)message, message->Data, cs_info->request_message);
             munit_assert(0);
         }
 
@@ -195,7 +195,7 @@ static void *client_thread(void *param)
     while(count < cs_info->count) {
         message = FinesseGetRequestBuffer(fsmr);
         munit_assert_not_null(message);
-        munit_logf(MUNIT_LOG_INFO, "Client %lu has message at 0x%p\n", pthread_self(), message);
+        munit_logf(MUNIT_LOG_INFO, "Client %lu has message at 0x%p\n", pthread_self(), (void *)message);
 
         memcpy(message->Data, cs_info->request_message, sizeof(cs_info->request_message));
 

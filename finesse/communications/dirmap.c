@@ -103,6 +103,6 @@ int FinesseGetDirMapResponse(finesse_client_handle_t FinesseClientHandle, fincom
 
 void FinesseFreeDirMapResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
 {
-    return FinesseFreeClientResponse(FinesseClientHandle, Response);
+    FinesseFreeClientResponse(FinesseClientHandle, Response);
 }
 

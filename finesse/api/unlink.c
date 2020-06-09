@@ -12,7 +12,10 @@ static int fin_unlink(const char *pathname)
     static orig_unlink_t orig_unlink = NULL;
 
     if (NULL == orig_unlink) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_unlink = (orig_unlink_t)dlsym(RTLD_NEXT, "unlink");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_unlink);
         if (NULL == orig_unlink) {
@@ -29,7 +32,10 @@ static int fin_unlinkat(int dirfd, const char *pathname, int flags)
     static orig_unlinkat_t orig_unlinkat = NULL;
 
     if (NULL == orig_unlinkat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_unlinkat = (orig_unlinkat_t) dlsym(RTLD_NEXT, "unlinkat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_unlinkat);
         if (NULL == orig_unlinkat) {

@@ -19,7 +19,7 @@ typedef struct _bitbucket_inode_table_entry {
 } bitbucket_inode_table_entry_t;
 
 #define BITBUCKET_INODE_TABLE_ENTRY_MAGIC (0x6afb8bda9a2b8489)
-#define CHECK_BITBUCKET_INODE_TABLE_ENTRY_MAGIC(ite) verify_magic("bitbucket_inode_table_entry_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_INODE_TABLE_ENTRY_MAGIC, (ite)->Magic)
+#define CHECK_BITBUCKET_INODE_TABLE_ENTRY_MAGIC(ite) verify_magic("bitbucket_inode_table_entry_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_TABLE_ENTRY_MAGIC, (ite)->Magic)
 
 struct _bitbucket_inode_table {
     uint64_t            Magic;
@@ -32,7 +32,7 @@ struct _bitbucket_inode_table {
 };
 
 #define BITBUCKET_INODE_TABLE_MAGIC (0xc132b27785769815)
-#define CHECK_BITBUCKET_INODE_TABLE_MAGIC(it) verify_magic("bitbucket_inode_table_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_INODE_TABLE_MAGIC, (it)->Magic)
+#define CHECK_BITBUCKET_INODE_TABLE_MAGIC(it) verify_magic("bitbucket_inode_table_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_TABLE_MAGIC, (it)->Magic)
 
 
 static ino_t get_new_inode_number(void) 
@@ -327,7 +327,7 @@ typedef struct _bitbucket_private_inode {
 _Static_assert((0 == offsetof(bitbucket_private_inode_t, PublicInode) % 64), "Alignment issue in private inode struct");
 
 #define BITBUCKET_PRIVATE_INODE_MAGIC (0xe7820c4eb6a8f620)
-#define CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi) verify_magic("bitbucket_private_inode_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_PRIVATE_INODE_MAGIC, (bbpi)->Magic)
+#define CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi) verify_magic("bitbucket_private_inode_t", __FILE__, __func__, __LINE__, BITBUCKET_PRIVATE_INODE_MAGIC, (bbpi)->Magic)
 
 static void InodeInitialize(void *Object, size_t Length) 
 {

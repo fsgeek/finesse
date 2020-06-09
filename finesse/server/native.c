@@ -49,7 +49,7 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
     
     fuse_log(FUSE_LOG_DEBUG, "FINESSE %s: native request (0x%p) type %d (%s)\n", 
-            __PRETTY_FUNCTION__, fmsg, fmsg->Message.Native.Request.NativeRequestType,
+            __func__, fmsg, fmsg->Message.Native.Request.NativeRequestType,
             finesse_request_type_to_string(fmsg->Message.Native.Request.NativeRequestType));
 
     FinesseCountNativeRequest(fmsg->Message.Native.Request.NativeRequestType);

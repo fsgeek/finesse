@@ -91,7 +91,7 @@ static int fsel_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			off_t offset, struct fuse_file_info *fi,
 			enum fuse_readdir_flags flags)
 {
-	char name[2] = { };
+	char name[2] = {0, 0};
 	int i;
 
 	(void) offset;

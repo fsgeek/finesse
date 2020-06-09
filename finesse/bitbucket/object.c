@@ -17,14 +17,14 @@ typedef struct _bitbucket_object_header {
     uint32_t                        ReferenceReasons[BITBUCKET_MAX_REFERENCE_REASONS];
     size_t                          DataLength;
     char                            Unused[16]; // used to pad so Data starts on a 64 byte boundary
-    uint64_t                        Data[0];
+    uint64_t                        Data[1];
 } bitbucket_object_header_t;
 
 // const char foo[(64 * 5) - offsetof(bitbucket_object_header_t, Data)];
 _Static_assert(0 == (offsetof(bitbucket_object_header_t, Data) % 64), "Bad alignment");
 
 #define BITBUCKET_OBJECT_HEADER_MAGIC (0xc24e22f696a3861d)
-#define CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bboh) verify_magic("bitbucket_object_header_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_OBJECT_HEADER_MAGIC, (bboh)->Magic)
+#define CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bboh) verify_magic("bitbucket_object_header_t", __FILE__, __func__, __LINE__, BITBUCKET_OBJECT_HEADER_MAGIC, (bboh)->Magic)
 
 // Note: this is global scope; if this proves to be an issue, we can create a group of locks.
 static pthread_rwlock_t DefaultObjectLock = PTHREAD_RWLOCK_INITIALIZER;
@@ -224,7 +224,6 @@ void BitbucketObjectDereference(void *Object, uint8_t Reason)
             bbobj->ObjectAttributes.Deallocate(Object, bbobj->DataLength); // This should remove all external usage of this object
             if (local_unlock) {
                 pthread_rwlock_unlock(&DefaultObjectLock);
-                local_unlock = 0;
             }
             free(bbobj);
             bbobj = NULL;

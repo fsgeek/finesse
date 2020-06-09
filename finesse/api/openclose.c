@@ -25,7 +25,10 @@ static int fin_open(const char *pathname, int flags, ...)
     mode_t mode;
 
     if (NULL == orig_open) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_open = (orig_open_t)dlsym(RTLD_NEXT, "open");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_open);
         if (NULL == orig_open) {
@@ -49,7 +52,10 @@ static int fin_openat(int dirfd, const char *pathname, int flags, ...)
     mode_t mode;
 
     if (NULL == orig_openat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_openat = (orig_openat_t) dlsym(RTLD_NEXT, "openat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_openat);
         if (NULL == orig_openat) {
@@ -71,7 +77,10 @@ static int fin_close(int fd)
     static orig_close_t orig_close = NULL;
 
     if (NULL == orig_close) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_close = (orig_close_t) dlsym(RTLD_NEXT, "close");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_close);
         if (NULL == orig_close) {
@@ -262,7 +271,10 @@ static FILE *fin_fopen(const char *pathname, const char *mode)
     static orig_fopen_t orig_fopen = NULL;
 
     if (NULL == orig_fopen) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fopen = (orig_fopen_t) dlsym(RTLD_NEXT, "fopen");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fopen);
         if (NULL == orig_fopen) {
@@ -281,7 +293,10 @@ static FILE *fin_fdopen(int fd, const char *mode)
     static orig_fdopen_t orig_fdopen = NULL;
 
     if (NULL == orig_fdopen) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fdopen = (orig_fdopen_t) dlsym(RTLD_NEXT, "fdopen");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fdopen);
         if (NULL == orig_fdopen) {
@@ -300,7 +315,10 @@ static FILE *fin_freopen(const char *pathname, const char *mode, FILE *stream)
     static orig_freopen_t orig_freopen = NULL;
 
     if (NULL == orig_freopen) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_freopen = (orig_freopen_t) dlsym(RTLD_NEXT, "freopen");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_freopen);
         if (NULL == orig_freopen) {

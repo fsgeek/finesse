@@ -44,7 +44,7 @@ typedef struct _bitbucket_file {
 
 #define BITBUCKET_FILE_MAGIC (0x901bb9acacca7b19)
 
-#define CHECK_BITBUCKET_FILE_MAGIC(bbf) verify_magic("bitbucket_file_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_FILE_MAGIC, (bbf)->Magic)
+#define CHECK_BITBUCKET_FILE_MAGIC(bbf) verify_magic("bitbucket_file_t", __FILE__, __func__, __LINE__, BITBUCKET_FILE_MAGIC, (bbf)->Magic)
 
 typedef struct _bitbucket_dir {
     uint64_t              Magic; // magic number
@@ -59,7 +59,7 @@ typedef struct _bitbucket_dir {
 } bitbucket_dir_t;
 
 #define BITBUCKET_DIR_MAGIC (0x895fe26d657f24bd)
-#define CHECK_BITBUCKET_DIR_MAGIC(bbd) verify_magic("bitbucket_dir_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DIR_MAGIC, (bbd)->Magic)
+#define CHECK_BITBUCKET_DIR_MAGIC(bbd) verify_magic("bitbucket_dir_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_MAGIC, (bbd)->Magic)
 
 typedef struct _bitbucket_inode_table bitbucket_inode_table_t;
 #define BITBUCKET_INODE_TABLE_BUCKETS (1024)
@@ -75,7 +75,7 @@ typedef struct _bitbucket_userdata {
 } bitbucket_user_data_t;
 
 #define BITBUCKET_USER_DATA_MAGIC 0xb2035aef09927b87  
-#define CHECK_BITBUCKET_USER_DATA_MAGIC(bbud) verify_magic("bitbucket_userdata_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_USER_DATA_MAGIC, (bbud)->Magic)
+#define CHECK_BITBUCKET_USER_DATA_MAGIC(bbud) verify_magic("bitbucket_userdata_t", __FILE__, __func__, __LINE__, BITBUCKET_USER_DATA_MAGIC, (bbud)->Magic)
 
 int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode);
 void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode);
@@ -113,25 +113,25 @@ typedef struct _bitbucket_object_attributes {
 } bitbucket_object_attributes_t;
 
 #define BITBUCKET_OBJECT_ATTRIBUTES_MAGIC (0x1b126261e6db52cd)
-#define CHECK_BITBUCKET_OBJECT_ATTRIBUTES_MAGIC(bboa) verify_magic("bitbucket_object_attributes_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_OBJECT_ATTRIBUTES_MAGIC, (bboa)->Magic)
+#define CHECK_BITBUCKET_OBJECT_ATTRIBUTES_MAGIC(bboa) verify_magic("bitbucket_object_attributes_t", __FILE__, __func__, __LINE__, BITBUCKET_OBJECT_ATTRIBUTES_MAGIC, (bboa)->Magic)
 
 
 typedef struct _bitbucket_symlink {
     uint64_t    Magic;
-    char        LinkContents[0];
+    char        LinkContents[1];
 } bitbucket_symlink_t;
 
 #define BITBUCKET_SYMLINK_MAGIC (0x6fba60a633f4e259)
-#define CHECK_BITBUCKET_SYMLINK_MAGIC(bbsl) verify_magic("bitbucket_symlink_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_SYMLINK_MAGIC, (bbsl)->Magic)
+#define CHECK_BITBUCKET_SYMLINK_MAGIC(bbsl) verify_magic("bitbucket_symlink_t", __FILE__, __func__, __LINE__, BITBUCKET_SYMLINK_MAGIC, (bbsl)->Magic)
 
 typedef struct _bitbucket_devnode {
     uint64_t    Magic;
     dev_t       Device;
-    char        Data[0];
+    char        Data[1];
 } bitbucket_devnode_t;
 
 #define BITBUCKET_DEVNODE_MAGIC (0x08cb9f938b09ddfd)
-#define CHECK_BITBUCKET_DEVNODE_MAGIC(bbdn) verify_magic("bitbucket_devnode_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DEVNODE_MAGIC, (bbdn)->Magic)
+#define CHECK_BITBUCKET_DEVNODE_MAGIC(bbdn) verify_magic("bitbucket_devnode_t", __FILE__, __func__, __LINE__, BITBUCKET_DEVNODE_MAGIC, (bbdn)->Magic)
 
 typedef struct _bitbucket_inode {
     uint64_t                        Magic;
@@ -155,7 +155,7 @@ typedef struct _bitbucket_inode {
 } bitbucket_inode_t;
 
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
-#define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
+#define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
 #define INODE_TABLE_REFERENCE    (0)
 #define INODE_LOOKUP_REFERENCE   (1)
@@ -165,12 +165,13 @@ typedef struct _bitbucket_inode {
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
     list_entry_t        ListEntry;
-    bitbucket_inode_t   *Inode;
-    char                Name[0];
+    bitbucket_inode_t  *Inode;
+    uint64_t            Offset;
+    char                Name[1];
 } bitbucket_dir_entry_t;
 
 #define BITBUCKET_DIR_ENTRY_MAGIC (0xdb88e347869a9599)
-#define CHECK_BITBUCKET_DIR_ENTRY_MAGIC(de) verify_magic("bitbucket_dir_entry_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DIR_MAGIC, (de)->Magic)
+#define CHECK_BITBUCKET_DIR_ENTRY_MAGIC(de) verify_magic("bitbucket_dir_entry_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_MAGIC, (de)->Magic)
 
 
 typedef struct _bitbucket_dir_enum_context {
@@ -184,7 +185,7 @@ typedef struct _bitbucket_dir_enum_context {
 } bitbucket_dir_enum_context_t;
 
 #define BITBUCKET_DIR_ENUM_CONTEXT_MAGIC (0xb058a92686f1e02d)
-#define CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(dec) verify_magic("bitbucket_dir_enum_context_t", __FILE__, __PRETTY_FUNCTION__, __LINE__, BITBUCKET_DIR_ENUM_CONTEXT_MAGIC, (dec)->Magic)
+#define CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(dec) verify_magic("bitbucket_dir_enum_context_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_ENUM_CONTEXT_MAGIC, (dec)->Magic)
 
 void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t *EnumerationContext);
 const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_t *EnumerationContext);

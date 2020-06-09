@@ -11,7 +11,10 @@ static int fin_mkdir(const char *path, mode_t mode) {
     static orig_mkdir_t orig_mkdir = NULL;
 
     if (NULL == orig_mkdir) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_mkdir = (orig_mkdir_t)dlsym(RTLD_NEXT, "mkdir");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_mkdir);
         if (NULL == orig_mkdir) {
@@ -27,7 +30,10 @@ static int fin_mkdirat(int fd, const char *path, mode_t mode) {
     static orig_mkdirat_t orig_mkdirat = NULL;
 
     if (NULL == orig_mkdirat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_mkdirat = (orig_mkdirat_t)dlsym(RTLD_NEXT, "mkdirat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_mkdirat);
         if (NULL == orig_mkdirat) {

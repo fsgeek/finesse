@@ -5,7 +5,10 @@
 
 #include "bitbucket.h"
 #include <errno.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <fuse_kernel.h>
+#pragma GCC diagnostic pop
 #include <stdlib.h>
 
 #if 0
@@ -62,7 +65,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 		}
 
 		responseBuffer = malloc(size);
-		if (NULL != responseBuffer) {
+		if (NULL == responseBuffer) {
 			status = ENOMEM;
 			break;
 		}
@@ -86,7 +89,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 
 			dirEntry = BitbucketEnumerateDirectory(inode, &dirEnumContext);
 
-			if (ENOENT == status) {
+			if (NULL == dirEntry) {
 				// End of the enumeration
 				if (0 == used) {
 					// In this case we return an error
@@ -99,7 +102,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 				break;
 			}
 
-			if (ERESTART == status) {
+			if (ERESTART == dirEnumContext.LastError) {
 				// Directory changed between calls
 				assert(0 == used); // we can't have used any yet.
 				status = ERESTART;

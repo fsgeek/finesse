@@ -13,7 +13,10 @@
 
 #include "config.h"
 #include "fuse_i.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include "fuse_kernel.h"
+#pragma GCC diagnostic pop
 #include "fuse_opt.h"
 #include "fuse_misc.h"
 #include "mount_util.h"
@@ -39,9 +42,12 @@
 #define PARAM(inarg) (((char *)(inarg)) + sizeof(*(inarg)))
 #define OFFSET_MAX 0x7fffffffffffffffLL
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #define container_of(ptr, type, member) ({				\
 			const typeof( ((type *)0)->member ) *__mptr = (ptr); \
 			(type *)( (char *)__mptr - offsetof(type,member) ); })
+#pragma GCC diagnostic pop
 
 struct fuse_pollhandle
 {
@@ -2523,8 +2529,11 @@ static void fuse_ll_retrieve_reply(struct fuse_notify_req *nreq,
 								   const struct fuse_buf *ibuf)
 {
 	struct fuse_session *se = req->se;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 	struct fuse_retrieve_req *rreq =
 		container_of(nreq, struct fuse_retrieve_req, nreq);
+#pragma GCC diagnostic pop
 	const struct fuse_notify_retrieve_in *arg = inarg;
 	struct fuse_bufvec bufv = {
 		.buf[0] = *ibuf,
@@ -2639,6 +2648,8 @@ int fuse_req_interrupted(fuse_req_t req)
 	return interrupted;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 static struct
 {
 	void (*func)(fuse_req_t, fuse_ino_t, const void *);
@@ -2691,6 +2702,7 @@ static struct
 	[FUSE_LSEEK]	   = { do_lseek,       "LSEEK"	     },
 	[CUSE_INIT]	   = { cuse_lowlevel_init, "CUSE_INIT"   },
 };
+#pragma GCC diagnostic pop
 
 #define FUSE_MAXOP (sizeof(fuse_ll_ops) / sizeof(fuse_ll_ops[0]))
 

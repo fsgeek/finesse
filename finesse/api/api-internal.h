@@ -7,6 +7,7 @@
 #define __API_INTERNAL_H__
 
 #include <finesse.h>
+#include <dlfcn.h>
 
 typedef struct _finesse_file_state {
     int fd;                // process local file descriptor

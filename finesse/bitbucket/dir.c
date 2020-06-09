@@ -97,7 +97,7 @@ static bitbucket_object_attributes_t DirectoryObjectAttributes = {
 int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t *Inode, const char *Name)
 {
     bitbucket_dir_entry_t *newentry = NULL;
-    size_t entry_length = sizeof(bitbucket_dir_entry_t);
+    size_t entry_length = offsetof(bitbucket_dir_entry_t, Name);
     size_t name_length = 0;
     void *tobj = NULL;
 
@@ -128,6 +128,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     }
 
     DirectoryLock(DirInode, 1);
+    newentry->Offset = DirInode->Instance.Directory.Epoch;
     if (NULL == DirInode->Instance.Directory.Children) {
         DirInode->Instance.Directory.Children = TrieCreateNode();
     }
@@ -227,6 +228,7 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
 
     // Child points to its parent (no name required)
     status = BitbucketInsertDirectoryEntry(newdir, Parent, "..");
+    assert(0 == status);
 
     // Parent points to the child (if there's a name)
     if (NULL != DirName) {
@@ -316,7 +318,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
                 BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
                 dirent->Inode->Instance.Directory.Parent = NULL;
 
-                memset(de, 0, sizeof(bitbucket_dir_entry_t));
+                memset(de, 0, offsetof(bitbucket_dir_entry_t, Name));
                 free(de);
                 de = NULL;
             }
@@ -335,7 +337,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     if (NULL != dirent) {
         BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE);
         dirent->Inode = NULL;
-        memset(dirent, 0, sizeof(bitbucket_dir_entry_t));
+        memset(dirent, 0, offsetof(bitbucket_dir_entry_t, Name));
         free(dirent);
         dirent = NULL;
     }
@@ -430,6 +432,7 @@ void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t 
     EnumerationContext->Magic = BITBUCKET_DIR_ENUM_CONTEXT_MAGIC;
     EnumerationContext->Directory = NULL;
     EnumerationContext->NextEntry = NULL;
+    EnumerationContext->NextEntrySize = 0;
     EnumerationContext->Offset = 0;
     EnumerationContext->Epoch = 0;
     EnumerationContext->LastError = 0;
@@ -443,6 +446,9 @@ const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_inode_t *Inod
 {
     list_entry_t *le = NULL;
     bitbucket_dir_entry_t *returnEntry = NULL;
+
+    assert(NULL != Inode);
+    assert(NULL != EnumerationContext);
 
     CHECK_BITBUCKET_INODE_MAGIC(Inode);
     assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
@@ -459,8 +465,8 @@ const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_inode_t *Inod
                 EnumerationContext->NextEntry = NULL;
             }
             else {
-                EnumerationContext->NextEntry = container_of(le, bitbucket_dir_entry_t, ListEntry);
                 le = list_head(&Inode->Instance.Directory.Entries);
+                EnumerationContext->NextEntry = container_of(le, bitbucket_dir_entry_t, ListEntry);
             }
             EnumerationContext->Offset = EnumerationContext->NextEntry->Inode->Attributes.st_ino;
             EnumerationContext->Epoch = Inode->Instance.Directory.Epoch;
@@ -525,9 +531,25 @@ int BitbucketSeekDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_
     bitbucket_dir_entry_t *dirEntry = NULL;
     int status = ENOENT;
 
+    assert(NULL != Inode);
+    assert(NULL != EnumerationContext);
+    
     CHECK_BITBUCKET_INODE_MAGIC(Inode);
     assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
     CHECK_BITBUCKET_DIR_MAGIC(&Inode->Instance.Directory);
+
+    if (0 == Offset) {
+        // this is a "rewind to the beginning" request
+        if (empty_list(&Inode->Instance.Directory.Entries)) {
+            EnumerationContext->NextEntry = NULL;
+        }
+        else {
+            le = list_head(&Inode->Instance.Directory.Entries);
+            EnumerationContext->NextEntry = container_of(le, bitbucket_dir_entry_t, ListEntry);
+        }
+        EnumerationContext->Offset = EnumerationContext->NextEntry->Inode->Attributes.st_ino;
+        EnumerationContext->Epoch = Inode->Instance.Directory.Epoch;
+    }
 
     // Set up for the default return (which is an error condition)
     EnumerationContext->Magic = BITBUCKET_DIR_ENUM_CONTEXT_MAGIC;
@@ -541,8 +563,17 @@ int BitbucketSeekDirectory(bitbucket_inode_t *Inode, bitbucket_dir_enum_context_
         dirEntry = container_of(le, bitbucket_dir_entry_t, ListEntry);
         if (dirEntry->Inode->Attributes.st_ino) {
 
+            // We want the _next_ entry in this case
+            le = le->next;
+            if (le == &Inode->Instance.Directory.Entries) {
+                // We are at the end of the directory
+                break;
+            }
+            // We use the next entry
+            dirEntry = container_of(le, bitbucket_dir_entry_t, ListEntry);
+            
             EnumerationContext->NextEntry = dirEntry;
-            EnumerationContext->Offset = Offset;
+            EnumerationContext->Offset = dirEntry->Inode->Attributes.st_ino;
             EnumerationContext->LastError = 0;
             status = 0;
             break;

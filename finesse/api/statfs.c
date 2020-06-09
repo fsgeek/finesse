@@ -12,7 +12,10 @@ static int fin_fstatvfs(int fd, struct statvfs *buf)
     static orig_fstatfs_t orig_fstatfs = NULL;
 
     if (NULL == orig_fstatfs) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fstatfs = (orig_fstatfs_t)dlsym(RTLD_NEXT, "fstatfs");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fstatfs);
         if (NULL == orig_fstatfs) {
@@ -51,7 +54,10 @@ static int fin_statvfs(const char *path, struct statvfs *buf)
     static orig_statfs_t orig_statfs = NULL;
 
     if (NULL == orig_statfs) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_statfs = (orig_statfs_t)dlsym(RTLD_NEXT, "statfs");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_statfs);
         if (NULL == orig_statfs) {
@@ -94,7 +100,10 @@ static int fin_statfs(const char *path, struct statfs *buf)
     static orig_statfs_t orig_statfs = NULL;
 
     if (NULL == orig_statfs) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_statfs = (orig_statfs_t)dlsym(RTLD_NEXT, "statfs");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_statfs);
         if (NULL == orig_statfs) {
@@ -117,7 +126,10 @@ static int fin_fstatfs(int fd, struct statfs *buf)
     static orig_fstatfs_t orig_fstatfs = NULL;
 
     if (NULL == orig_fstatfs) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fstatfs = (orig_fstatfs_t)dlsym(RTLD_NEXT, "fstatfs");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fstatfs);
         if (NULL == orig_fstatfs) {

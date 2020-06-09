@@ -18,6 +18,7 @@ void bitbucket_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 
 	if (FUSE_ROOT_ID == ino) {
 		inode = BBud->RootDirectory;
+		BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	}
 	else {
 		inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino);

@@ -12,8 +12,10 @@ static int fin_access(const char *pathname, int mode)
     static orig_access_t orig_access = NULL;
 
     if (NULL == orig_access) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_access = (orig_access_t)dlsym(RTLD_NEXT, "access");
-
+#pragma GCC diagnostic pop
         assert(NULL != orig_access);
         if (NULL == orig_access) {
             return EACCES;
@@ -54,7 +56,10 @@ static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
     static orig_faccessat_t orig_faccessat = NULL;
 
     if (NULL == orig_faccessat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_faccessat = (orig_faccessat_t)dlsym(RTLD_NEXT, "faccessat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_faccessat);
         if (NULL == orig_faccessat) {

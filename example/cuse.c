@@ -72,7 +72,7 @@ static int cusexmp_resize(size_t new_size)
 		return -ENOMEM;
 
 	if (new_size > cusexmp_size)
-		memset(new_buf + cusexmp_size, 0, new_size - cusexmp_size);
+		memset((uint_least8_t *)new_buf + cusexmp_size, 0, new_size - cusexmp_size);
 
 	cusexmp_buf = new_buf;
 	cusexmp_size = new_size;
@@ -102,7 +102,7 @@ static void cusexmp_read(fuse_req_t req, size_t size, off_t off,
 	if (size > cusexmp_size - off)
 		size = cusexmp_size - off;
 
-	fuse_reply_buf(req, cusexmp_buf + off, size);
+	fuse_reply_buf(req, (char *)cusexmp_buf + off, size);
 }
 
 static void cusexmp_write(fuse_req_t req, const char *buf, size_t size,
@@ -115,7 +115,7 @@ static void cusexmp_write(fuse_req_t req, const char *buf, size_t size,
 		return;
 	}
 
-	memcpy(cusexmp_buf + off, buf, size);
+	memcpy((uint_least8_t *)cusexmp_buf + off, buf, size);
 	fuse_reply_write(req, size);
 }
 
@@ -134,16 +134,15 @@ static void fioc_do_rw(fuse_req_t req, void *addr, const void *in_buf,
 		return;
 	}
 	arg = in_buf;
-	in_buf += sizeof(*arg);
-	in_bufsz -= sizeof(*arg);
+	in_bufsz = in_bufsz + sizeof(*arg);
 
 	/* prepare size outputs */
 	out_iov[0].iov_base =
-		addr + offsetof(struct fioc_rw_arg, prev_size);
+		(uint_least8_t *)addr + offsetof(struct fioc_rw_arg, prev_size);
 	out_iov[0].iov_len = sizeof(arg->prev_size);
 
 	out_iov[1].iov_base =
-		addr + offsetof(struct fioc_rw_arg, new_size);
+		(uint_least8_t *)addr + offsetof(struct fioc_rw_arg, new_size);
 	out_iov[1].iov_len = sizeof(arg->new_size);
 
 	/* prepare client buf */
@@ -180,7 +179,7 @@ static void fioc_do_rw(fuse_req_t req, void *addr, const void *in_buf,
 		if (size > cusexmp_size - off)
 			size = cusexmp_size - off;
 
-		iov[2].iov_base = cusexmp_buf + off;
+		iov[2].iov_base = (uint_least8_t *)cusexmp_buf + off;
 		iov[2].iov_len = size;
 		fuse_reply_ioctl_iov(req, size, iov, 3);
 	} else {
@@ -189,7 +188,7 @@ static void fioc_do_rw(fuse_req_t req, void *addr, const void *in_buf,
 			return;
 		}
 
-		memcpy(cusexmp_buf + arg->offset, in_buf, in_bufsz);
+		memcpy((uint_least8_t *)cusexmp_buf + arg->offset, in_buf, in_bufsz);
 		fuse_reply_ioctl_iov(req, in_bufsz, iov, 2);
 	}
 }

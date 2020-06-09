@@ -8,8 +8,11 @@
 
 #include "config.h"
 #include "fuse_i.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include "fuse_kernel.h"
 #include "fuse_opt.h"
+#pragma GCC diagnostic pop
 #include "fuse_misc.h"
 #include "fuse_log.h"
 #include <fuse_lowlevel.h>
@@ -47,7 +50,7 @@ static int finesse_mt = 1;
 static void finesse_fuse_init(void *userdata, struct fuse_conn_info *conn)
 {
     assert(NULL != finesse_original_ops->init);
-    return finesse_original_ops->init(userdata, conn);
+    finesse_original_ops->init(userdata, conn);
 }
 
 #define FINESSE_CHECK_ORIGINAL_OP(req, original_op) \
@@ -63,7 +66,7 @@ static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->lookup(req, parent, name);
+    finesse_original_ops->lookup(req, parent, name);
 }
 
 // name is to avoid a collision with the internal implemenation - bleh.
@@ -72,7 +75,7 @@ static void finesse_makedir(fuse_req_t req, fuse_ino_t nodeid, const char *name,
     FINESSE_CHECK_ORIGINAL_OP(req, mkdir);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->mkdir(req, nodeid, name, mode);
+    finesse_original_ops->mkdir(req, nodeid, name, mode);
 }
 
 static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
@@ -82,7 +85,7 @@ static void finesse_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
     /* TODO: remove from lookup table? */
-    return finesse_original_ops->forget(req, ino, nlookup);
+    finesse_original_ops->forget(req, ino, nlookup);
 }
 
 static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -90,7 +93,7 @@ static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     FINESSE_CHECK_ORIGINAL_OP(req, getattr);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->getattr(req, ino, fi);
+    finesse_original_ops->getattr(req, ino, fi);
 }
 
 static void finesse_readlink(fuse_req_t req, fuse_ino_t ino)
@@ -98,7 +101,7 @@ static void finesse_readlink(fuse_req_t req, fuse_ino_t ino)
     FINESSE_CHECK_ORIGINAL_OP(req, readlink);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->readlink(req, ino);
+    finesse_original_ops->readlink(req, ino);
 }
 
 static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -107,7 +110,7 @@ static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->opendir(req, ino, fi);
+    finesse_original_ops->opendir(req, ino, fi);
 }
 
 static void finesse_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -115,7 +118,7 @@ static void finesse_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t o
     FINESSE_CHECK_ORIGINAL_OP(req, readdir);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->readdir(req, ino, size, offset, fi);
+    finesse_original_ops->readdir(req, ino, size, offset, fi);
 }
 
 static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -123,7 +126,7 @@ static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off
     FINESSE_CHECK_ORIGINAL_OP(req, readdirplus);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->readdirplus(req, ino, size, offset, fi);
+    finesse_original_ops->readdirplus(req, ino, size, offset, fi);
 }
 
 static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
@@ -131,7 +134,7 @@ static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, 
     FINESSE_CHECK_ORIGINAL_OP(req, create);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->create(req, parent, name, mode, fi);
+    finesse_original_ops->create(req, parent, name, mode, fi);
 }
 
 static void finesse_fuse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -139,7 +142,7 @@ static void finesse_fuse_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_i
     FINESSE_CHECK_ORIGINAL_OP(req, open);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->open(req, ino, fi);
+    finesse_original_ops->open(req, ino, fi);
 }
 
 static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
@@ -156,26 +159,24 @@ static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->release(req, ino, fi);
+    finesse_original_ops->release(req, ino, fi);
 }
 
-static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, releasedir);
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->releasedir(req, ino, fi);
+    finesse_original_ops->releasedir(req, ino, fi);
 }
 
-static void finesse_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi);
 static void finesse_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, read);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->read(req, ino, size, offset, fi);
+    finesse_original_ops->read(req, ino, size, offset, fi);
 }
 
 static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *in_buf, off_t off, struct fuse_file_info *fi)
@@ -183,7 +184,7 @@ static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec
     FINESSE_CHECK_ORIGINAL_OP(req, write_buf);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
+    finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
 }
 
 // nonstandard name to avoid the internal implementation - bleh.
@@ -192,7 +193,7 @@ static void finesse_fuse_unlink(fuse_req_t req, fuse_ino_t parent, const char *n
     FINESSE_CHECK_ORIGINAL_OP(req, unlink);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->unlink(req, parent, name);
+    finesse_original_ops->unlink(req, parent, name);
 }
 
 static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi) 
@@ -200,7 +201,7 @@ static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr
     FINESSE_CHECK_ORIGINAL_OP(req, setattr);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->setattr(req, nodeid, attr, to_set, fi);
+    finesse_original_ops->setattr(req, nodeid, attr, to_set, fi);
 }
 
 static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) 
@@ -208,7 +209,7 @@ static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name)
     FINESSE_CHECK_ORIGINAL_OP(req, rmdir);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->rmdir(req, parent, name);
+    finesse_original_ops->rmdir(req, parent, name);
 }
 
 static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
@@ -218,7 +219,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->write(req, nodeid, buf, size, off, fi);
+    finesse_original_ops->write(req, nodeid, buf, size, off, fi);
 }
 
 static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid) 
@@ -227,7 +228,7 @@ static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid)
 
     finesse_set_provider(req, 0);
     req->finesse.notify = 1;
-    return finesse_original_ops->statfs(req, nodeid);
+    finesse_original_ops->statfs(req, nodeid);
 }
 
 static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struct fuse_file_info *fi) 
@@ -235,7 +236,7 @@ static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struc
     FINESSE_CHECK_ORIGINAL_OP(req, fsync);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->fsync(req, nodeid, datasync, fi);
+    finesse_original_ops->fsync(req, nodeid, datasync, fi);
 }
 
 
@@ -244,7 +245,7 @@ static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name
     FINESSE_CHECK_ORIGINAL_OP(req, getxattr);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->getxattr(req, nodeid, name, size);
+    finesse_original_ops->getxattr(req, nodeid, name, size);
 }
 
 static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_info *fi) 
@@ -252,7 +253,7 @@ static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_in
     FINESSE_CHECK_ORIGINAL_OP(req, flush);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->flush(req, nodeid, fi);
+    finesse_original_ops->flush(req, nodeid, fi);
 }
 
 static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forget_data *forgets)
@@ -260,7 +261,7 @@ static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forge
     FINESSE_CHECK_ORIGINAL_OP(req, forget_multi);
 
     finesse_set_provider(req, 0);
-    return finesse_original_ops->forget_multi(req, count, forgets);
+    finesse_original_ops->forget_multi(req, count, forgets);
 }
 
 static struct fuse_lowlevel_ops finesse_ops = {

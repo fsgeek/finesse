@@ -18,7 +18,10 @@
 #include "fuse_lowlevel.h"
 #include "fuse_opt.h"
 #include "fuse_misc.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include "fuse_kernel.h"
+#pragma GCC diagnostic pop
 
 #include <stdio.h>
 #include <string.h>
@@ -93,9 +96,12 @@ struct node_table {
 	size_t split;
 };
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #define container_of(ptr, type, member) ({                              \
 			const typeof( ((type *)0)->member ) *__mptr = (ptr); \
 			(type *)( (char *)__mptr - offsetof(type,member) );})
+#pragma GCC diagnostic pop
 
 #define list_entry(ptr, type, member)           \
 	container_of(ptr, type, member)
@@ -4429,7 +4435,10 @@ int fuse_clean_cache(struct fuse *f)
 		double age;
 
 		next = curr->next;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 		lnode = list_entry(curr, struct node_lru, lru);
+#pragma GCC diagnostic pop
 		node = &lnode->node;
 
 		age = diff_timespec(&now, &lnode->forget_time);

@@ -278,7 +278,7 @@ typedef struct {
     union {
         struct {
             uuid_t  Parent;
-            char Name[0];
+            char Name[1];
         } Lookup;
 
         struct {
@@ -290,7 +290,7 @@ typedef struct {
             uuid_t ParentInode;
             uuid_t Inode;
             int Flags;
-            char Name[0];
+            char Name[1];
         } Stat;
 
         struct {
@@ -303,7 +303,7 @@ typedef struct {
                 uuid_t Inode;
                 struct {
                     uuid_t Parent;
-                    char Name[0];
+                    char Name[1];
                 } Path;
             } Options;
         } GetAttr;
@@ -322,29 +322,29 @@ typedef struct {
             uuid_t Parent;
             mode_t Mode;
             dev_t  Dev;
-            char Name[0];
+            char Name[1];
         } Mknod;
 
         struct {
             uuid_t Parent;
             mode_t mode;
-            char Name[0];
+            char Name[1];
         } Mkdir;
 
         struct {
             uuid_t Parent;
-            char Name[0];
+            char Name[1];
         } Unlink;
 
         struct {
             uuid_t Parent;
-            char Name[0];
+            char Name[1];
         } Rmdir;
 
         struct {
             uuid_t Symlink;
             // Pair of null terminated strings
-            char LinkAndName[0];
+            char LinkAndName[1];
         } Symlink;
 
         struct {
@@ -352,13 +352,13 @@ typedef struct {
             uuid_t NewParent;
             unsigned int flags;
             // Pair of null terminated strings
-            char OldAndNewName[0];
+            char OldAndNewName[1];
         } Rename;
 
         struct {
             uuid_t Inode;
             uuid_t NewParent;
-            char NewName[0];
+            char NewName[1];
         } Link;
 
         struct {
@@ -383,7 +383,7 @@ typedef struct {
             uuid_t   Inode;
             uint16_t Size;
             off_t    Offset;
-            char Buffer[0];
+            char Buffer[1];
         } SmallWrite;
 
         struct {
@@ -432,7 +432,7 @@ typedef struct {
             } StatFsType;
             union {
                 uuid_t Inode;
-                char Name[0];
+                char Name[1];
             } Options;
         } Statfs;
 
@@ -441,7 +441,7 @@ typedef struct {
             uint16_t Size;
             int      Flags;
             // two null-terminated strings
-            char NameAndValue[0];
+            char NameAndValue[1];
         } Setxattr;
 
         struct {
@@ -457,19 +457,19 @@ typedef struct {
 
         struct {
             uuid_t Inode;
-            char Name[0];
+            char Name[1];
         } Removexattr;
 
         struct {
             uuid_t ParentInode;
-            char Name[0];
+            char Name[1];
             int Mask;
         } Access;
 
         struct {
             uuid_t Parent;
             struct stat Attr;
-            char Name[0];
+            char Name[1];
         } Create;
 
         struct {
@@ -493,7 +493,7 @@ typedef struct {
             unsigned Flags;
             uint16_t InputSize;
             uint16_t  OutputSize;
-            char     InputBuffer[0];
+            char     InputBuffer[1];
         } SmallIoctl;
 
         struct {
@@ -589,7 +589,7 @@ typedef struct {
         } Attr;
 
         struct {
-            char Link[0];
+            char Link[1];
         } ReadLink;
 
         struct {
@@ -602,7 +602,7 @@ typedef struct {
 
         struct {
             uint16_t Size;
-            char Buffer[0];
+            char Buffer[1];
         } SmallBuffer;
 
         struct {
@@ -618,7 +618,7 @@ typedef struct {
 
         struct {
             uint16_t Size;
-            char Data[0];
+            char Data[1];
         } Xattr;
 
         struct flock Flock;
@@ -626,7 +626,7 @@ typedef struct {
         struct {
             int Result;
             uint16_t Size;
-            char Buffer[0];
+            char Buffer[1];
         } Ioctl;
 
         struct {
@@ -651,7 +651,7 @@ typedef struct {
     union {
         struct {
             uuid_t  Parent; // if NULL , Name is absolute
-            char    Name[0];
+            char    Name[1];
         } Map;
 
         struct {
@@ -673,17 +673,17 @@ typedef struct {
                 struct {
                     uuid_t Parent1;
                     uuid_t Parent2;
-                    char Paths[0]; // two null-terminated paths.
+                    char Paths[1]; // two null-terminated paths.
                 } Relative;
                 struct {
-                    char Paths[0]; // two null-terminated paths.
+                    char Paths[1]; // two null-terminated paths.
                 } Absolute;
             } LinkData;
         } MakeLink;
 
         struct {
             uuid_t Parent;
-            char   Name[0];
+            char   Name[1];
         } Dirmap;
     } Parameters;
 } finesse_native_request;
@@ -695,7 +695,7 @@ typedef struct {
             uuid_t   MapId; // for tracking this specific mapping
             size_t   Length; // Length of the data
             uint8_t  Inline; // boolean if the data is returned rather than a name
-            char     Data[0]; // either inline data or the shared memory name
+            char     Data[1]; // either inline data or the shared memory name
         } DirMap;
 
         struct {

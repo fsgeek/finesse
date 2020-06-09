@@ -161,7 +161,7 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
 
     fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) type %d (%s)\n", 
-        __PRETTY_FUNCTION__, fmsg, fmsg->Message.Fuse.Request.Type,
+        __func__, fmsg, fmsg->Message.Fuse.Request.Type,
         finesse_request_type_to_string(fmsg->Message.Fuse.Request.Type));
 
     FinesseCountFuseRequest(fmsg->Message.Fuse.Request.Type);
@@ -221,7 +221,7 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         case FINESSE_FUSE_REQ_COPY_FILE_RANGE:
         case FINESSE_FUSE_REQ_LSEEK:
         default:
-            fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) returning ENOTSUP\n", __PRETTY_FUNCTION__, fmsg);
+            fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) returning ENOTSUP\n", __func__, fmsg);
             fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
             fmsg->Result = ENOTSUP;
             FinesseSendResponse(fsh, Client, Message);

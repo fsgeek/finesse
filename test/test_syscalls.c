@@ -20,6 +20,8 @@
 # define ALLPERMS (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)/* 07777 */
 #endif
 
+#pragma GCC diagnostic ignored "-Wvariadic-macros"
+#pragma GCC diagnostic push
 
 static char testfile[1024];
 static char testfile2[1024];
@@ -91,7 +93,16 @@ static void __start_test(const char *fmt, ...)
 	sprintf(testname + n, "]");
 }
 
-#define start_test(msg, args...) { \
+#define start_test(msg) { \
+	if ((select_test && testnum != select_test) || \
+	    (testnum == skip_test)) { \
+		testnum++; \
+		return 0; \
+	} \
+	__start_test(msg);		\
+}
+
+#define start_test_args(msg, args...) { \
 	if ((select_test && testnum != select_test) || \
 	    (testnum == skip_test)) { \
 		testnum++; \
@@ -100,8 +111,9 @@ static void __start_test(const char *fmt, ...)
 	__start_test(msg, ##args);		\
 }
 
-#define PERROR(msg) test_perror(__FUNCTION__, msg)
-#define ERROR(msg, args...) test_error(__FUNCTION__, msg, ##args)
+#define PERROR(msg) test_perror(__func__, msg)
+#define ERROR(msg) test_error(__func__, msg)
+#define ERROR_ARGS(msg, args...) test_error(__func__, msg, ##args)
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -114,7 +126,7 @@ static int check_size(const char *path, int len)
 		return -1;
 	}
 	if (stbuf.st_size != len) {
-		ERROR("length %u instead of %u", (int) stbuf.st_size,
+		ERROR_ARGS("length %u instead of %u", (int) stbuf.st_size,
 		      (int) len);
 		return -1;
 	}
@@ -130,7 +142,7 @@ static int fcheck_size(int fd, int len)
 		return -1;
 	}
 	if (stbuf.st_size != len) {
-		ERROR("length %u instead of %u", (int) stbuf.st_size,
+		ERROR_ARGS("length %u instead of %u", (int) stbuf.st_size,
 		      (int) len);
 		return -1;
 	}
@@ -146,7 +158,7 @@ static int check_type(const char *path, mode_t type)
 		return -1;
 	}
 	if ((stbuf.st_mode & S_IFMT) != type) {
-		ERROR("type 0%o instead of 0%o", stbuf.st_mode & S_IFMT, type);
+		ERROR_ARGS("type 0%o instead of 0%o", stbuf.st_mode & S_IFMT, type);
 		return -1;
 	}
 	return 0;
@@ -161,7 +173,7 @@ static int fcheck_type(int fd, mode_t type)
 		return -1;
 	}
 	if ((stbuf.st_mode & S_IFMT) != type) {
-		ERROR("type 0%o instead of 0%o", stbuf.st_mode & S_IFMT, type);
+		ERROR_ARGS("type 0%o instead of 0%o", stbuf.st_mode & S_IFMT, type);
 		return -1;
 	}
 	return 0;
@@ -176,7 +188,7 @@ static int check_mode(const char *path, mode_t mode)
 		return -1;
 	}
 	if ((stbuf.st_mode & ALLPERMS) != mode) {
-		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
+		ERROR_ARGS("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
 		      mode);
 		return -1;
 	}
@@ -192,7 +204,7 @@ static int fcheck_mode(int fd, mode_t mode)
 		return -1;
 	}
 	if ((stbuf.st_mode & ALLPERMS) != mode) {
-		ERROR("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
+		ERROR_ARGS("mode 0%o instead of 0%o", stbuf.st_mode & ALLPERMS,
 		      mode);
 		return -1;
 	}
@@ -209,11 +221,11 @@ static int check_times(const char *path, time_t atime, time_t mtime)
 		return -1;
 	}
 	if (stbuf.st_atime != atime) {
-		ERROR("atime %li instead of %li", stbuf.st_atime, atime);
+		ERROR_ARGS("atime %li instead of %li", stbuf.st_atime, atime);
 		err--;
 	}
 	if (stbuf.st_mtime != mtime) {
-		ERROR("mtime %li instead of %li", stbuf.st_mtime, mtime);
+		ERROR_ARGS("mtime %li instead of %li", stbuf.st_mtime, mtime);
 		err--;
 	}
 	if (err)
@@ -233,11 +245,11 @@ static int fcheck_times(int fd, time_t atime, time_t mtime)
 		return -1;
 	}
 	if (stbuf.st_atime != atime) {
-		ERROR("atime %li instead of %li", stbuf.st_atime, atime);
+		ERROR_ARGS("atime %li instead of %li", stbuf.st_atime, atime);
 		err--;
 	}
 	if (stbuf.st_mtime != mtime) {
-		ERROR("mtime %li instead of %li", stbuf.st_mtime, mtime);
+		ERROR_ARGS("mtime %li instead of %li", stbuf.st_mtime, mtime);
 		err--;
 	}
 	if (err)
@@ -256,7 +268,7 @@ static int check_nlink(const char *path, nlink_t nlink)
 		return -1;
 	}
 	if (stbuf.st_nlink != nlink) {
-		ERROR("nlink %li instead of %li", (long) stbuf.st_nlink,
+		ERROR_ARGS("nlink %li instead of %li", (long) stbuf.st_nlink,
 		      (long) nlink);
 		return -1;
 	}
@@ -272,7 +284,7 @@ static int fcheck_nlink(int fd, nlink_t nlink)
 		return -1;
 	}
 	if (stbuf.st_nlink != nlink) {
-		ERROR("nlink %li instead of %li", (long) stbuf.st_nlink,
+		ERROR_ARGS("nlink %li instead of %li", (long) stbuf.st_nlink,
 		      (long) nlink);
 		return -1;
 	}
@@ -288,7 +300,7 @@ static int check_nonexist(const char *path)
 		return -1;
 	}
 	if (errno != ENOENT) {
-		ERROR("file should not exist: %s", strerror(errno));
+		ERROR_ARGS("file should not exist: %s", strerror(errno));
 		return -1;
 	}
 	return 0;
@@ -327,7 +339,7 @@ static int check_data(const char *path, const char *data, int offset,
 			return -1;
 		}
 		if (res != rdlen) {
-			ERROR("short read: %u instead of %u", res, rdlen);
+			ERROR_ARGS("short read: %u instead of %u", res, rdlen);
 			close(fd);
 			return -1;
 		}
@@ -363,7 +375,7 @@ static int fcheck_data(int fd, const char *data, int offset,
 			return -1;
 		}
 		if (res != rdlen) {
-			ERROR("short read: %u instead of %u", res, rdlen);
+			ERROR_ARGS("short read: %u instead of %u", res, rdlen);
 			return -1;
 		}
 		if (check_buffer(buf, data, rdlen) != 0) {
@@ -415,7 +427,7 @@ static int check_dir_contents(const char *path, const char **contents)
 			assert(i < MAX_ENTRIES);
 			if (strcmp(cont[i], de->d_name) == 0) {
 				if (found[i]) {
-					ERROR("duplicate entry <%s>",
+					ERROR_ARGS("duplicate entry <%s>",
 					      de->d_name);
 					err--;
 				} else
@@ -424,13 +436,13 @@ static int check_dir_contents(const char *path, const char **contents)
 			}
 		}
 		if (!cont[i]) {
-			ERROR("unexpected entry <%s>", de->d_name);
+			ERROR_ARGS("unexpected entry <%s>", de->d_name);
 			err --;
 		}
 	}
 	for (i = 0; cont[i] != NULL; i++) {
 		if (!found[i]) {
-			ERROR("missing entry <%s>", cont[i]);
+			ERROR_ARGS("missing entry <%s>", cont[i]);
 			err--;
 		}
 	}
@@ -464,7 +476,7 @@ static int create_file(const char *path, const char *data, int len)
 			return -1;
 		}
 		if (res != len) {
-			ERROR("write is short: %u instead of %u", res, len);
+			ERROR_ARGS("write is short: %u instead of %u", res, len);
 			close(fd);
 			return -1;
 		}
@@ -559,7 +571,7 @@ static int test_truncate(int len)
 	int datalen = testdatalen;
 	int res;
 
-	start_test("truncate(%u)", (int) len);
+	start_test_args("truncate(%u)", (int) len);
 	res = create_file(testfile, data, datalen);
 	if (res == -1)
 		return -1;
@@ -608,7 +620,7 @@ static int test_ftruncate(int len, int mode)
 	int res;
 	int fd;
 
-	start_test("ftruncate(%u) mode: 0%03o", len, mode);
+	start_test_args("ftruncate(%u) mode: 0%03o", len, mode);
 	res = create_file(testfile, data, datalen);
 	if (res == -1)
 		return -1;
@@ -750,7 +762,7 @@ static int test_copy_file_range(void)
 		return -1;
 	}
 	if (res != datalen) {
-		ERROR("write is short: %u instead of %u", res, datalen);
+		ERROR_ARGS("write is short: %u instead of %u", res, datalen);
 		close(fd_in);
 		return -1;
 	}
@@ -770,7 +782,7 @@ static int test_copy_file_range(void)
 		return -1;
 	}
 	if (res != datalen) {
-		ERROR("copy is short: %u instead of %u", res, datalen);
+		ERROR_ARGS("copy is short: %u instead of %u", res, datalen);
 		close(fd_in);
 		close(fd_out);
 		return -1;
@@ -879,7 +891,7 @@ static int test_create(void)
 		return -1;
 	}
 	if (res != datalen) {
-		ERROR("write is short: %u instead of %u", res, datalen);
+		ERROR_ARGS("write is short: %u instead of %u", res, datalen);
 		close(fd);
 		return -1;
 	}
@@ -941,7 +953,7 @@ static int test_create_unlink(void)
 		return -1;
 	}
 	if (res != datalen) {
-		ERROR("write is short: %u instead of %u", res, datalen);
+		ERROR_ARGS("write is short: %u instead of %u", res, datalen);
 		close(fd);
 		return -1;
 	}
@@ -1010,7 +1022,7 @@ static int do_test_open(int exist, int flags, const char *flags_str, int mode)
 	int fd;
 	off_t off;
 
-	start_test("open(%s, %s, 0%03o)", exist ? "+" : "-", flags_str, mode);
+	start_test_args("open(%s, %s, 0%03o)", exist ? "+" : "-", flags_str, mode);
 	unlink(testfile);
 	if (exist) {
 		res = create_file(testfile_r, testdata2, testdata2len);
@@ -1061,7 +1073,7 @@ static int do_test_open(int exist, int flags, const char *flags_str, int mode)
 			PERROR("write");
 			err --;
 		} else if (res != datalen) {
-			ERROR("write is short: %u instead of %u", res, datalen);
+			ERROR_ARGS("write is short: %u instead of %u", res, datalen);
 			err --;
 		} else {
 			if (datalen > (int) currlen)
@@ -1105,7 +1117,7 @@ static int do_test_open(int exist, int flags, const char *flags_str, int mode)
 			int readsize =
 				currlen < sizeof(buf) ? currlen : sizeof(buf);
 			if (res != readsize) {
-				ERROR("read is short: %i instead of %u",
+				ERROR_ARGS("read is short: %i instead of %u",
 				      res, readsize);
 				err--;
 			} else {
@@ -1165,7 +1177,7 @@ static int do_test_open_acc(int flags, const char *flags_str, int mode, int err)
 	int res;
 	int fd;
 
-	start_test("open_acc(%s) mode: 0%03o message: '%s'", flags_str, mode,
+	start_test_args("open_acc(%s) mode: 0%03o message: '%s'", flags_str, mode,
 		   strerror(err));
 	unlink(testfile);
 	res = create_file(testfile, data, datalen);
@@ -1231,7 +1243,7 @@ static int test_symlink(void)
 		err--;
 	}
 	if (res != linklen) {
-		ERROR("short readlink: %u instead of %u", res, linklen);
+		ERROR_ARGS("short readlink: %u instead of %u", res, linklen);
 		err--;
 	}
 	if (memcmp(buf, testfile, linklen) != 0) {
@@ -1794,7 +1806,7 @@ static int do_test_create_ro_dir(int flags, const char *flags_str)
 	int err = 0;
 	int fd;
 
-	start_test("open(%s) in read-only directory", flags_str);
+	start_test_args("open(%s) in read-only directory", flags_str);
 	rmdir(testdir);
 	res = mkdir(testdir, 0555);
 	if (res == -1) {

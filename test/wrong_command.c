@@ -7,10 +7,10 @@ int main(void) {
 			"'cd <srcdir>/subprojects/libfuse && meson . build && cd build && python3 -m pytest test/' instead");
 	return 77; /* report as a skipped test */
 #else
-	fprintf(stderr, "\x1B[31m\e[1m"
+	fprintf(stderr, "\x1B[31m\x1b[1m"
 		"This is not the command you are looking for.\n"
 		"You probably want to run 'python3 -m pytest test/' instead"
-		"\e[0m\n");
+		"\x1b[0m\n"); // "\e" is non-standard
 	return 1;
 #endif
 }

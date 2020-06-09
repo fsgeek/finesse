@@ -57,7 +57,7 @@ static int fioc_resize(size_t new_size)
 		return -ENOMEM;
 
 	if (new_size > fioc_size)
-		memset(new_buf + fioc_size, 0, new_size - fioc_size);
+		memset((uint_least8_t *)new_buf + fioc_size, 0, new_size - fioc_size);
 
 	fioc_buf = new_buf;
 	fioc_size = new_size;
@@ -123,7 +123,7 @@ static int fioc_do_read(char *buf, size_t size, off_t offset)
 	if (size > fioc_size - offset)
 		size = fioc_size - offset;
 
-	memcpy(buf, fioc_buf + offset, size);
+	memcpy(buf, (uint_least8_t *)fioc_buf + offset, size);
 
 	return size;
 }
@@ -144,7 +144,7 @@ static int fioc_do_write(const char *buf, size_t size, off_t offset)
 	if (fioc_expand(offset + size))
 		return -ENOMEM;
 
-	memcpy(fioc_buf + offset, buf, size);
+	memcpy((uint_least8_t *)fioc_buf + offset, buf, size);
 
 	return size;
 }

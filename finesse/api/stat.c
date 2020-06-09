@@ -14,7 +14,10 @@ static int fin_stat(const char *file_name, struct stat *buf)
     static orig_stat_t orig_stat = NULL;
 
     if (NULL == orig_stat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_stat = (orig_stat_t)dlsym(RTLD_NEXT, "stat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_stat);
         if (NULL == orig_stat) {
@@ -55,7 +58,10 @@ static int fin_fstat(int filedes, struct stat *buf)
     static orig_fstat_t orig_fstat = NULL;
 
     if (NULL == orig_fstat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fstat = (orig_fstat_t)dlsym(RTLD_NEXT, "fstat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fstat);
         if (NULL == orig_fstat) {
@@ -100,7 +106,10 @@ static int fin_lstat(const char *file_name, struct stat *buf)
     static orig_lstat_t orig_lstat = NULL;
 
     if (NULL == orig_lstat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_lstat = (orig_lstat_t)dlsym(RTLD_NEXT, "lstat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_lstat);
         if (NULL == orig_lstat) {
@@ -142,7 +151,10 @@ static int fin_fstatat(int dirfd, const char *pathname, struct stat *statbuf, in
     static orig_fstatat_t orig_fstatat = NULL;
 
     if (NULL == orig_fstatat) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         orig_fstatat = (orig_fstatat_t)dlsym(RTLD_NEXT, "fstatat");
+#pragma GCC diagnostic pop
 
         assert(NULL != orig_fstatat);
         if (NULL == orig_fstatat) {

@@ -11,7 +11,10 @@
 #include "config.h"
 #include "fuse_lowlevel.h"
 #include "fuse_misc.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include "fuse_kernel.h"
+#pragma GCC diagnostic pop
 #include "fuse_i.h"
 
 #include <stdio.h>

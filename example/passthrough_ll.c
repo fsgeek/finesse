@@ -183,8 +183,10 @@ static void lo_getattr(fuse_req_t req, fuse_ino_t ino,
 	(void) fi;
 
 	res = fstatat(lo_fd(req, ino), "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
-	if (res == -1)
-		return (void) fuse_reply_err(req, errno);
+	if (res == -1) {
+		fuse_reply_err(req, errno);
+		return;
+	}
 
 	fuse_reply_attr(req, &buf, lo->timeout);
 }
@@ -257,7 +259,8 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
 			goto out_err;
 	}
 
-	return lo_getattr(req, ino, fi);
+	lo_getattr(req, ino, fi);
+	return;
 
 out_err:
 	saverr = errno;
@@ -547,11 +550,15 @@ static void lo_readlink(fuse_req_t req, fuse_ino_t ino)
 	int res;
 
 	res = readlinkat(lo_fd(req, ino), "", buf, sizeof(buf));
-	if (res == -1)
-		return (void) fuse_reply_err(req, errno);
+	if (res == -1){
+		(void) fuse_reply_err(req, errno);
+		return;
+	}
 
-	if (res == sizeof(buf))
-		return (void) fuse_reply_err(req, ENAMETOOLONG);
+	if (res == sizeof(buf)){
+		(void) fuse_reply_err(req, ENAMETOOLONG);
+		return;
+	}
 
 	buf[res] = '\0';
 
@@ -742,9 +749,10 @@ static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
 
 	fd = openat(lo_fd(req, parent), name,
 		    (fi->flags | O_CREAT) & ~O_NOFOLLOW, mode);
-	if (fd == -1)
-		return (void) fuse_reply_err(req, errno);
-
+	if (fd == -1) {
+		(void) fuse_reply_err(req, errno);
+		return;
+	}
 	fi->fh = fd;
 	if (lo->cache == CACHE_NEVER)
 		fi->direct_io = 1;
@@ -799,8 +807,10 @@ static void lo_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 
 	sprintf(buf, "/proc/self/fd/%i", lo_fd(req, ino));
 	fd = open(buf, fi->flags & ~O_NOFOLLOW);
-	if (fd == -1)
-		return (void) fuse_reply_err(req, errno);
+	if (fd == -1){
+		(void) fuse_reply_err(req, errno);
+		return;
+	}
 
 	fi->fh = fd;
 	if (lo->cache == CACHE_NEVER)

@@ -17,12 +17,8 @@
  *
  * We do this via a table (of course!)
  */
-
 #if !defined(container_of)
-#define container_of(ptr, type, member) ({ \
-    typeof( ((type *)0)->member ) \
-    *__mptr = (ptr); \
-    (type *)( (char *)__mptr - offsetof(type,member) );})
+#define container_of(ptr, type, member) (type *)((char *)(ptr) - offsetof(type, member))
 #endif // container_of
 
 typedef uint32_t (*lookup_table_hash_t)(void *key, size_t length);

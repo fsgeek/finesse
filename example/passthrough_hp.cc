@@ -58,7 +58,10 @@
 #include <err.h>
 #include <errno.h>
 #include <ftw.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <fuse_lowlevel.h>
+#pragma GCC diagnostic pop
 #include <inttypes.h>
 #include <string.h>
 #include <sys/file.h>
@@ -847,12 +850,19 @@ static void sfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
 
 
 static void do_read(fuse_req_t req, size_t size, off_t off, fuse_file_info *fi) {
-
-    fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
+    // This is not ISO C++:
+    // fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
+    fuse_bufvec buf;
+    buf.count = 1;
+    buf.idx = 0;
+    buf.off = 0;
+    buf.buf[0].size = size;
     buf.buf[0].flags = static_cast<fuse_buf_flags>(
         FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK);
+    buf.buf[0].mem = 0;
     buf.buf[0].fd = fi->fh;
     buf.buf[0].pos = off;
+
 
     fuse_reply_data(req, &buf, FUSE_BUF_COPY_FLAGS);
 }
@@ -866,9 +876,16 @@ static void sfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
 static void do_write_buf(fuse_req_t req, size_t size, off_t off,
                          fuse_bufvec *in_buf, fuse_file_info *fi) {
-    fuse_bufvec out_buf = FUSE_BUFVEC_INIT(size);
+    // This is not ISO C++:
+    // fuse_bufvec out_buf = FUSE_BUFVEC_INIT(size);
+    fuse_bufvec out_buf;
+    out_buf.count = 1;
+    out_buf.idx = 0;
+    out_buf.off = 0;
+    out_buf.buf[0].size = size;
     out_buf.buf[0].flags = static_cast<fuse_buf_flags>(
         FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK);
+    out_buf.buf[0].mem = 0;
     out_buf.buf[0].fd = fi->fh;
     out_buf.buf[0].pos = off;
 

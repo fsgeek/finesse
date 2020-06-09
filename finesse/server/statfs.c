@@ -37,7 +37,7 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
     fuse_request = FinesseAllocFuseRequest(se);
 
     if (NULL == fuse_request) {
-        fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __FUNCTION__);
+        fprintf(stderr, "%s @ %d (%s): alloc failure\n", __FILE__, __LINE__, __func__);
         // TODO: fix this function's prototype
 
         status = FinesseSendFstatfsResponse(fsh, Client, Message,NULL, ENOMEM);
