@@ -20,7 +20,7 @@ typedef struct _bitbucket_object_header {
     uint64_t                        Data[1];
 } bitbucket_object_header_t;
 
-// const char foo[(64 * 5) - offsetof(bitbucket_object_header_t, Data)];
+const char foo[(64 * 6) - offsetof(bitbucket_object_header_t, Data)];
 _Static_assert(0 == (offsetof(bitbucket_object_header_t, Data) % 64), "Bad alignment");
 
 #define BITBUCKET_OBJECT_HEADER_MAGIC (0xc24e22f696a3861d)

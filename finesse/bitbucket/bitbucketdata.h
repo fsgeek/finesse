@@ -161,6 +161,7 @@ typedef struct _bitbucket_inode {
 #define INODE_LOOKUP_REFERENCE   (1)
 #define INODE_PARENT_REFERENCE   (2)
 #define INODE_DIRENT_REFERENCE   (3)
+#define INODE_ENUM_REFERENCE     (4)
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
@@ -171,7 +172,7 @@ typedef struct _bitbucket_dir_entry {
 } bitbucket_dir_entry_t;
 
 #define BITBUCKET_DIR_ENTRY_MAGIC (0xdb88e347869a9599)
-#define CHECK_BITBUCKET_DIR_ENTRY_MAGIC(de) verify_magic("bitbucket_dir_entry_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_MAGIC, (de)->Magic)
+#define CHECK_BITBUCKET_DIR_ENTRY_MAGIC(de) verify_magic("bitbucket_dir_entry_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_ENTRY_MAGIC, (de)->Magic)
 
 
 typedef struct _bitbucket_dir_enum_context {
@@ -187,6 +188,7 @@ typedef struct _bitbucket_dir_enum_context {
 #define CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(dec) verify_magic("bitbucket_dir_enum_context_t", __FILE__, __func__, __LINE__, BITBUCKET_DIR_ENUM_CONTEXT_MAGIC, (dec)->Magic)
 
 void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t *EnumerationContext, bitbucket_inode_t *Directory);
+void BitbucketCleanupDirectoryEnumerationContext(bitbucket_dir_enum_context_t *EnumerationContext);
 const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_context_t *EnumerationContext);
 int BitbucketSeekDirectory(bitbucket_dir_enum_context_t *EnumerationContext, uint64_t Offset);
 void BitbucketLockDirectory(bitbucket_inode_t *Directory, int Exclusive);

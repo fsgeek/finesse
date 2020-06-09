@@ -414,11 +414,11 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
     .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
     .ReasonCount = BITBUCKET_MAX_REFERENCE_REASONS,
     .ReferenceReasonsNames = {
-        "Creation",
         "InodeTable",
+        "Lookup",
         "Dir:Parent",
         "Dir:Entry",
-        "Lookup",
+        "Enumeration",
         "Reason5",
         "Reason6",
         "Reason7",

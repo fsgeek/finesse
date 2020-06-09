@@ -117,6 +117,10 @@ test_create_subdir(
     
     BitbucketDestroyInodeTable(Table);
 
+    if (NULL != subdir_data) {
+        free(subdir_data);
+    }
+
     return MUNIT_OK;
 }
 
@@ -128,6 +132,17 @@ test_enumerate_dir(
     bitbucket_inode_t *rootdir = NULL;
     uint64_t refcount;
     bitbucket_inode_table_t *Table = NULL;
+    const char *names[] = {
+        "dog",
+        "cat",
+        "llama",
+        "sheep",
+        "pig",
+        NULL,
+    };
+    bitbucket_dir_enum_context_t enumerationContext;
+    const bitbucket_dir_entry_t *dirEntry;
+    int status;
 
     Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
     munit_assert(NULL != Table);
@@ -137,9 +152,87 @@ test_enumerate_dir(
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
 
+    // Now let's create some contents (could be files, but files aren't working yet)
+    //
+    for(unsigned index = 0; NULL != names[index]; index++) {
+        bitbucket_inode_t *child = NULL;
+
+        child = BitbucketCreateDirectory(rootdir, names[index]);
+        munit_assert(NULL != child);
+        refcount = BitbucketGetInodeReferenceCount(child);
+        munit_assert(4 == refcount); // table + lookup + 2 dir
+
+        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
+        refcount = BitbucketGetInodeReferenceCount(child);
+        munit_assert(3 == refcount); // table + 2 dir
+        child = NULL;
+    }
+
+    // First, let's see if an initialize/cleanup pair works properly
+    BitbucketLockDirectory(rootdir, 0);
+    BitbucketInitalizeDirectoryEnumerationContext(&enumerationContext, rootdir);
+    BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
+    BitbucketUnlockDirectory(rootdir);
+
+    // Now let's initialize it again
+    BitbucketLockDirectory(rootdir, 0);
+    BitbucketInitalizeDirectoryEnumerationContext(&enumerationContext, rootdir);
+    while ((dirEntry = BitbucketEnumerateDirectory(&enumerationContext))) {
+        unsigned index;
+
+        CHECK_BITBUCKET_DIR_ENTRY_MAGIC(dirEntry);
+        
+        // TODO: maybe see if this is one of our files?
+        if (0 == strcmp(dirEntry->Name, ".")) {
+            continue;
+        }
+
+        if (0 == strcmp(dirEntry->Name, "..")) {
+            continue;
+        }
+
+        refcount = BitbucketGetInodeReferenceCount(dirEntry->Inode);
+        munit_assert(3 == refcount);
+
+        for (index = 0; NULL != names[index]; index++) {
+            if (0 == strcmp(dirEntry->Name, names[index])) {
+                break;
+            }
+        }
+
+        munit_assert(NULL != names[index]); // if it's null, we didn't find the entry
+    }
+    BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
+    BitbucketUnlockDirectory(rootdir);
+
+    // Now cleanup our entries
+    for (unsigned index = 0; names[index]; index++) {
+        bitbucket_inode_t *child = NULL;
+
+        BitbucketLookupObjectInDirectory(rootdir, names[index], &child);
+        munit_assert(NULL != child);
+        refcount = BitbucketGetInodeReferenceCount(child);
+        munit_assert(4 == refcount); // table + lookup + 2 dir entries
+        status = BitbucketDeleteDirectoryEntry(rootdir, names[index]);
+        munit_assert(0 == status);
+        refcount = BitbucketGetInodeReferenceCount(child);
+        munit_assert(3 == refcount); // lookup + dirent ('.') + table
+        status = BitbucketDeleteDirectory(child); // delete '.' and table entry
+        munit_assert(0 == status);
+        refcount = BitbucketGetInodeReferenceCount(child);
+        munit_assert(1 == refcount);
+        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE); // release lookup
+        child = NULL;
+    }
+
+    // We should be back to this state.
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+
+
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(1 == refcount);
+    munit_assert(1 == refcount); // just the lookup reference
     BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
     rootdir = NULL;
     
