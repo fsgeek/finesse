@@ -147,6 +147,9 @@ test_inode_table_usage(
     // Check and see if we managed to clean everything up properly
     munit_assert(0 == BitbucketObjectCount());
 
+    free(inodes);
+    inodes = NULL;
+
     return MUNIT_OK;
 }
 

@@ -82,7 +82,9 @@ test_insert(
     }
 
     munit_assert(NULL == trie); // should be all deleted at this point, since it has gone empty
-    // Question: is this a good thing?  It was a bit unexpected.
+
+    free(trie_objects);
+    trie_objects = NULL;
 
     return MUNIT_OK;
 }

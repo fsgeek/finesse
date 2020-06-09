@@ -62,10 +62,10 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 			break;
 		}
 
-		BitbucketInitalizeDirectoryEnumerationContext(&dirEnumContext);
+		BitbucketInitalizeDirectoryEnumerationContext(&dirEnumContext, inode);
 
 		if (0 != off) {
-			status = BitbucketSeekDirectory(inode, &dirEnumContext, off);
+			status = BitbucketSeekDirectory(&dirEnumContext, off);
 			if (0 != status) {
 				break;
 			}
@@ -79,7 +79,7 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 		//
 		while ((used + FUSE_NAME_OFFSET) < size) {
 
-			dirEntry = BitbucketEnumerateDirectory(inode, &dirEnumContext);
+			dirEntry = BitbucketEnumerateDirectory(&dirEnumContext);
 
 			if (NULL == dirEntry) {
 				// End of the enumeration

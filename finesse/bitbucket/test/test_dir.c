@@ -41,6 +41,8 @@ test_create_dir(
     // Thus, tearing down a root directory requires more work than tearing down a regular
     // directory, due to the self-referential nature of the root directory.
     BitbucketDeleteRootDirectory(rootdir);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE); // from the original creation
+
     rootdir = NULL;
 
     BitbucketDestroyInodeTable(Table);
@@ -118,11 +120,39 @@ test_create_subdir(
     return MUNIT_OK;
 }
 
+static MunitResult
+test_enumerate_dir(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+    bitbucket_inode_t *rootdir = NULL;
+    uint64_t refcount;
+    bitbucket_inode_table_t *Table = NULL;
+
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    munit_assert(NULL != Table);
+
+    rootdir = BitbucketCreateRootDirectory(Table);
+    munit_assert(NULL != rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+
+    BitbucketDeleteRootDirectory(rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(1 == refcount);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    rootdir = NULL;
+    
+    BitbucketDestroyInodeTable(Table);
+
+    return MUNIT_OK;
+}
 
 static const MunitTest dir_tests[] = {
         TEST("/null", test_null, NULL),
         TEST("/create", test_create_dir, NULL),
         TEST("/subdir", test_create_subdir, NULL),
+        TEST("/enumerate", test_enumerate_dir, NULL),
     	TEST(NULL, NULL, NULL),
     };
 
