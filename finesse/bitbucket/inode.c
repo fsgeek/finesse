@@ -88,25 +88,31 @@ static uint16_t hash_inode(ino_t Inode)
 
 static void LockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId, int Change)
 {
+    int status = 0;
+
     assert(NULL != Table);
     CHECK_BITBUCKET_INODE_TABLE_MAGIC(Table);
     assert(BucketId < BITBUCKET_INODE_TABLE_BUCKETS);
 
     if (Change) {
-        pthread_rwlock_wrlock(&Table->Buckets[BucketId].Lock);
+        status = pthread_rwlock_wrlock(&Table->Buckets[BucketId].Lock);
+        assert(0 == status);
     }
     else {
         pthread_rwlock_rdlock(&Table->Buckets[BucketId].Lock);
+        assert(0 == status);
     }
 }
 
 static void UnlockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId)
 {
+    int status;
     assert(NULL != Table);
     CHECK_BITBUCKET_INODE_TABLE_MAGIC(Table);
     assert(BucketId < BITBUCKET_INODE_TABLE_BUCKETS);
 
-    pthread_rwlock_unlock(&Table->Buckets[BucketId].Lock);
+    status = pthread_rwlock_unlock(&Table->Buckets[BucketId].Lock);
+    assert(0 == status);
 }
 static void LockInodeForLookup(bitbucket_inode_table_t *Table, ino_t Inode)
 {
@@ -274,6 +280,7 @@ bitbucket_inode_t *BitbucketLookupInodeInTable(void *Table, ino_t Inode)
 
 void *BitbucketCreateInodeTable(uint16_t BucketCount)
 {
+    int status = 0;
     bitbucket_inode_table_t *inode_table = NULL;
 
     assert(BITBUCKET_INODE_TABLE_BUCKETS == BucketCount); // haven't coded for anything else at this point...
@@ -287,7 +294,8 @@ void *BitbucketCreateInodeTable(uint16_t BucketCount)
     inode_table->BucketCount = BucketCount;
     for (unsigned index = 0; index < BucketCount; index++) {
         inode_table->Buckets[index].Count = 0;
-        pthread_rwlock_init(&inode_table->Buckets[index].Lock, NULL); // default attributes (process private)
+        status = pthread_rwlock_init(&inode_table->Buckets[index].Lock, NULL); // default attributes (process private)
+        assert(0 == status);
         initialize_list_entry(&inode_table->Buckets[index].ListEntry); // TODO: make this a double linked list head
     }
 
@@ -342,7 +350,8 @@ static void InodeInitialize(void *Object, size_t Length)
     bbpi->PublicInode.Magic = BITBUCKET_INODE_MAGIC;
     bbpi->PublicInode.InodeType = BITBUCKET_UNKNOWN_TYPE;
     bbpi->PublicInode.InodeLength = Length - offsetof(bitbucket_private_inode_t, PublicInode);
-    pthread_rwlock_init(&bbpi->PublicInode.InodeLock, NULL);
+    status = pthread_rwlock_init(&bbpi->PublicInode.InodeLock, NULL);
+    assert(0 == status);
     uuid_generate(bbpi->PublicInode.Uuid);
     uuid_unparse(bbpi->PublicInode.Uuid, bbpi->PublicInode.UuidString);
     bbpi->PublicInode.Epoch = rand(); // detect changes
@@ -367,6 +376,7 @@ static void InodeInitialize(void *Object, size_t Length)
 
 static void InodeDeallocate(void *Object, size_t Length)
 {
+    int status = 0;
     bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
     assert(bbpi->Length == Length);
@@ -377,7 +387,8 @@ static void InodeDeallocate(void *Object, size_t Length)
         bbpi->RegisteredAttributes.Deallocate(&bbpi->PublicInode, bbpi->PublicInode.InodeLength);
     }
 
-    pthread_rwlock_destroy(&bbpi->PublicInode.InodeLock);
+    status = pthread_rwlock_destroy(&bbpi->PublicInode.InodeLock);
+    assert(0 == status);
 
     // Just wipe the entire region out
     memset(Object, 0, Length);
@@ -386,6 +397,7 @@ static void InodeDeallocate(void *Object, size_t Length)
 
 static void InodeLock(void *Object, int Exclusive)
 {
+    int status;
     bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
@@ -394,10 +406,12 @@ static void InodeLock(void *Object, int Exclusive)
     }
     else {
         if (Exclusive) {
-            pthread_rwlock_wrlock(&bbpi->PublicInode.InodeLock);
+            status = pthread_rwlock_wrlock(&bbpi->PublicInode.InodeLock);
+            assert(0 == status);
         }
         else {
-            pthread_rwlock_rdlock(&bbpi->PublicInode.InodeLock);
+            status = pthread_rwlock_rdlock(&bbpi->PublicInode.InodeLock);
+            assert(0 == status);
         }
     }
 
@@ -419,9 +433,11 @@ static int InodeTrylock(void *Object, int Exclusive)
     else {
         if (Exclusive) {
             status = pthread_rwlock_trywrlock(&bbpi->PublicInode.InodeLock);
+            assert(0 == status);
         }
         else {
             status = pthread_rwlock_tryrdlock(&bbpi->PublicInode.InodeLock);
+            assert(0 == status);
         }
     }
 
@@ -437,6 +453,7 @@ static void InodeUnlock(void *Object)
 {
     bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+    int status = 0;
 
     // For now, we don't have an private inode locking
 
@@ -445,7 +462,8 @@ static void InodeUnlock(void *Object)
         bbpi->RegisteredAttributes.Unlock(&bbpi->PublicInode);
     }
     else {
-        pthread_rwlock_unlock(&bbpi->PublicInode.InodeLock);
+        status = pthread_rwlock_unlock(&bbpi->PublicInode.InodeLock);
+        assert(0 == status);
     }
 
 }
@@ -570,35 +588,55 @@ int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
 
 void BitbucketLockInode(bitbucket_inode_t *Inode, int Exclusive)
 {
+    int status = 0;
+
     assert(NULL != Inode);
     CHECK_BITBUCKET_INODE_MAGIC(Inode);
 
     if (Exclusive) {
-        pthread_rwlock_wrlock(&Inode->InodeLock);
+        status = pthread_rwlock_wrlock(&Inode->InodeLock);
+        assert(0 == status);
         Inode->Epoch++;
     }
     else {
-        pthread_rwlock_rdlock(&Inode->InodeLock);
+        status = pthread_rwlock_rdlock(&Inode->InodeLock);
+        assert(0 == status);
     }
 }
 
 void BitbucketUnlockInode(bitbucket_inode_t *Inode)
 {
     int status;
-
+    int exclusive = 0;
     assert(NULL != Inode);
     CHECK_BITBUCKET_INODE_MAGIC(Inode);
 
-    if (pthread_rwlock_tryrdlock(&Inode->InodeLock)) {
+    status = pthread_rwlock_tryrdlock(&Inode->InodeLock);
+
+    switch(status) {
+        case 0:
+            // the lock was acquired so it must be shared
+            pthread_rwlock_unlock(&Inode->InodeLock); // this reverses our successful trylock
+            break;
+        case EDEADLK: // this thread owns the lock exclusive
+        case EBUSY: // SOME thread owns the lock exclusive (hopefully it's this thread!)
+            exclusive = 1;
+            break;
+        case EINVAL:
+            assert(0); // this lock isn't initialized
+            break;
+        case EAGAIN:
+            // the lock is acquired shared by someone (e.g., this thread)
+            break;
+    }
+
+    if (exclusive) {
         // We assume inode attributes changed.  Data changes
         // must be handled in paths where the data itself could change.
         status = gettimeofday(&Inode->ChangeTime, NULL);
         assert(0 == status);
     }
-    else {
-        // We were able to read lock it, so we need to release it
-        pthread_rwlock_unlock(&Inode->InodeLock);
-    }
+    // Now to accomplish the original goal!
     pthread_rwlock_unlock(&Inode->InodeLock);
 
 }

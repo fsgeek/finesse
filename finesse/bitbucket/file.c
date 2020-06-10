@@ -47,29 +47,34 @@ static void FileDeallocate(void *Inode, size_t Length)
 static void FileLock(void *Inode, int Exclusive)
 {
     bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
+    int status = 0;
 
     assert(NULL != bbi);
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_FILE_MAGIC(&bbi->Instance.File);
 
     if (Exclusive) {
-        pthread_rwlock_wrlock(&bbi->InodeLock);
+        status = pthread_rwlock_wrlock(&bbi->InodeLock);
+        assert(0 == status);
     }
     else {
         pthread_rwlock_rdlock(&bbi->InodeLock);
+        assert(0 == status);
     }
 
 }
 
 static void FileUnlock(void *Inode)
 {
+    int status;
     bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
 
     assert(NULL != bbi);
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_FILE_MAGIC(&bbi->Instance.File);
 
-    pthread_rwlock_unlock(&bbi->InodeLock);
+    status = pthread_rwlock_unlock(&bbi->InodeLock);
+    assert(0 == status);
 }
 
 
@@ -108,11 +113,9 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);
 
-    BitbucketLockInode(Parent, 1);
     newfile->Attributes.st_nlink = 1;
     status = BitbucketInsertDirectoryEntry(Parent, newfile, FileName);
     assert(0 == status);
-    BitbucketUnlockInode(Parent);
 
     return newfile;
 
@@ -140,10 +143,19 @@ int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *Fi
     return status;
 }
 
+//
+// Removes a file from the specified directory, using the specified name
+//
+// Note that if the link count of the file goes to zero, it will be removed from
+// the inode table at this point.
+//
+// Thus, there is no longer a table reference to this file (assuming it exists)
+//
 int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *FileName)
 {
     int status = ENOENT;
     bitbucket_inode_t *file = NULL;
+    nlink_t linkcount = 1;
 
     assert(NULL != Parent);
     CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
@@ -156,16 +168,20 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
             break;
         }
 
-        BitbucketLockInode(Parent, 1);
-        BitbucketLockInode(file, 1);
         status = BitbucketDeleteDirectoryEntry(Parent, FileName);
         if (0 != status) {
             break;
         }
         assert(file->Attributes.st_nlink > 0); // shouldn't go negative
+        BitbucketLockInode(file, 1);
         file->Attributes.st_nlink--;
+        linkcount = file->Attributes.st_nlink;
         BitbucketUnlockInode(file);
-        BitbucketUnlockInode(Parent);
+
+        if (0 == linkcount) {
+            BitbucketRemoveInodeFromTable(file);
+            // Note: our reference to the file is still valid
+        }
 
         break;
     }
@@ -179,3 +195,32 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
 
 }
+
+//
+// Invoke this when you want to initiate teardown of a file.
+// The link count must be zero (Attributes.st_nlink)
+// 
+// Note: the caller should own a reference when calling this function.  The caller should
+// release that reference after this call returns (which could trigger deletion).  It
+// should work without that reference, but the Inode pointer may become invalid.
+//
+int BitbucketDeleteFile(bitbucket_inode_t *Inode)
+{
+    int status = 0;
+    assert(NULL != Inode);
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+    assert(BITBUCKET_FILE_TYPE == Inode->InodeType);
+    CHECK_BITBUCKET_FILE_MAGIC(&Inode->Instance.File);
+
+    while (NULL != Inode) {
+
+        // Must be zero.  Otherwise there's still a dir reference
+        assert(0 == Inode->Attributes.st_nlink); 
+        BitbucketRemoveInodeFromTable(Inode);
+
+        break;
+    }
+    
+    return status;
+}
+

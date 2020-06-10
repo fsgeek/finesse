@@ -44,6 +44,7 @@ typedef struct _bitbucket_file {
 int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *FileName);
 int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *File, const char *FileName);
 bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName);
+int BitbucketDeleteFile(bitbucket_inode_t *Inode);
 
 
 typedef struct _bitbucket_dir {

@@ -8,6 +8,7 @@ munit = dependency('munit', fallback: ['munit', 'munit_dep'])
 test_bitbucket_sources = [
     'test_bitbucket.c',
     'test_dir.c',
+    'test_file.c',
     'test_inode.c',
     'test_object.c',
     'test_trie.c',
@@ -16,6 +17,7 @@ test_bitbucket_sources = [
 
 bitbucket_parent_sources = [
     '../dir.c',
+    '../file.c',
     '../inode.c',
     '../object.c',
     '../trie.c',

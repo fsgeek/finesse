@@ -59,15 +59,18 @@ static void default_deallocate(void *Object, size_t Length)
 
 static void default_lock(void *Object, int Exclusive)
 {
+    int status;
     bitbucket_object_header_t *obj = container_of(Object, bitbucket_object_header_t, Data);
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(obj);
 
     if (Exclusive) {
-        pthread_rwlock_wrlock(&DefaultObjectLock);
+        status = pthread_rwlock_wrlock(&DefaultObjectLock);
+        assert(0 == status);
     }
     else {
-        pthread_rwlock_rdlock(&DefaultObjectLock);
+        status = pthread_rwlock_rdlock(&DefaultObjectLock);
+        assert(0 == status);
     }
 }
 
@@ -93,10 +96,12 @@ static int default_trylock(void *Object, int Exclusive)
 static void default_unlock(void *Object)
 {
     bitbucket_object_header_t *obj = container_of(Object, bitbucket_object_header_t, Data);
+    int status;
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(obj);
 
-    pthread_rwlock_unlock(&DefaultObjectLock);
+    status = pthread_rwlock_unlock(&DefaultObjectLock);
+    assert(0 == status);
 }
 
 static void LockObject(bitbucket_object_header_t *Object, int Exclusive)
@@ -230,6 +235,7 @@ void BitbucketObjectDereference(void *Object, uint8_t Reason)
     uint64_t refcount;
     uint32_t reasonRefCount;
     int local_unlock = 0;
+    int status;
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
     assert(Reason < bbobj->ObjectAttributes.ReasonCount);
@@ -261,7 +267,8 @@ void BitbucketObjectDereference(void *Object, uint8_t Reason)
             }
             bbobj->ObjectAttributes.Deallocate(Object, bbobj->DataLength); // This should remove all external usage of this object
             if (local_unlock) {
-                pthread_rwlock_unlock(&DefaultObjectLock);
+                status = pthread_rwlock_unlock(&DefaultObjectLock);
+                assert(0 == status);
             }
             free(bbobj);
             bbobj = NULL;

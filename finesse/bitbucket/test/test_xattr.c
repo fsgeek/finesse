@@ -14,9 +14,23 @@
 #define __notused __attribute__((unused))
 #endif //
 
+static 
+MunitResult
+test_lookup(
+    const MunitParameter params[] __notused,
+    void *prv __notused)
+{
+
+
+
+    return MUNIT_OK;
+}
+
+
 
 static const MunitTest xattr_tests[] = {
         TEST("/null", test_null, NULL),
+        TEST("/lookup", test_lookup, NULL),
     	TEST(NULL, NULL, NULL),
     };
 

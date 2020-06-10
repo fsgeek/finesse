@@ -39,6 +39,7 @@ extern const MunitSuite trie_suite;
 extern const MunitSuite object_suite;
 extern const MunitSuite dir_suite;
 extern const MunitSuite xattr_suite;
+extern const MunitSuite file_suite;
 
 extern MunitResult test_null(const MunitParameter params[], void *prv);
 extern MunitSuite *SetupMunitSuites(void);
