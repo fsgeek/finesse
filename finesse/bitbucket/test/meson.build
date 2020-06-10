@@ -10,7 +10,7 @@ test_bitbucket_sources = [
     'test_dir.c',
     'test_inode.c',
     'test_object.c',
-    'test_trie.c'
+    'test_trie.c',
 ]
 
 bitbucket_parent_sources = [
@@ -18,6 +18,7 @@ bitbucket_parent_sources = [
     '../inode.c',
     '../object.c',
     '../trie.c',
+    '../xattr.c',
 ]
 
 executable('testbitbucket',

@@ -319,7 +319,7 @@ typedef struct _bitbucket_private_inode {
     size_t                          Length; // size of this object
     bitbucket_object_attributes_t   RegisteredAttributes; // not ours, the component creating this inode
     bitbucket_inode_table_t        *Table; // the table containing this inode
-    char                            Unused0[48]; // align next field to 64 bytes
+    char                            Unused0[40]; // align next field to 64 bytes
     bitbucket_inode_t               PublicInode; // this is what we return to the caller - must be last field
 } bitbucket_private_inode_t;
 
@@ -345,7 +345,7 @@ static void InodeInitialize(void *Object, size_t Length)
     pthread_rwlock_init(&bbpi->PublicInode.InodeLock, NULL);
     uuid_generate(bbpi->PublicInode.Uuid);
     uuid_unparse(bbpi->PublicInode.Uuid, bbpi->PublicInode.UuidString);
-
+    bbpi->PublicInode.Epoch = rand(); // detect changes
     status = gettimeofday(&bbpi->PublicInode.CreationTime, NULL);
     assert(0 == status);
 
@@ -361,6 +361,8 @@ static void InodeInitialize(void *Object, size_t Length)
     bbpi->PublicInode.Attributes.st_ino = get_new_inode_number();
     bbpi->PublicInode.Attributes.st_nlink = 0; // this should be bumped when this is added
 
+    // BitbucketInitializeExtendedAttributes
+    BitbucketInitializeExtendedAttributes(&bbpi->PublicInode);
 }
 
 static void InodeDeallocate(void *Object, size_t Length)
@@ -387,13 +389,49 @@ static void InodeLock(void *Object, int Exclusive)
     bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
-    // For now, we don't have any private inode locking
-
     if (NULL != bbpi->RegisteredAttributes.Lock) {
         bbpi->RegisteredAttributes.Lock(&bbpi->PublicInode, Exclusive);
     }
+    else {
+        if (Exclusive) {
+            pthread_rwlock_wrlock(&bbpi->PublicInode.InodeLock);
+        }
+        else {
+            pthread_rwlock_rdlock(&bbpi->PublicInode.InodeLock);
+        }
+    }
+
+    if (Exclusive) {
+        bbpi->PublicInode.Epoch++;
+    }
 
 }
+
+static int InodeTrylock(void *Object, int Exclusive)
+{
+    int status = 0;
+    bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+
+    if (NULL != bbpi->RegisteredAttributes.Trylock) {
+        status = bbpi->RegisteredAttributes.Trylock(&bbpi->PublicInode, Exclusive);
+    }
+    else {
+        if (Exclusive) {
+            status = pthread_rwlock_trywrlock(&bbpi->PublicInode.InodeLock);
+        }
+        else {
+            status = pthread_rwlock_tryrdlock(&bbpi->PublicInode.InodeLock);
+        }
+    }
+
+    if (Exclusive) {
+        bbpi->PublicInode.Epoch++;
+    }
+
+    return status;
+}
+
 
 static void InodeUnlock(void *Object)
 {
@@ -405,6 +443,9 @@ static void InodeUnlock(void *Object)
     if (NULL != bbpi->RegisteredAttributes.Unlock) {
         // call down the chain BEFORE our own unlock (?).
         bbpi->RegisteredAttributes.Unlock(&bbpi->PublicInode);
+    }
+    else {
+        pthread_rwlock_unlock(&bbpi->PublicInode.InodeLock);
     }
 
 }
@@ -426,6 +467,7 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
     .Initialize = InodeInitialize,
     .Deallocate = InodeDeallocate,
     .Lock = InodeLock,
+    .Trylock = InodeTrylock,
     .Unlock = InodeUnlock,
 };
 
@@ -458,6 +500,7 @@ bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucke
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (NULL != ObjectAttributes) {
+        CHECK_BITBUCKET_OBJECT_ATTRIBUTES_MAGIC(ObjectAttributes);
         bbpi->RegisteredAttributes = *ObjectAttributes;
 
         if (NULL != bbpi->RegisteredAttributes.Initialize) {
@@ -505,4 +548,57 @@ uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     return BitbucketGetObjectReferenceCount(bbpi);
+}
+
+int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
+{
+    int status = 0;
+    assert(NULL != Inode);
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+
+    if (Exclusive) {
+        status = pthread_rwlock_trywrlock(&Inode->InodeLock);
+        Inode->Epoch++;
+    }
+    else {
+        status = pthread_rwlock_tryrdlock(&Inode->InodeLock);
+    }
+
+    return status;
+}
+
+
+void BitbucketLockInode(bitbucket_inode_t *Inode, int Exclusive)
+{
+    assert(NULL != Inode);
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+
+    if (Exclusive) {
+        pthread_rwlock_wrlock(&Inode->InodeLock);
+        Inode->Epoch++;
+    }
+    else {
+        pthread_rwlock_rdlock(&Inode->InodeLock);
+    }
+}
+
+void BitbucketUnlockInode(bitbucket_inode_t *Inode)
+{
+    int status;
+
+    assert(NULL != Inode);
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+
+    if (pthread_rwlock_tryrdlock(&Inode->InodeLock)) {
+        // We assume inode attributes changed.  Data changes
+        // must be handled in paths where the data itself could change.
+        status = gettimeofday(&Inode->ChangeTime, NULL);
+        assert(0 == status);
+    }
+    else {
+        // We were able to read lock it, so we need to release it
+        pthread_rwlock_unlock(&Inode->InodeLock);
+    }
+    pthread_rwlock_unlock(&Inode->InodeLock);
+
 }

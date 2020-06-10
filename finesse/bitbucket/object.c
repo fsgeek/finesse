@@ -16,7 +16,7 @@ typedef struct _bitbucket_object_header {
     uint64_t                        ReferenceCount;
     uint32_t                        ReferenceReasons[BITBUCKET_MAX_REFERENCE_REASONS];
     size_t                          DataLength;
-    char                            Unused[16]; // used to pad so Data starts on a 64 byte boundary
+    char                            Unused[8]; // used to pad so Data starts on a 64 byte boundary
     uint64_t                        Data[1];
 } bitbucket_object_header_t;
 
@@ -71,6 +71,25 @@ static void default_lock(void *Object, int Exclusive)
     }
 }
 
+
+static int default_trylock(void *Object, int Exclusive)
+{
+    int status = 0;
+    bitbucket_object_header_t *obj = container_of(Object, bitbucket_object_header_t, Data);
+
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(obj);
+
+    if (Exclusive) {
+        status = pthread_rwlock_trywrlock(&DefaultObjectLock);
+    }
+    else {
+        status = pthread_rwlock_tryrdlock(&DefaultObjectLock);
+    }
+
+    return status;
+}
+
+
 static void default_unlock(void *Object)
 {
     bitbucket_object_header_t *obj = container_of(Object, bitbucket_object_header_t, Data);
@@ -93,12 +112,30 @@ static void LockObject(bitbucket_object_header_t *Object, int Exclusive)
     }
 }
 
+#if 0
+static int TrylockObject(bitbucket_object_header_t *Object, int Exclusive)
+{
+    int status = 0;
+
+    assert(NULL != Object);
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(Object);
+
+    if (NULL == Object->ObjectAttributes.Lock) {
+        status = default_trylock(Object, Exclusive);
+    }
+    else {
+        status = Object->ObjectAttributes.Trylock(Object->Data, Exclusive);
+    }
+    return status;
+}
+#endif // 0
+
 static void UnlockObject(bitbucket_object_header_t *Object)
 {
     assert(NULL != Object);
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(Object);
 
-    if ((NULL == Object) || (NULL == Object->ObjectAttributes.Lock)) {
+    if ((NULL == Object) || (NULL == Object->ObjectAttributes.Unlock)) {
         default_unlock(Object);
     }
     else {
@@ -123,6 +160,7 @@ static bitbucket_object_attributes_t default_object_attributes = {
     .Initialize = default_initialize,
     .Deallocate = default_deallocate,
     .Lock = default_lock,
+    .Trylock = default_trylock,
     .Unlock = default_unlock,
 };
 

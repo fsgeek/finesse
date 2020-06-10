@@ -36,15 +36,15 @@ typedef struct _bitbucket_inode bitbucket_inode_t;
 
 typedef struct _bitbucket_file {
     uint64_t            Magic; // magic number
-    pthread_rwlock_t    Lock;
-    uuid_t              FileId;
-    char                FileIdName[40];
-    struct stat         Attributes;
 } bitbucket_file_t;
 
 #define BITBUCKET_FILE_MAGIC (0x901bb9acacca7b19)
-
 #define CHECK_BITBUCKET_FILE_MAGIC(bbf) verify_magic("bitbucket_file_t", __FILE__, __func__, __LINE__, BITBUCKET_FILE_MAGIC, (bbf)->Magic)
+
+int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *FileName);
+int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *File, const char *FileName);
+bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName);
+
 
 typedef struct _bitbucket_dir {
     uint64_t              Magic; // magic number
@@ -53,9 +53,6 @@ typedef struct _bitbucket_dir {
     bitbucket_inode_t    *Parent;
     list_entry_t          Entries;
     struct Trie          *Children;
-    list_entry_t          EAs;
-    struct Trie          *ExtendedAttributes;
-    uint64_t              Epoch; // increment each time the directory changes shape (add/remove entries)
 } bitbucket_dir_t;
 
 #define BITBUCKET_DIR_MAGIC (0x895fe26d657f24bd)
@@ -109,6 +106,7 @@ typedef struct _bitbucket_object_attributes {
     void              (*Initialize)(void *Object, size_t Length); //
     void              (*Deallocate)(void *Object, size_t Length); // Call this when the reference count drops to zero
     void              (*Lock)(void *Object, int Exclusive);
+    int               (*Trylock)(void *Object, int Exclusive);
     void              (*Unlock)(void *Object);
 } bitbucket_object_attributes_t;
 
@@ -141,11 +139,14 @@ typedef struct _bitbucket_inode {
     bitbucket_inode_table_t         *Table; // if not null, inode is inserted in an inode table
     uuid_t                          Uuid;
     char                            UuidString[40];
+    uint64_t                        Epoch; // increment each time the inode meta-data changes
     struct stat                     Attributes;
     struct timeval                  AccessTime; // last time anyone accessed this file
     struct timeval                  ModifiedTime; // last time anyone changed the _contents_ of this file
     struct timeval                  CreationTime; // when this file was (first) created
     struct timeval                  ChangeTime; // last time _attributes_ of this file changed (including other timestamps)
+    list_entry_t                    ExtendedAttributes;
+    struct Trie                    *ExtendedAttributeTrie;
     union {
         bitbucket_dir_t             Directory;
         bitbucket_file_t            File;
@@ -226,6 +227,24 @@ uint64_t BitbucketGetObjectReferenceCount(void *Object);
 
 
 bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucket_object_attributes_t *ObjectAttributes, size_t DataLength);
+void BitbucketLockInode(bitbucket_inode_t *Inode, int Exclusive);
+void BitbucketUnlockInode(bitbucket_inode_t *Inode);
+int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive);
+
+static inline void EnsureInodeLockedAgainstChanges(bitbucket_inode_t *Inode)
+{
+    assert(0 != BitbucketTryLockInode(Inode, 1));
+}
+
+static inline void EnsureInodeLockedForChanges(bitbucket_inode_t *Inode)
+{
+    assert(0 != BitbucketTryLockInode(Inode, 0));
+}
+
+void BitbucketInitializeExtendedAttributes(bitbucket_inode_t *Inode);
+int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name, size_t DataLength, const void *Data);
+int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name, size_t *DataLength, const void **Data);
+int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name);
 
 
 // Given an inode, insert it into the directory with the specified name.
@@ -248,7 +267,7 @@ const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);
 
 // More random numbers
 // 
-// fe 15 bc e7 d8 48 e1 c8 
+//  
 // d5 a7 31 20 77 dc 4c 89
 // a9 e1 65 46 9a 58 d6 0c  
 //

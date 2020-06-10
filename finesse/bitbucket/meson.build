@@ -49,6 +49,7 @@ bitbucket_sources = [
 	'unlink.c',
 	'write.c',
 	'write_buf.c',
+	'xattr.c',
 ]
 
 executable ('bitbucket',

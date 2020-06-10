@@ -46,7 +46,7 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 		status = ENOENT;
 	}
 
-	BitbucketLockDirectory(inode, 0); // lock the directory for enumeration (shared)
+	BitbucketLockInode(inode, 0); // lock the directory for enumeration (shared)
 	while (NULL != inode){
 		const bitbucket_dir_entry_t *dirEntry = NULL;
 
@@ -125,7 +125,7 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 		// Done at this point
 		break;
 	}
-	BitbucketUnlockDirectory(inode); // don't need to keep the directory locked any longer
+	BitbucketUnlockInode(inode); // don't need to keep the directory locked any longer
 
 	if (NULL != inode) {
 		// release our reference on the directory

@@ -24,12 +24,9 @@ static void DirectoryInitialize(void *Inode, size_t Length)
     DirInode->InodeType = BITBUCKET_DIR_TYPE; // Mark this as being a directory
     DirInode->Instance.Directory.Magic = BITBUCKET_DIR_MAGIC;
     initialize_list_entry(&DirInode->Instance.Directory.Entries);
-    initialize_list_entry(&DirInode->Instance.Directory.EAs);
     DirInode->Instance.Directory.Children = NULL; // allocated when needed
-    DirInode->Instance.Directory.ExtendedAttributes = NULL; // allocated when needed
     DirInode->Attributes.st_mode |= S_IFDIR; // mark as a directory
     DirInode->Attributes.st_nlink = 1; // .
-    DirInode->Instance.Directory.Epoch = rand(); // detect changes
 
 }
 
@@ -46,41 +43,11 @@ static void DirectoryDeallocate(void *Inode, size_t Length)
     CHECK_BITBUCKET_DIR_MAGIC(&bbi->Instance.Directory); // layers of sanity checking
 
     assert(empty_list(&bbi->Instance.Directory.Entries)); // directory should be empty
-    assert(empty_list(&bbi->Instance.Directory.EAs)); // Don't handle cleanup yet
 
     bbi->Instance.Directory.Magic = ~BITBUCKET_DIR_MAGIC; // make it easy to recognize use after free
 
     // Our state is torn down at this point. 
 
-}
-
-static void DirectoryLock(void *Inode, int Exclusive)
-{
-    bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
-
-    assert(NULL != bbi);
-    CHECK_BITBUCKET_INODE_MAGIC(bbi);
-
-    if (Exclusive) {
-        pthread_rwlock_wrlock(&bbi->InodeLock);
-        do {
-            bbi->Instance.Directory.Epoch++; // just assume it changed
-        } while (0 == bbi->Instance.Directory.Epoch); // Reserve 0 so it is never valid
-    }
-    else {
-        pthread_rwlock_rdlock(&bbi->InodeLock);
-    }
-
-}
-
-static void DirectoryUnlock(void *Inode)
-{
-    bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
-
-    assert(NULL != bbi);
-    CHECK_BITBUCKET_INODE_MAGIC(bbi);
-
-    pthread_rwlock_unlock(&bbi->InodeLock);
 }
 
 static void VerifyDirectoryEntries(bitbucket_inode_t *Directory) 
@@ -103,11 +70,12 @@ static void VerifyDirectoryEntries(bitbucket_inode_t *Directory)
 }
 
 static bitbucket_object_attributes_t DirectoryObjectAttributes = {
-    .Magic = BITBUCKET_DIR_MAGIC,
+    .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
     .Initialize = DirectoryInitialize,
     .Deallocate = DirectoryDeallocate,
-    .Lock = DirectoryLock,
-    .Unlock = DirectoryUnlock,
+    .Lock = NULL,
+    .Trylock = NULL,
+    .Unlock = NULL,
 };
 
 // Insert a new Inode into an existing directory
@@ -146,8 +114,8 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
         assert(strlen(newentry->Name) == strlen(Name)); // must be the same
     }
 
-    DirectoryLock(DirInode, 1);
-    newentry->Offset = DirInode->Instance.Directory.Epoch;
+    BitbucketLockInode(DirInode, 1);
+    newentry->Offset = DirInode->Epoch;
     if (NULL == DirInode->Instance.Directory.Children) {
         DirInode->Instance.Directory.Children = TrieCreateNode();
     }
@@ -163,8 +131,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
 
     VerifyDirectoryEntries(DirInode);
 
-
-    DirectoryUnlock(DirInode);
+    BitbucketUnlockInode(DirInode);
 
 
     return 0;
@@ -186,7 +153,7 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
 
     if (NULL != Directory->Children) {
 
-        DirectoryLock(Inode, 0);
+        BitbucketLockInode(Inode, 0);
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Directory->Children, Name);
         if (NULL != dirent) {
             *Object = dirent->Inode;
@@ -195,7 +162,7 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
 
         VerifyDirectoryEntries(Inode); 
 
-        DirectoryUnlock(Inode);
+        BitbucketUnlockInode(Inode);
     }
 
     if (NULL == dirent) {
@@ -276,7 +243,7 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
     bitbucket_dir_entry_t *dirent = NULL;
     assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
     
-    DirectoryLock(Inode, 1);
+    BitbucketLockInode(Inode, 1);
 
     while (NULL == dirent) {
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Inode->Instance.Directory.Children, Name);
@@ -291,7 +258,7 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
 
     VerifyDirectoryEntries(Inode);
 
-    DirectoryUnlock(Inode);
+    BitbucketUnlockInode(Inode);
 
     return dirent;
 }
@@ -448,20 +415,6 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
 }
 
 
-void BitbucketLockDirectory(bitbucket_inode_t *Directory, int Exclusive)
-{
-    DirectoryLock(Directory, Exclusive);
-    VerifyDirectoryEntries(Directory);
-
-}
-
-void BitbucketUnlockDirectory(bitbucket_inode_t *Directory)
-{
-    VerifyDirectoryEntries(Directory);
-    DirectoryUnlock(Directory);
-}
-
-
 //
 // This function is used to initialize an enumeration context structure.  It
 // must be called prior to using the enumeration context.
@@ -484,10 +437,12 @@ void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t 
     BitbucketReferenceInode(Directory, INODE_ENUM_REFERENCE);
     EnumerationContext->NextEntry = NULL;
     EnumerationContext->Offset = 0;
-    EnumerationContext->Epoch = EnumerationContext->Directory->Instance.Directory.Epoch;
+    EnumerationContext->Epoch = EnumerationContext->Directory->Epoch;
     EnumerationContext->LastError = 0;
 
+    BitbucketLockInode(Directory, 0);
     status = BitbucketSeekDirectory(EnumerationContext, 0);
+    BitbucketUnlockInode(Directory);
     assert(0 == status); // why are we enumerating an empty directory?
 }
 
@@ -515,9 +470,11 @@ const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_cont
     bitbucket_dir_entry_t *returnEntry = NULL;
     int status;
 
+
     assert(NULL != EnumerationContext);
     CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(EnumerationContext);
     assert(NULL != EnumerationContext->Directory);
+    EnsureInodeLockedAgainstChanges(EnumerationContext->Directory);
 
     while (NULL == returnEntry) {
 
@@ -534,7 +491,7 @@ const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_cont
             break;
         }
 
-        if (EnumerationContext->Directory->Instance.Directory.Epoch != EnumerationContext->Epoch) {
+        if (EnumerationContext->Directory->Epoch != EnumerationContext->Epoch) {
             // The directory shape has changed, so we need to re-verify.
             //
             // Note: we could be less forgiving and force the caller to deal with this.  There's
@@ -584,10 +541,11 @@ int BitbucketSeekDirectory(bitbucket_dir_enum_context_t *EnumerationContext, uin
     CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(EnumerationContext);
     assert(BITBUCKET_DIR_TYPE == EnumerationContext->Directory->InodeType);
     CHECK_BITBUCKET_DIR_MAGIC(&EnumerationContext->Directory->Instance.Directory);
+    EnsureInodeLockedAgainstChanges(EnumerationContext->Directory);
 
     while (NULL == le) {
         // Any time we do a seek, we update to the current Epoch
-        EnumerationContext->Epoch = EnumerationContext->Directory->Instance.Directory.Epoch;
+        EnumerationContext->Epoch = EnumerationContext->Directory->Epoch;
 
         if (0 == Offset) {
             // this is a "rewind to the beginning" request

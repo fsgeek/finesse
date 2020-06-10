@@ -169,13 +169,13 @@ test_enumerate_dir(
     }
 
     // First, let's see if an initialize/cleanup pair works properly
-    BitbucketLockDirectory(rootdir, 0);
+    BitbucketLockInode(rootdir, 0);
     BitbucketInitalizeDirectoryEnumerationContext(&enumerationContext, rootdir);
     BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
-    BitbucketUnlockDirectory(rootdir);
+    BitbucketUnlockInode(rootdir);
 
     // Now let's initialize it again
-    BitbucketLockDirectory(rootdir, 0);
+    BitbucketLockInode(rootdir, 0);
     BitbucketInitalizeDirectoryEnumerationContext(&enumerationContext, rootdir);
     while ((dirEntry = BitbucketEnumerateDirectory(&enumerationContext))) {
         unsigned index;
@@ -203,7 +203,7 @@ test_enumerate_dir(
         munit_assert(NULL != names[index]); // if it's null, we didn't find the entry
     }
     BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
-    BitbucketUnlockDirectory(rootdir);
+    BitbucketUnlockInode(rootdir);
 
     // Now cleanup our entries
     for (unsigned index = 0; names[index]; index++) {
