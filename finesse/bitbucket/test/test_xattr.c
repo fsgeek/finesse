@@ -15,14 +15,14 @@
 #endif //
 
 
-static const MunitTest dir_tests[] = {
+static const MunitTest xattr_tests[] = {
         TEST("/null", test_null, NULL),
     	TEST(NULL, NULL, NULL),
     };
 
-const MunitSuite dir_suite = {
+const MunitSuite xattr_suite = {
     .prefix = (char *)(uintptr_t)"/xattr",
-    .tests = (MunitTest *)(uintptr_t)dir_tests,
+    .tests = (MunitTest *)(uintptr_t)xattr_tests,
     .suites = NULL,
     .iterations = 1,
     .options = MUNIT_SUITE_OPTION_NONE,

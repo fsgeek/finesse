@@ -62,6 +62,7 @@ MunitSuite *SetupMunitSuites()
     testbitbucket_suites[index++] = inode_suite;
     testbitbucket_suites[index++] = trie_suite;
     testbitbucket_suites[index++] = dir_suite;
+    testbitbucket_suites[index++] = xattr_suite;
     return testbitbucket_suites;
 }
 

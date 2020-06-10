@@ -11,6 +11,7 @@ test_bitbucket_sources = [
     'test_inode.c',
     'test_object.c',
     'test_trie.c',
+    'test_xattr.c',
 ]
 
 bitbucket_parent_sources = [
