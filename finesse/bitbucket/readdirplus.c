@@ -37,7 +37,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 
 	// TODO: should we be doing anything with the flags in fi->flags?
 
-	if (~0 == off) {
+	if (~0 == off) { // this is our end of enumeration marker
 		// return the empty buffer
 		fuse_reply_buf(req, NULL, 0);
 		return;
@@ -115,7 +115,6 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 			// Let's try to pack an entry into this buffer
 			memset(&fep, 0, sizeof(fep));
 			fep.attr = dirEntry->Inode->Attributes;
-			fep.attr.st_mode = fep.attr.st_mode << 12; // not quite sure why fuse_add_direntry_plus expects this...
 			fep.attr_timeout = 30.0; // TODO: this needs to be parameterized somewhere/somehow.
 			fep.entry_timeout = 30.0; // Ditto...
 			fep.generation = dirEntry->Inode->Epoch;
@@ -142,7 +141,12 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 				BitbucketReferenceInode(dirEntry->Inode, INODE_FUSE_REFERENCE);
 			}
 
-			fprintf(stderr, "Finesse (%s): added entry for %s with inode 0x%lx\n", __func__, dirEntry->Name, dirEntry->Inode->Attributes.st_ino);
+			fprintf(stderr, "Finesse (%s): added entry for %s with inode 0x%lx (%lu), mode = %o\n", 
+					__func__, 
+					dirEntry->Name, 
+					dirEntry->Inode->Attributes.st_ino, 
+					dirEntry->Inode->Attributes.st_ino,
+					dirEntry->Inode->Attributes.st_mode);
 
 			used += entrySize;
 		}
@@ -155,6 +159,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 	if (NULL != inode) {
 		// release our reference on the directory
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
 	}
 	
 	if (0 != status) {

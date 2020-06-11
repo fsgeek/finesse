@@ -109,6 +109,7 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     CHECK_BITBUCKET_INODE_MAGIC(newfile);
     assert(BITBUCKET_FILE_TYPE == newfile->InodeType);
     CHECK_BITBUCKET_FILE_MAGIC(&newfile->Instance.File);
+    assert(S_IFREG == (newfile->Attributes.st_mode & S_IFMT));
 
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);

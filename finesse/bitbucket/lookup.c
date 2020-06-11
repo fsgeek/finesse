@@ -19,6 +19,7 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 
 	if (FUSE_ROOT_ID == parent) {
 		parentInode = BBud->RootDirectory;
+		BitbucketReferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
 	}
 	else {
 		parentInode = BitbucketLookupInodeInTable(BBud->InodeTable, parent);
@@ -52,16 +53,13 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 			(unsigned long long) parent, name, (unsigned long long) inode->Attributes.st_ino);
 	}
 
-#if 0
-	// Note: lookup DOES NOT dereference the inode - that will be done later in release
 	// This allows things like "zero link counts" to function properly.
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode);
+		BitbucketDereferenceInode(inode, INODE_FUSE_REFERENCE);
 		inode = NULL;
 	}
-#endif // 0
 
-	if (FUSE_ROOT_ID == parent) {
+	if (NULL != parentInode) {
 		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
 	}
 

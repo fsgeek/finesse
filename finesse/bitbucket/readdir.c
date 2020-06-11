@@ -136,6 +136,7 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 	if (NULL != inode) {
 		// release our reference on the directory
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
 	}
 	
 	if (0 != status) {
