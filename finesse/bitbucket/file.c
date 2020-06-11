@@ -25,7 +25,9 @@ static void FileInitialize(void *Inode, size_t Length)
     FileInode->InodeType = BITBUCKET_FILE_TYPE; // Mark this as being a directory
     FileInode->Instance.File.Magic = BITBUCKET_FILE_MAGIC;
     FileInode->Attributes.st_mode |= S_IFREG; // mark as a regular file
-    FileInode->Attributes.st_nlink = 0; // 
+    FileInode->Attributes.st_nlink = 0;
+    FileInode->Attributes.st_size = 0;
+    FileInode->Attributes.st_blocks = 0;
 }
 
 static void FileDeallocate(void *Inode, size_t Length)
