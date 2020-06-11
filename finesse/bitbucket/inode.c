@@ -11,6 +11,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <time.h>
+
+int bitbucket_debug_refcount = 0;
 
 typedef struct _bitbucket_inode_table_entry {
     uint64_t             Magic;
@@ -355,11 +358,12 @@ static void InodeInitialize(void *Object, size_t Length)
     uuid_generate(bbpi->PublicInode.Uuid);
     uuid_unparse(bbpi->PublicInode.Uuid, bbpi->PublicInode.UuidString);
     bbpi->PublicInode.Epoch = rand(); // detect changes
-    status = gettimeofday(&bbpi->PublicInode.CreationTime, NULL);
+    status = clock_gettime(CLOCK_TAI, &bbpi->PublicInode.CreationTime);
     assert(0 == status);
-    bbpi->PublicInode.Attributes.st_mtime = bbpi->PublicInode.CreationTime.tv_sec;
-    bbpi->PublicInode.Attributes.st_atime = bbpi->PublicInode.CreationTime.tv_sec;
-    bbpi->PublicInode.Attributes.st_ctime = bbpi->PublicInode.CreationTime.tv_sec;
+    bbpi->PublicInode.Attributes.st_atim = bbpi->PublicInode.CreationTime;
+    bbpi->PublicInode.Attributes.st_mtim = bbpi->PublicInode.CreationTime;
+    bbpi->PublicInode.Attributes.st_atim = bbpi->PublicInode.CreationTime;
+    bbpi->PublicInode.Attributes.st_ctim = bbpi->PublicInode.CreationTime;
     bbpi->PublicInode.Attributes.st_mode = S_IRWXU | S_IRWXG | S_IRWXO; // is this the right default?
     bbpi->PublicInode.Attributes.st_gid = getgid();
     bbpi->PublicInode.Attributes.st_uid = getuid();
@@ -543,7 +547,9 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
-    // fprintf(stderr, "Finesse: Add reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+    if (bitbucket_debug_refcount) {
+        fprintf(stderr, "Finesse: Add reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+    }
 
     BitbucketObjectReference(bbpi, Reason);
 }
@@ -556,8 +562,10 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
-    // fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
-
+    if (bitbucket_debug_refcount) {
+        fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+    }
+    
     BitbucketObjectDereference(bbpi, Reason);
     bbpi = NULL;
 }
@@ -634,11 +642,9 @@ void BitbucketUnlockInode(bitbucket_inode_t *Inode)
     }
 
     if (exclusive) {
-        struct timeval t;
         // We assume inode attributes changed.  Data changes
         // must be handled in paths where the data itself could change.
-        status = gettimeofday(&t, NULL);
-        Inode->Attributes.st_ctime = t.tv_sec;
+        status = clock_gettime(CLOCK_TAI, &Inode->Attributes.st_ctim);
         assert(0 == status);
     }
     // Now to accomplish the original goal!
