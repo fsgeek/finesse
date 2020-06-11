@@ -28,10 +28,12 @@ void bitbucket_access(fuse_req_t req, fuse_ino_t ino, int mask)
 	while (NULL != inode) {
 		mode_t mode = inode->Attributes.st_mode;
 
-			mode &= ~S_IFMT;
-			if (mask != (mask & mode)) {
-				status = EACCES;
-			}
+		mode &= ~S_IFMT;
+		if (mask != (mask & mode)) {
+			status = EACCES;
+		}
+		status = 0;
+		break;
 	}
 
 	fuse_reply_err(req, status);
@@ -41,6 +43,4 @@ void bitbucket_access(fuse_req_t req, fuse_ino_t ino, int mask)
 		inode = NULL;
 	}
 
-
-	assert(0); // Not implemented
 }
