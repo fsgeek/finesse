@@ -357,10 +357,9 @@ static void InodeInitialize(void *Object, size_t Length)
     bbpi->PublicInode.Epoch = rand(); // detect changes
     status = gettimeofday(&bbpi->PublicInode.CreationTime, NULL);
     assert(0 == status);
-
-    bbpi->PublicInode.AccessTime = bbpi->PublicInode.CreationTime;
-    bbpi->PublicInode.ModifiedTime = bbpi->PublicInode.CreationTime;
-    bbpi->PublicInode.ChangeTime = bbpi->PublicInode.CreationTime;
+    bbpi->PublicInode.Attributes.st_mtime = bbpi->PublicInode.CreationTime.tv_sec;
+    bbpi->PublicInode.Attributes.st_atime = bbpi->PublicInode.CreationTime.tv_sec;
+    bbpi->PublicInode.Attributes.st_ctime = bbpi->PublicInode.CreationTime.tv_sec;
     bbpi->PublicInode.Attributes.st_mode = S_IRWXU | S_IRWXG | S_IRWXO; // is this the right default?
     bbpi->PublicInode.Attributes.st_gid = getgid();
     bbpi->PublicInode.Attributes.st_uid = getuid();
@@ -478,7 +477,7 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
         "Dir:Parent",
         "Dir:Entry",
         "Enumeration",
-        "Reason5",
+        "FuseLookup",
         "Reason6",
         "Reason7",
     },
@@ -631,9 +630,11 @@ void BitbucketUnlockInode(bitbucket_inode_t *Inode)
     }
 
     if (exclusive) {
+        struct timeval t;
         // We assume inode attributes changed.  Data changes
         // must be handled in paths where the data itself could change.
-        status = gettimeofday(&Inode->ChangeTime, NULL);
+        status = gettimeofday(&t, NULL);
+        Inode->Attributes.st_ctime = t.tv_sec;
         assert(0 == status);
     }
     // Now to accomplish the original goal!

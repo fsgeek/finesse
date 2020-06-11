@@ -43,9 +43,9 @@ static void InodeInitialize(void *Object, size_t Length)
     status = gettimeofday(&bbi->CreationTime, NULL);
     assert(0 == status);
 
-    bbi->AccessTime = bbi->CreationTime;
-    bbi->ModifiedTime = bbi->CreationTime;
-    bbi->ChangeTime = bbi->CreationTime;
+    bbi->Attributes.st_mtime = bbi->CreationTime.tv_sec;
+    bbi->Attributes.st_atime = bbi->CreationTime.tv_sec;
+    bbi->Attributes.st_ctime = bbi->CreationTime.tv_sec;
     bbi->Attributes.st_mode = S_IRWXU | S_IRWXG | S_IRWXO; // is this the right default?
     bbi->Attributes.st_gid = getgid();
     bbi->Attributes.st_uid = getuid();

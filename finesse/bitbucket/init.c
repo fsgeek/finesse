@@ -8,6 +8,7 @@
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 {
 	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_inode_t *bbinode = NULL;
 	(void) conn;
 
 	BBud->Magic = BITBUCKET_USER_DATA_MAGIC;
@@ -16,6 +17,9 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	assert(NULL != BBud->InodeTable);
 	BBud->RootDirectory = BitbucketCreateRootDirectory(BBud->InodeTable);
 	assert(NULL != BBud->RootDirectory);
+
+	bbinode = BitbucketCreateDirectory(BBud->RootDirectory, "Bitbucket");
+	assert(NULL != bbinode);
 
 	// Note: at this point we own one (LOOKUP) reference on this inode.
 	

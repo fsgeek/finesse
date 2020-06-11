@@ -142,10 +142,12 @@ typedef struct _bitbucket_inode {
     char                            UuidString[40];
     uint64_t                        Epoch; // increment each time the inode meta-data changes
     struct stat                     Attributes;
+#if 0
     struct timeval                  AccessTime; // last time anyone accessed this file
     struct timeval                  ModifiedTime; // last time anyone changed the _contents_ of this file
-    struct timeval                  CreationTime; // when this file was (first) created
     struct timeval                  ChangeTime; // last time _attributes_ of this file changed (including other timestamps)
+#endif // 0
+    struct timeval                  CreationTime; // when this file was (first) created
     list_entry_t                    ExtendedAttributes;
     struct Trie                    *ExtendedAttributeTrie;
     union {
@@ -164,6 +166,7 @@ typedef struct _bitbucket_inode {
 #define INODE_PARENT_REFERENCE   (2)
 #define INODE_DIRENT_REFERENCE   (3)
 #define INODE_ENUM_REFERENCE     (4)
+#define INODE_FUSE_REFERENCE     (5)
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;

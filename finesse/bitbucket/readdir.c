@@ -32,6 +32,12 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 
 	// TODO: should we be doing anything with the flags in fi->flags?
 
+	if (~0 == off) {
+		// return the empty buffer
+		fuse_reply_buf(req, NULL, 0);
+		return;
+	}
+
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 
 	if (FUSE_ROOT_ID == ino) {
@@ -105,11 +111,11 @@ void bitbucket_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, s
 
 			// Let's try to pack an entry into this buffer
 			entrySize = fuse_add_direntry(	req,  // FUSE request
-											responseBuffer, // buffer into which we are packing entries
+											responseBuffer + used, // buffer into which we are packing entries
 											size - used,  // space remaining in the buffer
 											dirEntry->Name, // name of this object
 											&entryStat, // stat struct
-											dirEntry->Inode->Attributes.st_ino); // directory offset
+											dirEnumContext.Offset); // directory offset
 
 			if (entrySize > size - used) {
 				// This entry does not fit.  We can terminate here.

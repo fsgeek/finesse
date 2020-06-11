@@ -41,6 +41,8 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 		break;
 	}
 
+	BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
+
 
 	if (0 != status) {
 		fuse_reply_err(req, status);

@@ -511,6 +511,7 @@ const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_cont
             // No more entries to return; we aren't in error state.  Next time through we will
             // notice no more entries and return an error.
             EnumerationContext->NextEntry = NULL;
+            EnumerationContext->Offset = ~0;
             break;
         }
 

@@ -20,8 +20,31 @@ test_lookup(
     const MunitParameter params[] __notused,
     void *prv __notused)
 {
+    bitbucket_inode_t *rootdir = NULL;
+    int status = 0;
+    uint64_t refcount;
+    bitbucket_inode_table_t *Table = NULL;
+    size_t dataLength;
+    const void *data;
 
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    munit_assert(NULL != Table);
 
+    rootdir = BitbucketCreateRootDirectory(Table);
+    munit_assert(NULL != rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+
+    status = BitbucketLookupExtendedAttribute(rootdir, "selinux.security", &dataLength, &data);
+    munit_assert(ENODATA == status);
+
+    BitbucketDeleteRootDirectory(rootdir);
+    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    munit_assert(1 == refcount);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    rootdir = NULL;
+    
+    BitbucketDestroyInodeTable(Table);
 
     return MUNIT_OK;
 }

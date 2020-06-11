@@ -126,7 +126,7 @@ int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
     assert(NULL != Name);
 
     if (NULL == Inode->ExtendedAttributeTrie) {
-        return ENOENT;
+        return ENODATA;
     }
 
     xattr = (bitbucket_xattr_t *)TrieSearch(Inode->ExtendedAttributeTrie, Name);
@@ -134,7 +134,7 @@ int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
     if (NULL == xattr) {
         *DataLength = 0;
         *Data = NULL;
-        return ENOENT;
+        return ENODATA;
     }
 
     CHECK_BITBUCKET_XATTR_MAGIC(xattr);

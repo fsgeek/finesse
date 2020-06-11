@@ -13,6 +13,7 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
 	bitbucket_inode_t *parentInode = NULL;
 	bitbucket_inode_t *inode = NULL;
+	struct fuse_entry_param fep;
 
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 
@@ -35,7 +36,16 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 		return;
 	}
 
-	fuse_reply_attr(req, &inode->Attributes, BBud->AttrTimeout);
+	memset(&fep, 0, sizeof(fep));
+	fep.ino = inode->Attributes.st_ino;
+	fep.generation = inode->Epoch;
+	fep.attr = inode->Attributes;
+	fep.attr_timeout = 30;
+	fep.entry_timeout = 30;
+
+	BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
+
+	fuse_reply_entry(req, &fep);
 
 	if (BBud->Debug) {
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",

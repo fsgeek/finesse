@@ -143,12 +143,18 @@ test_enumerate_dir(
     bitbucket_dir_enum_context_t enumerationContext;
     const bitbucket_dir_entry_t *dirEntry;
     int status;
+    uint64_t dot_offset;
+    uint64_t dotdot_offset;
 
     Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
+    munit_assert(S_ISDIR(rootdir->Attributes.st_mode));
+    munit_assert(0 != rootdir->Attributes.st_mtime);
+    munit_assert(0 != rootdir->Attributes.st_atime);
+    munit_assert(0 != rootdir->Attributes.st_ctime);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
 
@@ -184,10 +190,12 @@ test_enumerate_dir(
         
         // TODO: maybe see if this is one of our files?
         if (0 == strcmp(dirEntry->Name, ".")) {
+            dot_offset = dirEntry->Offset;
             continue;
         }
 
         if (0 == strcmp(dirEntry->Name, "..")) {
+            dotdot_offset = dirEntry->Offset;
             continue;
         }
 
@@ -204,6 +212,27 @@ test_enumerate_dir(
     }
     BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
     BitbucketUnlockInode(rootdir);
+
+    // make sure we have unique offsets
+    assert(dot_offset != dotdot_offset);
+
+    // Let's make sure seek does what we expect
+    BitbucketLockInode(rootdir, 0);
+    BitbucketInitalizeDirectoryEnumerationContext(&enumerationContext, rootdir);
+    BitbucketSeekDirectory(&enumerationContext, dotdot_offset);
+    dirEntry = BitbucketEnumerateDirectory(&enumerationContext);
+    assert(NULL != dirEntry);
+    assert(0 == strcmp(dirEntry->Name, "..")); // assumes ".." was created first
+    assert(dirEntry->Offset == dotdot_offset);
+    dirEntry = BitbucketEnumerateDirectory(&enumerationContext);
+    assert(NULL != dirEntry);
+    assert(0 == strcmp(dirEntry->Name, "."));
+    assert(dirEntry->Offset == dot_offset);
+    dirEntry = BitbucketEnumerateDirectory(&enumerationContext);
+    assert(NULL == dirEntry);
+    BitbucketCleanupDirectoryEnumerationContext(&enumerationContext);
+    BitbucketUnlockInode(rootdir);
+
 
     // Now cleanup our entries
     for (unsigned index = 0; names[index]; index++) {
