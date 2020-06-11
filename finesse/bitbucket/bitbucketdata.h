@@ -147,7 +147,7 @@ typedef struct _bitbucket_inode {
     struct timeval                  ModifiedTime; // last time anyone changed the _contents_ of this file
     struct timeval                  ChangeTime; // last time _attributes_ of this file changed (including other timestamps)
 #endif // 0
-    struct timeval                  CreationTime; // when this file was (first) created
+    struct timespec                 CreationTime; // when this file was (first) created
     list_entry_t                    ExtendedAttributes;
     struct Trie                    *ExtendedAttributeTrie;
     union {
