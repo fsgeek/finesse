@@ -38,6 +38,12 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		break;
 	}
 
+	if (NULL != inode) {
+		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
+	}
+
 	if (0 != status) {
 		fuse_reply_err(req, status);
 	}
@@ -45,9 +51,5 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		fuse_reply_open(req, fi);
 	}
 
-	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
-		inode = NULL;
-	}
 }
 
