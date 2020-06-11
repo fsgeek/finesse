@@ -12,14 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if 0
-// TODO: once you figure out what the code should look like, pull it into here
-// and generalize to the readdir case as well.
-static size_t readdirplus_add_entry(void)
-{
-	return 0;
-}
-#endif //0
+int bitbucket_debug_readdirplus = 0;
 
 void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
@@ -141,13 +134,14 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 				BitbucketReferenceInode(dirEntry->Inode, INODE_FUSE_REFERENCE);
 			}
 
-			fprintf(stderr, "Finesse (%s): added entry for %s with inode 0x%lx (%lu), mode = %o\n", 
-					__func__, 
-					dirEntry->Name, 
-					dirEntry->Inode->Attributes.st_ino, 
-					dirEntry->Inode->Attributes.st_ino,
-					dirEntry->Inode->Attributes.st_mode);
-
+			if (bitbucket_debug_readdirplus) {
+				fprintf(stderr, "Finesse (%s): added entry for %s with inode 0x%lx (%lu), mode = %o\n", 
+						__func__, 
+						dirEntry->Name, 
+						dirEntry->Inode->Attributes.st_ino, 
+						dirEntry->Inode->Attributes.st_ino,
+						dirEntry->Inode->Attributes.st_mode);
+			}
 			used += entrySize;
 		}
 
