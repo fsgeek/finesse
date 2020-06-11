@@ -66,7 +66,10 @@ void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
 			}
 		}
 
-		page_count = (size + (page_size - 1)) & ~(page_size -1); // round up
+		page_count = size / page_size;
+		if (page_count * page_size < size) {
+			page_count++;
+		}
 		bufv_size = offsetof(struct fuse_bufvec, buf) + page_count * sizeof(struct fuse_buf);
 		bufv = (struct fuse_bufvec *)malloc(bufv_size);
 		assert(NULL != bufv);
@@ -80,8 +83,10 @@ void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
 			bufv->buf[index].pos = 0; // unused
 			bufv->buf[index].size = page_size;
 		}
-		// adjust the size of the last page
-		bufv->buf[page_count-1].size = size & (page_size - 1);
+		if ((page_count -1) * page_size < size) {
+			// adjust the size of the last page
+			bufv->buf[page_count-1].size = size & (page_size - 1);
+		}
 		status = 0; // success
 		break;
 	}
