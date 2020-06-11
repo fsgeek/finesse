@@ -138,7 +138,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 			// This call adds a reference to the inode - but not for . or ..
 			if ((BITBUCKET_DIR_TYPE != dirEntry->Inode->InodeType) || // non-directories get referenced
 			    ((inode != dirEntry->Inode) &&  // this would be '.'
-				 (inode != dirEntry->Inode->Instance.Directory.Parent))) { // this would be '..'
+				 (inode->Instance.Directory.Parent != dirEntry->Inode))) { // this would be '..'
 				BitbucketReferenceInode(dirEntry->Inode, INODE_FUSE_REFERENCE);
 			}
 
