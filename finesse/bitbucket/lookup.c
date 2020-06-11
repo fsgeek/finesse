@@ -55,7 +55,7 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 
 	// This allows things like "zero link counts" to function properly.
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_FUSE_REFERENCE);
+		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
 		inode = NULL;
 	}
 
