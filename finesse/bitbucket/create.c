@@ -124,13 +124,13 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 		break;
 	}
 
-	if (0 != status) {
-		fuse_reply_err(req, status);
-	}
-
 	if (NULL != inode) {
 		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+	}
+
+	if (0 != status) {
+		fuse_reply_err(req, status);
 	}
 
 }
