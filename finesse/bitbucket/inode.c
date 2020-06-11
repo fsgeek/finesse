@@ -364,7 +364,7 @@ static void InodeInitialize(void *Object, size_t Length)
     bbpi->PublicInode.Attributes.st_gid = getgid();
     bbpi->PublicInode.Attributes.st_uid = getuid();
     bbpi->PublicInode.Attributes.st_size = 4096; // TODO: maybe do some sort of funky calculation here?
-    bbpi->PublicInode.Attributes.st_blksize = 4096; // TODO: again, does this matter?
+    bbpi->PublicInode.Attributes.st_blksize = S_BLKSIZE; // TODO: again, does this matter?
     bbpi->PublicInode.Attributes.st_blocks = bbpi->PublicInode.Attributes.st_size / 512;
     bbpi->PublicInode.Attributes.st_ino = get_new_inode_number();
     bbpi->PublicInode.Attributes.st_nlink = 0; // this should be bumped when this is added
@@ -543,6 +543,8 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
+    // fprintf(stderr, "Finesse: Add reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+
     BitbucketObjectReference(bbpi, Reason);
 }
 
@@ -553,6 +555,8 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
 {
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+
+    // fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
 
     BitbucketObjectDereference(bbpi, Reason);
     bbpi = NULL;
