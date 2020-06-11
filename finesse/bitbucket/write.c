@@ -51,6 +51,7 @@ void bitbucket_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t siz
 		if (off + size > inode->Attributes.st_size) {
 			// move the EOF pointer out.
 			inode->Attributes.st_size = off + size;
+			inode->Attributes.st_blocks = inode->Attributes.st_size / inode->Attributes.st_blksize;
 		}
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
