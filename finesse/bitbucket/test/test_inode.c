@@ -9,6 +9,7 @@
 #include "test_bitbucket.h"
 #include "bitbucket.h"
 #include <stdlib.h>
+#include <time.h>
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
@@ -40,12 +41,12 @@ static void InodeInitialize(void *Object, size_t Length)
 
     munit_assert(BITBUCKET_UNKNOWN_TYPE == bbi->InodeType);
     bbi->InodeType = BITBUCKET_FILE_TYPE;
-    status = gettimeofday(&bbi->CreationTime, NULL);
+    status = clock_gettime(CLOCK_TAI, &bbi->CreationTime);
     assert(0 == status);
 
-    bbi->Attributes.st_mtime = bbi->CreationTime.tv_sec;
-    bbi->Attributes.st_atime = bbi->CreationTime.tv_sec;
-    bbi->Attributes.st_ctime = bbi->CreationTime.tv_sec;
+    bbi->Attributes.st_mtim = bbi->CreationTime;
+    bbi->Attributes.st_atim = bbi->CreationTime;
+    bbi->Attributes.st_ctim = bbi->CreationTime;
     bbi->Attributes.st_mode = S_IRWXU | S_IRWXG | S_IRWXO; // is this the right default?
     bbi->Attributes.st_gid = getgid();
     bbi->Attributes.st_uid = getuid();
