@@ -13,8 +13,6 @@ void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to
 	bitbucket_inode_t *inode = NULL;
 	int status = EBADF;
 
-	(void) attr;
-	(void) to_set;
 	(void) fi;
 
 
@@ -29,8 +27,6 @@ void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to
 	}
 
 	while (NULL != inode) {
-		struct timeval tv;
-
 		status = EINVAL;
 
 		if (to_set & FUSE_SET_ATTR_MODE) {
@@ -69,15 +65,13 @@ void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to
 		}
 
 		if (to_set & FUSE_SET_ATTR_ATIME_NOW) {
-			gettimeofday(&tv, NULL);
-			inode->Attributes.st_atime = tv.tv_sec;
-			status = 0;
+		    status = clock_gettime(CLOCK_TAI, &inode->Attributes.st_atim);
+			assert(0 == status);
 		}
 
 		if (to_set & FUSE_SET_ATTR_MTIME_NOW) {
-			gettimeofday(&tv, NULL);
-			inode->Attributes.st_mtime = tv.tv_sec;
-			status = 0;
+		    status = clock_gettime(CLOCK_TAI, &inode->Attributes.st_mtim);
+			assert(0 == status);
 		}
 
 		if (to_set & FUSE_SET_ATTR_CTIME) {
