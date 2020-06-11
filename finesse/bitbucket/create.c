@@ -40,10 +40,6 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 	int status = EEXIST;
 	mode_t mask;
 
-	(void)req;
-	(void)parent;
-	(void)name;
-	(void)mode;
 	(void)fi;
 
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
@@ -119,18 +115,23 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 		fep.attr_timeout = 30;
 		fep.entry_timeout = 30;
 
-		fuse_reply_create(req, &fep, fi);
 		status = 0;
 		break;
-	}
-
-	if (NULL != inode) {
-		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	}
 
 	if (0 != status) {
 		fuse_reply_err(req, status);
 	}
+	else {
+		assert(NULL != inode);
+
+		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
+		
+		fuse_reply_create(req, &fep, fi);
+	}
+
+	assert(NULL == inode);
 
 }
