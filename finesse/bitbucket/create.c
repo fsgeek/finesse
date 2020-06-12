@@ -7,29 +7,6 @@
 #include <errno.h>
 #include <string.h>
 
-#if 0
-/**
- * Reply with a directory entry and open parameters
- *
- * currently the following members of 'fi' are used:
- *   fh, direct_io, keep_cache
- *
- * Possible requests:
- *   create
- *
- * Side effects:
- *   increments the lookup count on success
- *
- * @param req request handle
- * @param e the entry parameters
- * @param fi file information
- * @return zero for success, -errno for failure to send reply
- */
-int fuse_reply_create(fuse_req_t req, const struct fuse_entry_param *e,
-					  const struct fuse_file_info *fi);
-#endif // 0
-
-
 void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
@@ -125,7 +102,11 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 	else {
 		assert(NULL != inode);
 
-		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
+		// Note: this isn't well-documented.  FUSE seems to treat
+		// create as both a lookup and an open.
+		// (test this by creating a file and then immediately deleting it).
+		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE);
+		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
 		
