@@ -4,11 +4,31 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "string.h"
+
+static const char *BitbucketMagicNames[] = {
+	"Bitbucket",
+	"Size",
+	"Name",
+	"Creation",
+	"Uuid",
+	"Unused10",
+	"Unused9",
+	"Unused8",
+	"Unused7",
+	"Unused6",
+	"Unused5",
+	"Unused4",
+	"Unused3",
+	"Unused2",
+	"Unused1",
+	"Unused0",
+};
 
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 {
 	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
-	bitbucket_inode_t *bbinode = NULL;
+	unsigned index = 0;
 
 	assert(NULL != conn);
 
@@ -31,9 +51,22 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	BBud->RootDirectory = BitbucketCreateRootDirectory(BBud->InodeTable);
 	assert(NULL != BBud->RootDirectory);
 
-	bbinode = BitbucketCreateDirectory(BBud->RootDirectory, "Bitbucket");
-	assert(NULL != bbinode);
+	BBud->BitbucketMagicDirectories[0].Name = BitbucketMagicNames[0];
+	BBud->BitbucketMagicDirectories[0].Inode = BitbucketCreateDirectory(BBud->RootDirectory, BitbucketMagicNames[0]);
+	assert(NULL != BBud->BitbucketMagicDirectories[0].Inode);
+	BBud->BitbucketMagicDirectories[0].Inode->Attributes.st_mode &= ~0222; // strip off write bits
 
-	// Note: at this point we own one (LOOKUP) reference on this inode.
+	for(index++; index < sizeof(BitbucketMagicNames)/ sizeof(const char *); index++) {
+		if (0 == strncmp("Unused", BitbucketMagicNames[index], 6)) {
+			continue; // skip these for now.
+		}
+		BBud->BitbucketMagicDirectories[index].Name = BitbucketMagicNames[index];
+		BBud->BitbucketMagicDirectories[index].Inode = BitbucketCreateDirectory(BBud->BitbucketMagicDirectories[0].Inode,
+																			    BBud->BitbucketMagicDirectories[index].Name);
+		assert(NULL != BBud->BitbucketMagicDirectories[index].Inode);
+		BBud->BitbucketMagicDirectories[index].Inode->Attributes.st_mode &= ~0222; // strip off write bits
+	}
+
+	// All of these inodes have a lookup reference on them.
 	
 }

@@ -70,7 +70,31 @@ typedef struct _bitbucket_userdata {
     bitbucket_inode_t  *RootDirectory;
     void               *InodeTable;
     double              AttrTimeout; // Arbitrary for now.
+
+    // These are some magic directories I'm going to create
+    struct {
+        bitbucket_inode_t *Inode;
+        const char        *Name;
+    } BitbucketMagicDirectories[16];
 } bitbucket_user_data_t;
+
+#define BITBUCKET_MAGIC_BITBUCKET (0)
+#define BITBUCKET_MAGIC_SIZE      (1)
+#define BITBUCKET_MAGIC_NAME      (2)
+#define BITBUCKET_MAGIC_CTIME     (3)
+#define BITBUCKET_MAGIC_UNUSED11  (4)
+#define BITBUCKET_MAGIC_UNUSED10  (5)
+#define BITBUCKET_MAGIC_UNUSED9   (6)
+#define BITBUCKET_MAGIC_UNUSED8   (7)
+#define BITBUCKET_MAGIC_UNUSED7   (8)
+#define BITBUCKET_MAGIC_UNUSED6   (9)
+#define BITBUCKET_MAGIC_UNUSED5   (10)
+#define BITBUCKET_MAGIC_UNUSED4   (11)
+#define BITBUCKET_MAGIC_UNUSED3   (12)
+#define BITBUCKET_MAGIC_UNUSED2   (13)
+#define BITBUCKET_MAGIC_UNUSED1   (14)
+#define BITBUCKET_MAGIC_UNUSED0   (15)
+
 
 #define BITBUCKET_USER_DATA_MAGIC 0xb2035aef09927b87  
 #define CHECK_BITBUCKET_USER_DATA_MAGIC(bbud) verify_magic("bitbucket_userdata_t", __FILE__, __func__, __LINE__, BITBUCKET_USER_DATA_MAGIC, (bbud)->Magic)
@@ -161,12 +185,13 @@ typedef struct _bitbucket_inode {
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
 #define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
-#define INODE_TABLE_REFERENCE    (0)
-#define INODE_LOOKUP_REFERENCE   (1)
-#define INODE_PARENT_REFERENCE   (2)
-#define INODE_DIRENT_REFERENCE   (3)
-#define INODE_ENUM_REFERENCE     (4)
-#define INODE_FUSE_REFERENCE     (5)
+#define INODE_TABLE_REFERENCE        (0)
+#define INODE_LOOKUP_REFERENCE       (1)
+#define INODE_PARENT_REFERENCE       (2)
+#define INODE_DIRENT_REFERENCE       (3)
+#define INODE_ENUM_REFERENCE         (4)
+#define INODE_FUSE_LOOKUP_REFERENCE  (5) // lookup/forget
+#define INODE_FUSE_OPEN_REFERENCE    (6) // open/release
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
@@ -196,8 +221,6 @@ void BitbucketInitalizeDirectoryEnumerationContext(bitbucket_dir_enum_context_t 
 void BitbucketCleanupDirectoryEnumerationContext(bitbucket_dir_enum_context_t *EnumerationContext);
 const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_context_t *EnumerationContext);
 int BitbucketSeekDirectory(bitbucket_dir_enum_context_t *EnumerationContext, uint64_t Offset);
-void BitbucketLockDirectory(bitbucket_inode_t *Directory, int Exclusive);
-void BitbucketUnlockDirectory(bitbucket_inode_t *Directory);
 
 
 // Create a reference counted object;  On return the region returned will be at least
