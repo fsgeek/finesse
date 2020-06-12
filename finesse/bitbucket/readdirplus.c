@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-int bitbucket_debug_readdirplus = 0;
+int bitbucket_debug_readdirplus = 1;
 
 void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
@@ -131,7 +131,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 			if ((BITBUCKET_DIR_TYPE != dirEntry->Inode->InodeType) || // non-directories get referenced
 			    ((inode != dirEntry->Inode) &&  // this would be '.'
 				 (inode->Instance.Directory.Parent != dirEntry->Inode))) { // this would be '..'
-				BitbucketReferenceInode(dirEntry->Inode, INODE_FUSE_REFERENCE);
+				BitbucketReferenceInode(dirEntry->Inode, INODE_FUSE_LOOKUP_REFERENCE);
 			}
 
 			if (bitbucket_debug_readdirplus) {

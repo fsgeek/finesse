@@ -13,7 +13,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-int bitbucket_debug_refcount = 0;
+int bitbucket_debug_refcount = 1;
 
 typedef struct _bitbucket_inode_table_entry {
     uint64_t             Magic;

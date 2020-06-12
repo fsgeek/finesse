@@ -60,10 +60,7 @@ void bitbucket_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t
 		fep.attr_timeout = 30;
 		fep.entry_timeout = 30;
 
-		BitbucketReferenceInode(child, INODE_FUSE_REFERENCE);
-		
 		status = 0;
-
 		break;
 	}
 
@@ -71,6 +68,8 @@ void bitbucket_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t
 		fuse_reply_err(req, status);
 	}
 	else {
+		assert(NULL != child);
+		BitbucketReferenceInode(child, INODE_FUSE_LOOKUP_REFERENCE); // matches this fuse_reply_entry
 		fuse_reply_entry(req, &fep);
 	}
 

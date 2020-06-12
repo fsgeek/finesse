@@ -44,19 +44,12 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 	fep.attr_timeout = 30;
 	fep.entry_timeout = 30;
 
-	BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
-
+	BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE); // this matches the fuse_reply_entry
 	fuse_reply_entry(req, &fep);
 
 	if (BBud->Debug) {
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name, (unsigned long long) inode->Attributes.st_ino);
-	}
-
-	// This allows things like "zero link counts" to function properly.
-	if (NULL != inode) {
-		BitbucketReferenceInode(inode, INODE_FUSE_REFERENCE);
-		inode = NULL;
 	}
 
 	if (NULL != parentInode) {

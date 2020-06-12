@@ -20,7 +20,7 @@ void bitbucket_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 	}
 
 	for (uint64_t index = 0; index < nlookup; index++) {
-		BitbucketDereferenceInode(inode, INODE_FUSE_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE);
 	}
 
 	BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
