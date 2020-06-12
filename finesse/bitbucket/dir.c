@@ -414,6 +414,100 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
     return status;
 }
 
+#if 0
+//
+// This routine handles deletion of the child directory for the given parent
+// with proper locks held.
+//
+// The caller should hold no locks.  The directory deletion will fail
+// if the child directory has any children.
+//
+// Note: this routine is not coded; I copied it and started thinking about
+// what is needed to fix this.  For now, I'm not fixing it...
+//
+int BitbucketDeleteChildDirectory(bitbucket_inode_t *Inode, const char *Name)
+{
+    assert(NULL != Directory);
+    assert(NULL != Name);
+    assert(strlen(Name) > 0);
+    CHECK_BITBUCKET_INODE_MAGIC(Directory);
+    assert(BITBUCKET_DIR_TYPE == Directory->InodeType);
+    CHECK_BITBUCKET_DIR_MAGIC(&Directory->Instance.Directory);
+    VerifyDirectoryEntries(Directory);
+
+    // Now let's go find the entry
+
+    while (ENOSYS == status) {
+
+        BitbucketLookupObjectInDirectory(Directory, Name, &inode);
+        if (NULL == inode) {
+            status = ENOENT;
+            break;
+        }
+
+        dirent = RemoveDirEntryFromDirectory(Directory, Name);
+        if (NULL == dirent) {
+            assert(dirent->Inode == inode); // otherwise, something is wrong!
+            status = ENOENT;
+            break;
+        }
+
+        if (BITBUCKET_DIR_TYPE == dirent->Inode->InodeType) {
+
+            // For directories, we break the linkage here
+            // So parent no longer points to child (directory), we
+            // fix up the child to no longer point to the parent.
+            de = RemoveDirEntryFromDirectory(dirent->Inode, "..");
+
+            // Note that when we try to delete the child from the parent, we will find '..'
+            // But when we try to delete '.' from the child, we won't find '..'
+
+            if (NULL != de) {
+            
+                assert(de->Inode == Directory); // how could it not point to the parent?
+                assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
+
+                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE);
+                de->Inode = NULL;
+
+                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+                dirent->Inode->Instance.Directory.Parent = NULL;
+
+                memset(de, 0, offsetof(bitbucket_dir_entry_t, Name));
+                free(de);
+                de = NULL;
+            }
+
+        }
+
+        status = 0;
+        break;
+    }
+
+    if (NULL != inode) {
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        inode = NULL;
+    }
+
+    if (NULL != dirent) {
+        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE);
+        dirent->Inode = NULL;
+        memset(dirent, 0, offsetof(bitbucket_dir_entry_t, Name));
+        free(dirent);
+        dirent = NULL;
+    }
+
+    VerifyDirectoryEntries(Directory);
+
+
+    assert(NULL == dirent);
+    assert(NULL == inode);
+    assert(NULL == de);
+
+    return status;
+}
+#endif // 0
+
 
 //
 // This function is used to initialize an enumeration context structure.  It
