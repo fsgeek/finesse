@@ -185,13 +185,12 @@ typedef struct _bitbucket_inode {
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
 #define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
-#define INODE_TABLE_REFERENCE        (0)
-#define INODE_LOOKUP_REFERENCE       (1)
-#define INODE_PARENT_REFERENCE       (2)
-#define INODE_DIRENT_REFERENCE       (3)
-#define INODE_ENUM_REFERENCE         (4)
-#define INODE_FUSE_LOOKUP_REFERENCE  (5) // lookup/forget
-#define INODE_FUSE_OPEN_REFERENCE    (6) // open/release
+#define INODE_LOOKUP_REFERENCE       (0)
+#define INODE_PARENT_REFERENCE       (1)
+#define INODE_DIRENT_REFERENCE       (2)
+#define INODE_ENUM_REFERENCE         (3)
+#define INODE_FUSE_LOOKUP_REFERENCE  (4) // lookup/forget
+#define INODE_FUSE_OPEN_REFERENCE    (5) // open/release
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
@@ -295,8 +294,13 @@ const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);
 // More random numbers
 // 
 //  
-// d5 a7 31 20 77 dc 4c 89
-// a9 e1 65 46 9a 58 d6 0c  
+//  
+//  13 5d 8f dd 8a 2f 16 ec
+//  08 83 59 60 59 ad 29 8b 
+//  18 1e c6 eb f4 fe 13 d5
+//  d8 20 1a 34 21 22 2f 70 
+//  33 62 53 e0 63 ce 2f df
+//  6d be b1 48 bd 55 70 e0 
 //
 // Source: https://www.random.org/cgi-bin/randbyte?nbytes=16&format=h
 

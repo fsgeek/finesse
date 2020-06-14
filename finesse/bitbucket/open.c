@@ -33,6 +33,7 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 
 	while (NULL != inode) {
 		fi->fh = (uint64_t)inode;
+		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE); // matches forget call
 
 		status = 0;
 		break;
@@ -40,7 +41,6 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 
 	if (NULL != inode) {
 		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);   // matches release call
-		// BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE); // matches forget call
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);    // drops our lookup ref on entry
 		inode = NULL;
 	}

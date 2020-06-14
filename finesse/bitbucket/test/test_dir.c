@@ -30,10 +30,9 @@ test_create_dir(
 
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
     // TODO: this is a strange case, since the root directory has multiple references to itself:
-    //  (1) for the table reference on the inode
     //  (2) for the directory entries ("." and "..")
     //  (1) for the parent reference (on itself).
     //  (1) for the pointer returned from CreateRootDirectory (a "lookup" reference)
@@ -74,7 +73,7 @@ test_create_subdir(
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
     predictedRefCount = refcount;
 
     subdir_data = (struct _subdir_data *)malloc(sizeof(struct _subdir_data) * subdir_count);
@@ -92,13 +91,13 @@ test_create_subdir(
 
     for (unsigned index = 0; index < subdir_count; index++) {
         refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
-        munit_assert(4 == refcount); // table + lookup + 2 dir
+        munit_assert(3 == refcount); // lookup + 2 dir
 
         status = BitbucketDeleteDirectoryEntry(rootdir, subdir_data[index].UuidString);
         munit_assert(0 == status);
 
         refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
-        munit_assert(3 == refcount); // table + lookup + 1 dir (".")
+        munit_assert(2 == refcount); // lookup + 1 dir (".")
 
         status = BitbucketDeleteDirectory(subdir_data[index].inode);
         munit_assert(0 == status);
@@ -156,7 +155,7 @@ test_enumerate_dir(
     munit_assert(0 != rootdir->Attributes.st_atime);
     munit_assert(0 != rootdir->Attributes.st_ctime);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
     // Now let's create some contents (could be files, but files aren't working yet)
     //
@@ -166,11 +165,11 @@ test_enumerate_dir(
         child = BitbucketCreateDirectory(rootdir, names[index]);
         munit_assert(NULL != child);
         refcount = BitbucketGetInodeReferenceCount(child);
-        munit_assert(4 == refcount); // table + lookup + 2 dir
+        munit_assert(3 == refcount); // lookup + 2 dir
 
         BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
         refcount = BitbucketGetInodeReferenceCount(child);
-        munit_assert(3 == refcount); // table + 2 dir
+        munit_assert(2 == refcount); // 2 dir
         child = NULL;
     }
 
@@ -200,7 +199,7 @@ test_enumerate_dir(
         }
 
         refcount = BitbucketGetInodeReferenceCount(dirEntry->Inode);
-        munit_assert(3 == refcount);
+        munit_assert(2 == refcount);
 
         for (index = 0; NULL != names[index]; index++) {
             if (0 == strcmp(dirEntry->Name, names[index])) {
@@ -241,12 +240,12 @@ test_enumerate_dir(
         BitbucketLookupObjectInDirectory(rootdir, names[index], &child);
         munit_assert(NULL != child);
         refcount = BitbucketGetInodeReferenceCount(child);
-        munit_assert(4 == refcount); // table + lookup + 2 dir entries
+        munit_assert(3 == refcount); // lookup + 2 dir entries
         status = BitbucketDeleteDirectoryEntry(rootdir, names[index]);
         munit_assert(0 == status);
         refcount = BitbucketGetInodeReferenceCount(child);
-        munit_assert(3 == refcount); // lookup + dirent ('.') + table
-        status = BitbucketDeleteDirectory(child); // delete '.' and table entry
+        munit_assert(2 == refcount); // lookup + dirent ('.')
+        status = BitbucketDeleteDirectory(child); // delete '.'
         munit_assert(0 == status);
         refcount = BitbucketGetInodeReferenceCount(child);
         munit_assert(1 == refcount);
@@ -256,8 +255,7 @@ test_enumerate_dir(
 
     // We should be back to this state.
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
-
+    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);

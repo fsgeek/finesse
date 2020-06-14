@@ -105,6 +105,7 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 		// Note: this isn't well-documented.  FUSE seems to treat
 		// create as both a lookup and an open.
 		// (test this by creating a file and then immediately deleting it).
+		fi->fh = (uint64_t)inode;
 		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE);
 		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);

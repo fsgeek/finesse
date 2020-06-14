@@ -70,3 +70,35 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	// All of these inodes have a lookup reference on them.
 	
 }
+
+
+void bitbucket_destroy(void *userdata)
+{
+	(void)userdata;
+
+#if 0
+	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	unsigned index = 0;
+
+	// Let's undo the work that we did in init.
+	// Note: this is going to crash if the volume isn't cleanly torn down, so that's probabl
+	// not viable long term.  Good for testing, though.
+
+	for(index = sizeof(BitbucketMagicNames)/ sizeof(const char *); index > 0; ) {
+		index--;
+
+		if (0 == strncmp("Unused", BitbucketMagicNames[index], 6)) {
+			continue; // skip these for now.
+		}
+
+		BitbucketDeleteDirectory(BBud->BitbucketMagicDirectories[index].Inode);
+		BitbucketDereferenceInode(BBud->BitbucketMagicDirectories[index].Inode, INODE_LOOKUP_REFERENCE); // undo original create ref
+		BBud->BitbucketMagicDirectories[index].Inode = NULL;
+	}
+
+	// This is where we have to "come clean".
+	BitbucketDestroyInodeTable(BBud->InodeTable);
+	BBud->InodeTable = NULL;
+#endif // 0
+
+}

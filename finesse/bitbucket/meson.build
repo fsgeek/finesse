@@ -4,7 +4,6 @@ bitbucket_sources = [
 	'bmap.c',
 	'copy_file_range.c',
 	'create.c',
-	'destroy.c',
 	'dir.c',
 	'fallocate.c',
 	'file.c',

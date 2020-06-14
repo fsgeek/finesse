@@ -90,32 +90,30 @@ test_inode_table_usage(
         inodes[index] = BitbucketCreateInode(Table, &TestInodeObjectAttributes, 0);
         CHECK_BITBUCKET_INODE_MAGIC(inodes[index]);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        // two references:
+        // one reference:
         //  (1) The lookup reference from BitbucketCreateInode
-        //  (1) The table reference from inserting this into the table.
-        munit_assert(2 == refcount); // the one I have - it is an INODE_TABLE_REFERENCE
+        munit_assert(1 == refcount);
 
         BitbucketReferenceInode(inodes[index], INODE_LOOKUP_REFERENCE);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        // three references:
+        // two references:
         //  (1) The lookup reference from BitbucketCreateInode
-        //  (1) The table reference from inserting this into the table.
         //  (1) The lookup reference from the reference I added above
-        munit_assert(3 == refcount);
+        munit_assert(2 == refcount);
 
         CHECK_BITBUCKET_INODE_MAGIC(inodes[index]);
         BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE); // this is my lookup reference above
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        munit_assert(2 == refcount); // Mine from create + table
+        munit_assert(1 == refcount); // Mine from create
 
         inode = BitbucketLookupInodeInTable(Table, inodes[index]->Attributes.st_ino);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(inodes[index] == inode);
-        munit_assert(3 == refcount); // Mine from create + table + lookup
+        munit_assert(2 == refcount); // Mine from create + lookup
 
         BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE); // from the lookup call
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        munit_assert(2 == refcount); // create + table
+        munit_assert(1 == refcount); // create
 
     }
 
@@ -123,23 +121,24 @@ test_inode_table_usage(
         bitbucket_inode_t *inode = BitbucketLookupInodeInTable(Table, inodes[index]->Attributes.st_ino);
         assert(inode == inodes[index]);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        munit_assert(3 == refcount); // create + table + lookup
+        munit_assert(2 == refcount); // create + lookup
 
         BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        munit_assert(2 == refcount); // create + table
+        munit_assert(1 == refcount); // create 
     }
 
     for (unsigned index = 0; index < iterations; index++) {
-        refcount = BitbucketGetInodeReferenceCount(inodes[index]);
-        munit_assert(2 == refcount); // create + table
+        ino_t ino = 0;
+        bitbucket_inode_t *inode = NULL;
 
-        BitbucketRemoveInodeFromTable(inodes[index]);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(1 == refcount); // create
+        ino = inodes[index]->Attributes.st_ino;
+        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE);
 
-        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE);      
-        inodes[index] = NULL;
+        inode = BitbucketLookupInodeInTable(Table, ino);
+        assert(NULL == inode); // shouldn't be able to find it!
     }
 
     // This call only works if the table is empty

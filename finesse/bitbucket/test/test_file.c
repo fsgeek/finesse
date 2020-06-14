@@ -38,7 +38,7 @@ test_create(
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount); // table + lookup + 2 dir entries + parent ref
     predictedRefCount = refcount;
 
     file_data = (struct _file_data *)malloc(sizeof(struct _file_data) * file_count);
@@ -55,7 +55,7 @@ test_create(
 
     for (unsigned index = 0; index < file_count; index++) {
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
-        munit_assert(3 == refcount); // table + lookup + 1 dir
+        munit_assert(2 == refcount); // lookup + 1 dir
 
         status = BitbucketRemoveFileFromDirectory(rootdir, file_data[index].UuidString);
         munit_assert(0 == status);

@@ -48,12 +48,14 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 		fuse_reply_err(req, status);
 	}
 	else {
-		fi->fh = inode->Attributes.st_mode;
+		fi->fh = (uint64_t)inode;
+		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE); // matches forget call
 		fi->cache_readdir = 1; // permit caching
 		fuse_reply_open(req, fi);
 	}
 
 	if (NULL != inode) {
+		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);   // matches release call
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
 	}

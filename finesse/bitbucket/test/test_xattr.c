@@ -33,7 +33,7 @@ test_lookup(
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(5 == refcount); // table + lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
     status = BitbucketLookupExtendedAttribute(rootdir, "selinux.security", &dataLength, &data);
     munit_assert(ENODATA == status);

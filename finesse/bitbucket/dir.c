@@ -190,6 +190,7 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
 {
     bitbucket_inode_t *newdir = NULL;
     int status = 0;
+    uint64_t refcount;
 
     // Both parameters are required
     assert(NULL != Parent);
@@ -228,8 +229,9 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
         assert(0 == status);
     }
 
-    // Four references: one for lookup, one for the parent, and two from the directory entry
-    assert(4 == BitbucketGetInodeReferenceCount(newdir));
+    // Four references: one for lookup, one for '.' and one from directory entry
+    refcount = BitbucketGetInodeReferenceCount(newdir);
+    assert(3 == refcount);
 
     VerifyDirectoryEntries(newdir); 
 
@@ -399,13 +401,9 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
     }
 
     if (0 == status) {
-        // at this point we should have at least two references:
+        // at this point we should have at least one references:
         // (1) lookup reference (from the caller)
-        // (1) table reference (from the original creation)
-        assert(2 <= BitbucketGetInodeReferenceCount(Inode));
-
-        // Remove this inode from the table
-        BitbucketRemoveInodeFromTable(Inode);
+        assert(1 <= BitbucketGetInodeReferenceCount(Inode));
 
         // Let the caller drop their own reference.
     }
@@ -722,28 +720,26 @@ bitbucket_inode_t *BitbucketCreateRootDirectory(bitbucket_inode_table_t *Table)
         assert(BITBUCKET_DIR_TYPE == inode->InodeType);
         CHECK_BITBUCKET_DIR_MAGIC(&inode->Instance.Directory);
 
-        // Two refs here: the inode table and the lookup reference
-        // returned to us.  Technically this assert isn't quite right,
-        // since once we've inserted it, someone else could find it,
-        // but that's SUPER unlikely and this is useful for sanity
-        // checking.  If it breaks in the future, remove it or
-        // weaken it.
-        assert(2 == BitbucketGetInodeReferenceCount(inode));
+        // Single ref here: the lookup reference returned from create.
+        // Technically, this assert isn't quite right, since once we've
+        // inserted it, someone else could find it.  That's unlikely
+        // but if it becomes a problem, remove it or weaken it.
+        assert(1 == BitbucketGetInodeReferenceCount(inode));
 
         // A root directory is its own parent
         inode->Instance.Directory.Parent = inode;
         BitbucketReferenceInode(inode, INODE_PARENT_REFERENCE);
-        assert(3 == BitbucketGetInodeReferenceCount(inode));
+        assert(2 == BitbucketGetInodeReferenceCount(inode));
 
         // All directories point to themselves.
         status = BitbucketInsertDirectoryEntry(inode, inode, ".");
         assert(0 == status);
-        assert(4 == BitbucketGetInodeReferenceCount(inode));
+        assert(3 == BitbucketGetInodeReferenceCount(inode));
 
         // A root directory is its own parent (this time in the directory)
         status = BitbucketInsertDirectoryEntry(inode, inode, "..");
         assert(0 == status);
-        assert(5 == BitbucketGetInodeReferenceCount(inode));
+        assert(4 == BitbucketGetInodeReferenceCount(inode));
 
         // We have a complete inode now.
         break;

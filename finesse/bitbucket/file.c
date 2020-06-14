@@ -46,6 +46,7 @@ static void FileDeallocate(void *Inode, size_t Length)
 
 }
 
+#if 0
 static void FileLock(void *Inode, int Exclusive)
 {
     bitbucket_inode_t *bbi = (bitbucket_inode_t *)Inode;
@@ -78,14 +79,14 @@ static void FileUnlock(void *Inode)
     status = pthread_rwlock_unlock(&bbi->InodeLock);
     assert(0 == status);
 }
-
+#endif // 0
 
 static bitbucket_object_attributes_t FileObjectAttributes = {
     .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
     .Initialize = FileInitialize,
     .Deallocate = FileDeallocate,
-    .Lock = FileLock,
-    .Unlock = FileUnlock,
+    .Lock = NULL,
+    .Unlock = NULL,
 };
 
 //
@@ -158,7 +159,6 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 {
     int status = ENOENT;
     bitbucket_inode_t *file = NULL;
-    nlink_t linkcount = 1;
 
     assert(NULL != Parent);
     CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
@@ -178,13 +178,7 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
         assert(file->Attributes.st_nlink > 0); // shouldn't go negative
         BitbucketLockInode(file, 1);
         file->Attributes.st_nlink--;
-        linkcount = file->Attributes.st_nlink;
         BitbucketUnlockInode(file);
-
-        if (0 == linkcount) {
-            BitbucketRemoveInodeFromTable(file);
-            // Note: our reference to the file is still valid
-        }
 
         break;
     }
@@ -199,6 +193,7 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
 }
 
+#if 0
 //
 // Invoke this when you want to initiate teardown of a file.
 // The link count must be zero (Attributes.st_nlink)
@@ -226,4 +221,5 @@ int BitbucketDeleteFile(bitbucket_inode_t *Inode)
     
     return status;
 }
+#endif // 0
 

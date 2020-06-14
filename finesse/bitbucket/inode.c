@@ -95,7 +95,7 @@ static void LockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId, i
 
     assert(NULL != Table);
     CHECK_BITBUCKET_INODE_TABLE_MAGIC(Table);
-    assert(BucketId < BITBUCKET_INODE_TABLE_BUCKETS);
+    assert(BucketId < Table->BucketCount);
 
     if (Change) {
         status = pthread_rwlock_wrlock(&Table->Buckets[BucketId].Lock);
@@ -105,6 +105,24 @@ static void LockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId, i
         pthread_rwlock_rdlock(&Table->Buckets[BucketId].Lock);
         assert(0 == status);
     }
+}
+
+static int TryLockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId, int Change)
+{
+    int status = 0;
+
+    assert(NULL != Table);
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(Table);
+    assert(BucketId < Table->BucketCount);
+
+    if (Change) {
+        status = pthread_rwlock_trywrlock(&Table->Buckets[BucketId].Lock);
+    }
+    else {
+        status = pthread_rwlock_tryrdlock(&Table->Buckets[BucketId].Lock);
+    }
+
+    return status;
 }
 
 static void UnlockInodeBucket(bitbucket_inode_table_t *Table, uint16_t BucketId)
@@ -127,6 +145,16 @@ static void LockInodeForLookup(bitbucket_inode_table_t *Table, ino_t Inode)
     LockInodeBucket(Table, bucketId, 0);
 }
 
+static int TryLockInode(bitbucket_inode_table_t *Table, ino_t Inode, int Exclusive)
+{
+    uint16_t bucketId = hash_inode(Inode);
+
+    assert(NULL != Table);
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(Table);
+
+    return TryLockInodeBucket(Table, bucketId, Exclusive);
+}
+
 static void LockInodeForChange(bitbucket_inode_table_t *Table, ino_t Inode)
 {
     uint16_t bucketId = hash_inode(Inode);
@@ -136,6 +164,7 @@ static void LockInodeForChange(bitbucket_inode_table_t *Table, ino_t Inode)
 
     LockInodeBucket(Table, bucketId, 1);
 }
+
 
 static void UnlockInode(bitbucket_inode_table_t *Table, ino_t Inode)
 {
@@ -187,7 +216,6 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
     ite = (bitbucket_inode_table_entry_t *)malloc(sizeof(bitbucket_inode_table_entry_t));
     ite->Magic = BITBUCKET_INODE_TABLE_ENTRY_MAGIC;
     ite->Inode = Inode;
-    BitbucketReferenceInode(ite->Inode, INODE_TABLE_REFERENCE);
     assert(FUSE_ROOT_ID != Inode->Attributes.st_ino); // we don't use this value
     assert(0 != Inode->Attributes.st_ino);
     assert(FUSE_ROOT_ID != Inode->Attributes.st_ino); // for now, we don't allow this - keep it in the userdata
@@ -219,6 +247,13 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
     return result;
 }
 
+
+#if 0
+
+// Removing this because deletion from the table should always be done
+// by deleting the objects themselves - this ensures correct
+// reference counting.  No direct deletion should occur (except perhaps
+// in table teardown itself...)
 
 // Given an inode number it removes it from the table, if
 // it exists.  Return value is the object pointer of the
@@ -256,6 +291,7 @@ void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode)
         free(ite);
     }
 }
+#endif // 0
 
 // Find an inode from the inode number in the specified table
 // If found, a reference counted pointer to the inode is returned
@@ -377,12 +413,98 @@ static void InodeInitialize(void *Object, size_t Length)
     BitbucketInitializeExtendedAttributes(&bbpi->PublicInode);
 }
 
+static void InodeTableLock(void *Object, int Exclusive)
+{
+    bitbucket_private_inode_t *bbpi = NULL;
+    bitbucket_inode_table_t *table = NULL;
+
+    assert(NULL != Object);
+    bbpi = (bitbucket_private_inode_t *)Object;
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+    assert(NULL != bbpi->Table);
+    table = bbpi->Table;
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);
+
+    // Since this might be removing the entry from the table, we
+    // need to exclusive lock it here.  We don't need the
+    // actual inode lock.
+    if (Exclusive) {
+        LockInodeForChange(table, bbpi->PublicInode.Attributes.st_ino);
+    }
+    else {
+        LockInodeForLookup(table, bbpi->PublicInode.Attributes.st_ino);
+    }
+}
+
+static int InodeTableTrylock(void *Object, int Exclusive)
+{
+    bitbucket_private_inode_t *bbpi = NULL;
+    bitbucket_inode_table_t *table = NULL;
+
+    assert(NULL != Object);
+    bbpi = (bitbucket_private_inode_t *)Object;
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+    assert(NULL != bbpi->Table);
+    table = bbpi->Table;
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);
+
+    // Since this might be removing the entry from the table, we
+    // need to exclusive lock it here.  We don't need the
+    // actual inode lock.
+    return TryLockInode(bbpi->Table, bbpi->PublicInode.Attributes.st_ino, Exclusive);
+
+}
+
+
+static void InodeTableUnlock(void *Object)
+{
+    bitbucket_private_inode_t *bbpi = NULL;
+    bitbucket_inode_table_t *table = NULL;
+
+    assert(NULL != Object);
+    bbpi = (bitbucket_private_inode_t *)Object;
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+    assert(NULL != bbpi->Table);
+    table = bbpi->Table;
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);
+
+    // Since this might be removing the entry from the table, we
+    // need to exclusive lock it here.  We don't need the
+    // actual inode lock.
+    UnlockInode(bbpi->Table, bbpi->PublicInode.Attributes.st_ino);
+
+}
+
+
 static void InodeDeallocate(void *Object, size_t Length)
 {
     int status = 0;
+    bitbucket_inode_table_t *table = NULL;
     bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
     assert(bbpi->Length == Length);
+    assert(NULL != bbpi->Table);
+    table = bbpi->Table;
+    bitbucket_inode_table_entry_t *ite = NULL;
+    uint16_t bucketId = hash_inode(bbpi->PublicInode.Attributes.st_ino);
+
+    // We must be holding the inode table bucket lock EXCLUSIVE
+    status = InodeTableTrylock(Object, 0);
+    // if that call succeeded, we just acquired it shared - this is wrong.
+    assert(0 != status);
+    // We know that SOME caller owns the lock exclusive; let's hope it
+    // is us.
+    ite = LookupInodeInTableLocked(table, bbpi->PublicInode.Attributes.st_ino);
+    assert(NULL != ite); // logic bug if we don't find it
+    remove_list_entry(&ite->ListEntry);
+    table->Buckets[bucketId].Count--;
+    // We can drop the table lock now because it has been removed; we
+    // were the final reference to this object, we have the table locked
+    // so nobody else found it, and now we can finish tearing it down.
+    InodeTableUnlock(Object);
+    // No longer need the inode table entry
+    free(ite);
+    ite = NULL;
 
     if (NULL != bbpi->RegisteredAttributes.Deallocate) {
         // call down the chain BEFORE our own cleanup.
@@ -396,100 +518,29 @@ static void InodeDeallocate(void *Object, size_t Length)
     // Just wipe the entire region out
     memset(Object, 0, Length);
 
-}
-
-static void InodeLock(void *Object, int Exclusive)
-{
-    int status;
-    bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
-    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
-
-    if (NULL != bbpi->RegisteredAttributes.Lock) {
-        bbpi->RegisteredAttributes.Lock(&bbpi->PublicInode, Exclusive);
-    }
-    else {
-        if (Exclusive) {
-            status = pthread_rwlock_wrlock(&bbpi->PublicInode.InodeLock);
-            assert(0 == status);
-        }
-        else {
-            status = pthread_rwlock_rdlock(&bbpi->PublicInode.InodeLock);
-            assert(0 == status);
-        }
-    }
-
-    if (Exclusive) {
-        bbpi->PublicInode.Epoch++;
-    }
 
 }
 
-static int InodeTrylock(void *Object, int Exclusive)
-{
-    int status = 0;
-    bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
-    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
-
-    if (NULL != bbpi->RegisteredAttributes.Trylock) {
-        status = bbpi->RegisteredAttributes.Trylock(&bbpi->PublicInode, Exclusive);
-    }
-    else {
-        if (Exclusive) {
-            status = pthread_rwlock_trywrlock(&bbpi->PublicInode.InodeLock);
-            assert(0 == status);
-        }
-        else {
-            status = pthread_rwlock_tryrdlock(&bbpi->PublicInode.InodeLock);
-            assert(0 == status);
-        }
-    }
-
-    if (Exclusive) {
-        bbpi->PublicInode.Epoch++;
-    }
-
-    return status;
-}
-
-
-static void InodeUnlock(void *Object)
-{
-    bitbucket_private_inode_t *bbpi = (bitbucket_private_inode_t *)Object;
-    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
-    int status = 0;
-
-    // For now, we don't have an private inode locking
-
-    if (NULL != bbpi->RegisteredAttributes.Unlock) {
-        // call down the chain BEFORE our own unlock (?).
-        bbpi->RegisteredAttributes.Unlock(&bbpi->PublicInode);
-    }
-    else {
-        status = pthread_rwlock_unlock(&bbpi->PublicInode.InodeLock);
-        assert(0 == status);
-    }
-
-}
 
 static bitbucket_object_attributes_t InodePrivateObjectAttributes = 
 {
     .Magic = BITBUCKET_OBJECT_ATTRIBUTES_MAGIC,
     .ReasonCount = BITBUCKET_MAX_REFERENCE_REASONS,
     .ReferenceReasonsNames = {
-        "InodeTable",
         "Lookup",
         "Dir:Parent",
         "Dir:Entry",
         "Enumeration",
         "FuseLookup",
+        "Reason5",
         "Reason6",
         "Reason7",
     },
     .Initialize = InodeInitialize,
     .Deallocate = InodeDeallocate,
-    .Lock = InodeLock,
-    .Trylock = InodeTrylock,
-    .Unlock = InodeUnlock,
+    .Lock = InodeTableLock,
+    .Trylock = InodeTableTrylock,
+    .Unlock = InodeTableUnlock,
 };
 
 // When creating an inode structure, an additional length (for variable size data) can be allocated.  Can be zero
@@ -531,10 +582,11 @@ bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucke
 
     // Insert this inode into the table
     BitbucketInsertInodeInTable(Table, &bbpi->PublicInode);
+    bbpi->Table = Table;
 
-    // Make sure the ref count is correct.
+    // Make sure the ref count is correct: the table reference is NOT refcounted
     refcount = BitbucketGetObjectReferenceCount(object);
-    assert(2 == refcount);
+    assert(1 == refcount);
 
     return &bbpi->PublicInode;
 }
