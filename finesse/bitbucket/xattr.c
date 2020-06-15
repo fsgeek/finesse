@@ -11,6 +11,7 @@
 // Extended Attributes support
 typedef struct _bitbucket_xattr {
     uint64_t            Magic;
+    list_entry_t        ListEntry;
     size_t              NameLength;
     size_t              DataLength;
     char                Data[1];
@@ -91,13 +92,16 @@ int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
         }
 
         xattr->Magic = BITBUCKET_XATTR_MAGIC;
+        initialize_list_entry(&xattr->ListEntry);
         xattr->NameLength = strlen(Name);
         xattr->DataLength = DataLength;
         strcpy((char *)xattr->Data, Name);
         memcpy(((char *)xattr->Data) + nameLength + 1, Data, DataLength);
 
         TrieInsert(Inode->ExtendedAttributeTrie, Name, xattr);
+        insert_list_head(&Inode->ExtendedAttributes, &xattr->ListEntry);
         xattr = NULL;
+        status = 0;
         break;
     }
 
@@ -177,6 +181,34 @@ int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name)
     xattr = NULL;
 
     return 0;
+
+}
+
+//
+// Call this when destroying an inode with extended attributes
+//
+// Note: this call is NOT assuming any locking as it should only 
+// be called in object teardown (when there can't be any other
+// references!)
+void BitbucketDestroyExtendedAttributes(bitbucket_inode_t *Inode)
+{
+    list_entry_t *le = NULL;
+    bitbucket_xattr_t *xattr = NULL;
+    int status = 0;
+
+    // clean up extended attributes
+    while (!empty_list(&Inode->ExtendedAttributes)) {
+        le = remove_list_head(&Inode->ExtendedAttributes);
+        xattr = container_of(le, bitbucket_xattr_t, ListEntry);
+
+        // The (null terminated) name is the first element in the Data block
+        status = TrieDeletion(&Inode->ExtendedAttributeTrie, (const char *)xattr->Data);
+        assert(0 == status); // if not, something is wrong
+
+        free(xattr);
+        xattr = NULL;
+    }
+
 
 }
 

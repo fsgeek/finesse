@@ -505,6 +505,15 @@ static void InodeDeallocate(void *Object, size_t Length)
     // No longer need the inode table entry
     free(ite);
     ite = NULL;
+ 
+    if ((NULL != bbpi->PublicInode.ExtendedAttributeTrie) ||
+        !empty_list(&bbpi->PublicInode.ExtendedAttributes)) {
+        BitbucketDestroyExtendedAttributes(&bbpi->PublicInode);
+    }
+    assert(NULL == bbpi->PublicInode.ExtendedAttributeTrie);
+    assert(empty_list(&bbpi->PublicInode.ExtendedAttributes));
+    
+
 
     if (NULL != bbpi->RegisteredAttributes.Deallocate) {
         // call down the chain BEFORE our own cleanup.

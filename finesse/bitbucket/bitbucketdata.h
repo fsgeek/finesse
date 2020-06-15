@@ -271,6 +271,7 @@ void BitbucketInitializeExtendedAttributes(bitbucket_inode_t *Inode);
 int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name, size_t DataLength, const void *Data);
 int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name, size_t *DataLength, const void **Data);
 int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name);
+void BitbucketDestroyExtendedAttributes(bitbucket_inode_t *Inode);
 
 
 // Given an inode, insert it into the directory with the specified name.
