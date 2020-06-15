@@ -46,6 +46,8 @@ int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *Fi
 bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName);
 int BitbucketDeleteFile(bitbucket_inode_t *Inode);
 
+bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char *FileName, const char *Link);
+int BitbucketRemoveSymlinkFromDirectory(bitbucket_inode_t *Parent, const char *FileName);
 
 typedef struct _bitbucket_dir {
     uint64_t              Magic; // magic number

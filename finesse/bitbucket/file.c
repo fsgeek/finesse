@@ -40,7 +40,7 @@ static void FileDeallocate(void *Inode, size_t Length)
     assert(bbi->InodeLength == Length);
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_FILE_MAGIC(&bbi->Instance.File); // layers of sanity checking
-    bbi->Instance.File.Magic = ~BITBUCKET_DIR_MAGIC; // make it easy to recognize use after free
+    bbi->Instance.File.Magic = ~BITBUCKET_FILE_MAGIC; // make it easy to recognize use after free
 
     // Our state is torn down at this point. 
 
@@ -169,6 +169,9 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
             status = EISDIR;
             break;
         }
+
+        // definitely shouldn't be called here.
+        assert(S_IFREG == (file->Attributes.st_mode & S_IFREG));
 
         status = BitbucketDeleteDirectoryEntry(Parent, FileName);
         if (0 != status) {
