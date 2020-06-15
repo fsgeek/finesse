@@ -94,8 +94,7 @@ static bitbucket_object_attributes_t FileObjectAttributes = {
 // return a pointer to the new file inode.
 //
 // Upon return, this inode will have a lookup reference (for the caller's )
-// copy, plus a reference from the Inode table and the directory entry
-// from the parent.
+// copy, plus a reference from the the directory entry of the parent.
 //
 bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName)
 {
