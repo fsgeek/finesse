@@ -13,12 +13,67 @@
 
 void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name)
 {
-	(void) req;
-	(void) link;
-	(void) parent;
-	(void) name;
+    int status = EACCES;
+    bitbucket_inode_t *inode = NULL;
+    bitbucket_inode_t *symlinkInode = NULL;
+   	void *userdata = NULL;
+	bitbucket_user_data_t *BBud = NULL;
+	struct fuse_entry_param fep;
 
-	assert(0); // Not implemented
+    assert(NULL != req);
+    assert(NULL != link);
+    assert(0 != strlen(link));
+    assert(0 != parent);
+    assert(NULL != name);
+    assert(0 != strlen(name));
+
+    userdata = fuse_req_userdata(req);
+    assert(NULL != userdata);
+    BBud = (bitbucket_user_data_t *)userdata;
+
+    while (0 != status) {
+        inode = BitbucketLookupInodeInTable(BBud->InodeTable, parent);
+        if (NULL == inode) {
+            status = EBADF;
+            break; // invalid inode number
+        }
+
+        symlinkInode = BitbucketCreateSymlink(inode, name, link);
+        if (NULL == symlinkInode) {
+            status = EACCES;
+            break; // not sure why - so we say "access denied"
+        }
+
+        status = 0;
+        break;
+    }
+
+    if (NULL != inode) {
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        inode = NULL;
+    }
+
+    // TODO: build the entry and return it.
+    if (0 != status) {
+        fuse_reply_err(req, status);
+        return;
+    }
+
+    assert(0 == status);
+    assert(NULL != symlinkInode);
+    memset(&fep, 0, sizeof(fep));
+    fep.ino = symlinkInode->Attributes.st_ino;
+    fep.generation = symlinkInode->Epoch;
+    fep.attr = symlinkInode->Attributes;
+    fep.attr_timeout = 30;
+    fep.entry_timeout = 30;
+    fuse_reply_entry(req, &fep);
+
+    BitbucketReferenceInode(symlinkInode, INODE_FUSE_LOOKUP_REFERENCE); // this matches the fuse_reply_entry
+    BitbucketDereferenceInode(symlinkInode, INODE_LOOKUP_REFERENCE);
+
+    return;
+
 }
 
 static void SymlinkInitialize(void *Inode, size_t Length)
@@ -33,7 +88,7 @@ static void SymlinkInitialize(void *Inode, size_t Length)
     assert(BITBUCKET_UNKNOWN_TYPE == SymlinkInode->InodeType);
 
     SymlinkInode->InodeType = BITBUCKET_SYMLINK_TYPE; // Mark this as being a directory
-    SymlinkInode->Instance.SymbolicLink.Magic = BITBUCKET_FILE_MAGIC;
+    SymlinkInode->Instance.SymbolicLink.Magic = BITBUCKET_SYMLINK_MAGIC;
     SymlinkInode->Attributes.st_mode |= S_IFLNK; // mark as a regular file
     SymlinkInode->Attributes.st_nlink = 1; // wonder what happens if you try to hard link a symlink.
     SymlinkInode->Attributes.st_size = 0; // what does this mean for a symlink
@@ -101,6 +156,7 @@ bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char 
     assert(BITBUCKET_SYMLINK_TYPE == newlink->InodeType);
     CHECK_BITBUCKET_SYMLINK_MAGIC(&newlink->Instance.SymbolicLink);
     assert(S_IFLNK == (newlink->Attributes.st_mode & S_IFMT));
+    newlink->Attributes.st_mode |= 0777; // "On Linux the permissions of a symlink ... are always 0777"
 
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);
@@ -143,4 +199,26 @@ int BitbucketRemoveSymlinkFromDirectory(bitbucket_inode_t *Parent, const char *S
 
 
 	return status;
+}
+
+int BitbucketReadSymlink(bitbucket_inode_t *Inode, const char **SymlinkContents)
+{
+    int status = EBADF;
+    assert(NULL != Inode);
+    CHECK_BITBUCKET_INODE_MAGIC(Inode);
+
+    while (NULL != Inode) {
+        if (BITBUCKET_SYMLINK_TYPE != Inode->InodeType) {
+            // We can't return the contents of something that's not a symlink
+            break;
+        }
+
+		assert(S_IFLNK == (Inode->Attributes.st_mode & S_IFLNK));
+
+        *SymlinkContents = Inode->Instance.SymbolicLink.LinkContents;
+        status = 0;
+        break;
+    }
+
+    return status;
 }

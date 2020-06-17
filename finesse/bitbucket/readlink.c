@@ -4,11 +4,46 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include <errno.h>
+#include <string.h>
 
 void bitbucket_readlink(fuse_req_t req, fuse_ino_t ino)
 {
-	(void) req;
-	(void) ino;
+	bitbucket_inode_t *inode = NULL;
+	bitbucket_user_data_t *bbud = NULL;
+	int status = EBADF;
 
-	assert(0); // Not implemented
+	assert(NULL != req);
+	assert(0 != ino);
+
+	bbud = (bitbucket_user_data_t *)fuse_req_userdata(req);
+	assert(NULL != bbud);
+
+	while (NULL != bbud) {
+		inode = BitbucketLookupInodeInTable(bbud->InodeTable, ino);
+		if (NULL == inode) {
+			status = EBADF;
+			break;
+		}
+
+		if (BITBUCKET_SYMLINK_TYPE != inode->InodeType) {
+			status = EBADF;
+			break;
+		}
+
+		fuse_reply_buf(req, inode->Instance.SymbolicLink.LinkContents, strlen(inode->Instance.SymbolicLink.LinkContents));
+		status = 0;
+		break;
+
+	}
+
+	if (0 != status) {
+		fuse_reply_err(req, status);
+	}
+
+	if (NULL != inode) {
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
+	}
+
 }
