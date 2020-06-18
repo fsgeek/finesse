@@ -87,6 +87,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     size_t entry_length = offsetof(bitbucket_dir_entry_t, Name);
     size_t name_length = 0;
     void *tobj = NULL;
+    int status;
 
     assert(NULL != DirInode);
     assert(NULL != Inode);
@@ -114,27 +115,50 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
         assert(strlen(newentry->Name) == strlen(Name)); // must be the same
     }
 
-    BitbucketLockInode(DirInode, 1);
-    newentry->Offset = DirInode->Epoch;
-    if (NULL == DirInode->Instance.Directory.Children) {
-        DirInode->Instance.Directory.Children = TrieCreateNode();
+    if (DirInode != Inode) {
+        BitbucketLockTwoInodes(DirInode, Inode, 1);
     }
-    assert(NULL != DirInode->Instance.Directory.Children);
+    else {
+        BitbucketLockInode(DirInode, 1);
+    }
+    while (NULL != DirInode) {
+        newentry->Offset = DirInode->Epoch;
+        if (NULL == DirInode->Instance.Directory.Children) {
+            DirInode->Instance.Directory.Children = TrieCreateNode();
+        }
+        assert(NULL != DirInode->Instance.Directory.Children);
 
-    tobj = TrieSearch(DirInode->Instance.Directory.Children, Name);
-    assert(NULL == tobj); // TODO: deal with name collision
-    TrieInsert(DirInode->Instance.Directory.Children, Name, newentry);
+        tobj = TrieSearch(DirInode->Instance.Directory.Children, Name);
 
-    insert_list_head(&DirInode->Instance.Directory.Entries, &newentry->ListEntry);
+        if (NULL != tobj) {
+            // caller can deal with this case
+            status = EEXIST;
+            break;
+        }
 
-    DirInode->Attributes.st_nlink++;
+        TrieInsert(DirInode->Instance.Directory.Children, Name, newentry);
 
-    VerifyDirectoryEntries(DirInode);
+        insert_list_head(&DirInode->Instance.Directory.Entries, &newentry->ListEntry);
 
-    BitbucketUnlockInode(DirInode);
+        if (Inode != DirInode) {
+            Inode->Attributes.st_nlink++;
+        }
 
+        // TODO: make this conditional on some debugging parameter(s)
+        // VerifyDirectoryEntries(DirInode);
 
-    return 0;
+        status = 0;
+        break;
+    }
+    if (DirInode != Inode) {
+        BitbucketUnlockInode(DirInode);
+        BitbucketUnlockInode(Inode);
+    }
+    else {
+        BitbucketUnlockInode(DirInode);
+    }
+
+    return status;
 }
 
 void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name, bitbucket_inode_t **Object) 
@@ -253,9 +277,13 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
             break;
         }
 
+        BitbucketLockInode(dirent->Inode, 1);
         // Remove the entries
         remove_list_entry(&dirent->ListEntry);
         TrieDeletion(&Inode->Instance.Directory.Children, Name);
+        assert(dirent->Inode->Attributes.st_nlink > 0);
+        dirent->Inode->Attributes.st_nlink--;
+        BitbucketUnlockInode(dirent->Inode);
     }
 
     VerifyDirectoryEntries(Inode);

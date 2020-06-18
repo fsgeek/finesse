@@ -90,7 +90,7 @@ static void SymlinkInitialize(void *Inode, size_t Length)
     SymlinkInode->InodeType = BITBUCKET_SYMLINK_TYPE; // Mark this as being a directory
     SymlinkInode->Instance.SymbolicLink.Magic = BITBUCKET_SYMLINK_MAGIC;
     SymlinkInode->Attributes.st_mode |= S_IFLNK; // mark as a regular file
-    SymlinkInode->Attributes.st_nlink = 1; // wonder what happens if you try to hard link a symlink.
+    SymlinkInode->Attributes.st_nlink = 0; // wonder what happens if you try to hard link a symlink.
     SymlinkInode->Attributes.st_size = 0; // what does this mean for a symlink
     SymlinkInode->Attributes.st_blocks = 0; // ?
 }

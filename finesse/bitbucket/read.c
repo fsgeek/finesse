@@ -64,8 +64,10 @@ void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
 			outsize = size;
 		}
 
-		// We need to ensure the file doesn't shrink while the data is being returned
-		fuse_reply_buf(req, (void *)(((uintptr_t)inode->Instance.File.Map) + off), outsize);
+		if (outsize > 0) {
+			// We need to ensure the file doesn't shrink while the data is being returned
+			fuse_reply_buf(req, (void *)(((uintptr_t)inode->Instance.File.Map) + off), outsize);
+		}
 		break;
 	}
 	BitbucketUnlockInode(inode); // don't need stable size any longer

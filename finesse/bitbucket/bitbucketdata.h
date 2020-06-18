@@ -115,8 +115,8 @@ void *BitbucketCreateInodeTable(uint16_t BucketCount);
 void BitbucketDestroyInodeTable(void *Table);
 uint64_t BitbucketGetInodeTableCount(void *Table);
 
-#define BITBUCKET_FILE_TYPE (0x10)
-#define BITBUCKET_DIR_TYPE  (0x11)
+#define BITBUCKET_DIR_TYPE  (0x10)
+#define BITBUCKET_FILE_TYPE (0x11)
 #define BITBUCKET_SYMLINK_TYPE (0x12)
 #define BITBUCKET_DEVNODE_TYPE (0x13)
 #define BITBUCKET_UNKNOWN_TYPE (0xFF)

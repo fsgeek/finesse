@@ -704,13 +704,35 @@ void BitbucketLockTwoInodes(bitbucket_inode_t *Inode1, bitbucket_inode_t *Inode2
     assert(NULL != Inode2);
     assert(Inode1 != Inode2); // can't be the same inode!
 
-    if ((uintptr_t)Inode1 < (uintptr_t)Inode2) {
-        first = Inode2;
-        second = Inode1;
-    }
-    else {
+    //
+    // Lock hierarchy:
+    //   - Table lock (not an inode lock)
+    //   - Dir lock
+    //   - File lock
+    //   - Symlink lock
+    //   - Devnode
+    _Static_assert(BITBUCKET_DIR_TYPE < BITBUCKET_FILE_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_FILE_TYPE < BITBUCKET_SYMLINK_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_SYMLINK_TYPE < BITBUCKET_DEVNODE_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_SYMLINK_TYPE < BITBUCKET_UNKNOWN_TYPE, "locking relies upon type value");
+    assert((BITBUCKET_DIR_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_FILE_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_SYMLINK_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_DEVNODE_TYPE == Inode1->InodeType));
+
+    if (Inode1->InodeType < Inode2->InodeType) {
         first = Inode1;
         second = Inode2;
+    }
+    else {
+        if ((uintptr_t)Inode1 < (uintptr_t)Inode2) {
+            first = Inode2;
+            second = Inode1;
+        }
+        else {
+            first = Inode1;
+            second = Inode2;
+        }
     }
 
     BitbucketLockInode(first, Exclusive);

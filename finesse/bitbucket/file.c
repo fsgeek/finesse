@@ -163,7 +163,6 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);
 
-    newfile->Attributes.st_nlink = 1;
     status = BitbucketInsertDirectoryEntry(Parent, newfile, FileName);
     assert(0 == status);
 
@@ -184,10 +183,7 @@ int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *Fi
     CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
 
     BitbucketLockInode(Parent, 1);
-    BitbucketLockInode(File, 1);
-    File->Attributes.st_nlink = 1;
     status = BitbucketInsertDirectoryEntry(Parent, File, FileName);
-    BitbucketUnlockInode(File);
     BitbucketUnlockInode(Parent);
 
     return status;
@@ -225,9 +221,6 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
             break;
         }
         assert(file->Attributes.st_nlink > 0); // shouldn't go negative
-        BitbucketLockInode(file, 1);
-        file->Attributes.st_nlink--;
-        BitbucketUnlockInode(file);
 
         break;
     }
