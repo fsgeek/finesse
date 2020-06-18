@@ -8,7 +8,7 @@
 void bitbucket_forget_multi(fuse_req_t req, size_t count, struct fuse_forget_data *forgets)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	struct fuse_forget_data *forget_array = forgets;
 

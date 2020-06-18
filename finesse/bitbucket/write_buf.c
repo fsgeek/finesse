@@ -5,20 +5,19 @@
 
 #include "bitbucket.h"
 #include <errno.h>
+#include <string.h>
 
 void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = 0;
 	size_t size = 0;
+	size_t offset = 0;
+	int extending = 0;
 
-	(void) req;
-	(void) ino;
-	(void) bufv;
-	(void) off;
-	(void) fi;
+	(void) fi;  // could probably just use fi here...
 
 	// Compute the size
 	if (NULL != bufv) {
@@ -60,12 +59,37 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 		}
 
 		status = 0; // success
+		
+		BitbucketLockInode(inode, 0);
+		if (off + size > inode->Attributes.st_size) {
+			extending = 1;
+			BitbucketUnlockInode(inode);
+			BitbucketLockInode(inode, 1);
+		}
 
 		if (off + size > inode->Attributes.st_size) {
+			assert(extending); // otherwise this is broken!
+			status = BitbucketAdjustFileStorage(inode, off + size);
+			assert(0 == status); // probably a programming bug
 			// move the EOF pointer out.
 			inode->Attributes.st_size = off + size;
 			inode->Attributes.st_blocks = inode->Attributes.st_size / inode->Attributes.st_blksize;
 		}
+
+		// At this point it is safe for us to copy data
+		assert(NULL != bufv);
+		offset = off;
+		for(unsigned index = 0; index < bufv->count; index++) {
+			if (bufv->idx >= index) {
+				char *ptr = (char *)((uintptr_t)inode->Instance.File.Map);
+				assert(0 == bufv->buf[index].flags); // we aren't using any flags...
+				assert((uintptr_t)(offset + bufv->buf[index].size) <= (uintptr_t)inode->Attributes.st_size);
+				memcpy(ptr + offset, bufv->buf[index].mem, bufv->buf[index].size);
+				offset += bufv->buf[index].size;
+			}
+		}
+		BitbucketUnlockInode(inode);
+
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
 	}

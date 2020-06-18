@@ -609,7 +609,7 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Add reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+        fprintf(stderr, "Finesse: Add reference to inode %ld reason %d (%lu)\n", bbpi->PublicInode.Attributes.st_ino, Reason, BitbucketGetInodeReferenceCount(Inode));
     }
 
     BitbucketObjectReference(bbpi, Reason);
@@ -624,7 +624,7 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+        fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d (%lu)\n", bbpi->PublicInode.Attributes.st_ino, Reason, BitbucketGetInodeReferenceCount(Inode));
     }
     
     BitbucketObjectDereference(bbpi, Reason);

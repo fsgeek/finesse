@@ -11,7 +11,7 @@
 void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = EEXIST;
 
@@ -36,6 +36,13 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE); // matches forget call
 
 		status = 0;
+		if (0 != (fi->flags & O_TRUNC)) {
+			BitbucketLockInode(inode, 1);
+			status = BitbucketAdjustFileStorage(inode, 0);
+			BitbucketUnlockInode(inode);
+			assert(0 == status);
+		}
+
 		break;
 	}
 

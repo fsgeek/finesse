@@ -10,7 +10,7 @@
 void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *parentInode = NULL;
 	bitbucket_inode_t *inode = NULL;
 	struct fuse_entry_param fep;

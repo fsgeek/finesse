@@ -10,14 +10,15 @@
 void bitbucket_readlink(fuse_req_t req, fuse_ino_t ino)
 {
 	bitbucket_inode_t *inode = NULL;
-	bitbucket_user_data_t *bbud = NULL;
+	bitbucket_userdata_t *bbud = NULL;
 	int status = EBADF;
 
 	assert(NULL != req);
 	assert(0 != ino);
 
-	bbud = (bitbucket_user_data_t *)fuse_req_userdata(req);
+	bbud = (bitbucket_userdata_t *)fuse_req_userdata(req);
 	assert(NULL != bbud);
+	CHECK_BITBUCKET_USER_DATA_MAGIC(bbud);
 
 	while (NULL != bbud) {
 		inode = BitbucketLookupInodeInTable(bbud->InodeTable, ino);

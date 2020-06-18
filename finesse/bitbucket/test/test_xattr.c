@@ -38,7 +38,7 @@ test_insert(
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
-    testfile = BitbucketCreateFile(rootdir, "testfile");
+    testfile = BitbucketCreateFile(rootdir, "testfile", NULL);
     munit_assert(NULL != testfile);
 
     BitbucketLockInode(testfile, 1);

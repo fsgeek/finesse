@@ -17,7 +17,7 @@ void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, cons
     bitbucket_inode_t *inode = NULL;
     bitbucket_inode_t *symlinkInode = NULL;
    	void *userdata = NULL;
-	bitbucket_user_data_t *BBud = NULL;
+	bitbucket_userdata_t *BBud = NULL;
 	struct fuse_entry_param fep;
 
     assert(NULL != req);
@@ -29,7 +29,7 @@ void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, cons
 
     userdata = fuse_req_userdata(req);
     assert(NULL != userdata);
-    BBud = (bitbucket_user_data_t *)userdata;
+    BBud = (bitbucket_userdata_t *)userdata;
 
     while (0 != status) {
         inode = BitbucketLookupInodeInTable(BBud->InodeTable, parent);

@@ -66,13 +66,33 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .lseek = bitbucket_lseek,
 };
 
-static bitbucket_user_data_t BBud = {
+static bitbucket_userdata_t BBud = {
     .Magic = BITBUCKET_USER_DATA_MAGIC,
     .Debug = 0,
     .RootDirectory = NULL,
     .InodeTable = NULL,
-    .AttrTimeout = 5.0, // pretty arbitrary value
+    .AttrTimeout = 30.0, // pretty arbitrary value
+    .StorageDir = "/tmp/bitbucket",
+    .Writeback = 1,
+    .CachePolicy = 1,
 };
+
+
+static void bitbucket_help(void) {
+    printf("    -no_writeback - disable writeback caching\n");
+    printf("    -storagedir=<path> - location to use for temporary storage (default /tmp/bitbucket)\n");
+    printf("    -timeout=<seconds> - attribute timeout (default=30)\n");
+    printf("    -disable_cache - disables all caching (default=enabled)\n");
+}
+
+static const struct fuse_opt bitbucket_opts[] = {
+    { "no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
+    { "storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
+    { "timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
+    { "disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
+	FUSE_OPT_END
+};
+
 
 int main(int argc, char *argv[])
 {
@@ -88,6 +108,7 @@ int main(int argc, char *argv[])
 		printf("usage: %s [options] <mountpoint>\n\n", argv[0]);
 		fuse_cmdline_help();
 		fuse_lowlevel_help();
+        bitbucket_help();
 		ret = 0;
 		goto err_out1;
 	} else if (opts.show_version) {
@@ -106,6 +127,53 @@ int main(int argc, char *argv[])
 
     if(opts.debug) {
         BBud.Debug = 1;
+    }
+
+    if (fuse_opt_parse(&args, &BBud, bitbucket_opts, NULL)) {
+        ret = 1;
+        goto err_out1;
+    }
+
+    if (NULL != BBud.StorageDir) {
+        struct stat stbuf;
+        int status = 0;
+        pid_t childpid = 0;
+
+        if (0 == stat(BBud.StorageDir, &stbuf)) {
+            // It exists, let's clean it up first
+            childpid = vfork();
+            if (childpid < 0) {
+                fprintf(stderr, "fork failed, errno %d (%s)\n", errno, strerror(errno));
+                ret = 1;
+                goto err_out1;
+            }
+
+            if (0 == childpid) {
+                fprintf(stderr, "child invoking rm -rf %s\n", BBud.StorageDir);
+                char * const rmargs[] = {
+                    (char *)(uintptr_t)"rm",
+                    (char *)(uintptr_t)"-rf",
+                    (char *)(uintptr_t)BBud.StorageDir,
+                    NULL
+                };
+                status = execv("/bin/rm", rmargs);
+                if (0 != status) {
+                    ret = 1;
+                    goto err_out1;
+                }
+            }
+        }
+
+        sleep(1);
+
+        status = mkdir(BBud.StorageDir, 0700);
+        if (0 != status) {
+            fprintf(stderr, "Unable to create %s (errno  = %d - %s)\n",
+                    BBud.StorageDir, errno, strerror(errno));
+            ret = 1;
+            goto err_out1;
+        }
+
     }
 
 	se = fuse_session_new(&args, &bitbucket_ll_oper,

@@ -47,7 +47,7 @@ test_create(
     for (unsigned index = 0; index < file_count; index++) {
         uuid_generate_random(file_data[index].Uuid);
         uuid_unparse(file_data[index].Uuid, file_data[index].UuidString);
-        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString);
+        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
         munit_assert(predictedRefCount == refcount); // shouldn't change
@@ -118,7 +118,7 @@ test_forget(
     for (unsigned index = 0; index < file_count; index++) {
         uuid_generate_random(file_data[index].Uuid);
         uuid_unparse(file_data[index].Uuid, file_data[index].UuidString);
-        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString);
+        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
         munit_assert(predictedRefCount == refcount); // shouldn't change

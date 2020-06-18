@@ -10,7 +10,7 @@
 void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *parentInode = NULL;
 	bitbucket_inode_t *inode = NULL;
 	struct fuse_entry_param fep;
@@ -55,7 +55,7 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 			break;
 			case 0: // default to a regular file if nothing specified
 			case S_IFREG: {
-				inode = BitbucketCreateFile(parentInode, name);
+				inode = BitbucketCreateFile(parentInode, name, BBud);
 			}
 			break;
 			case S_IFIFO: {

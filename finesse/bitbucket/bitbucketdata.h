@@ -32,10 +32,13 @@ static inline void verify_magic(const char *StructureName, const char *File, con
 }
 
 typedef struct _bitbucket_inode bitbucket_inode_t;
+typedef struct _bitbucket_userdata bitbucket_userdata_t;
 
 
 typedef struct _bitbucket_file {
     uint64_t            Magic; // magic number
+    char *              MapName;
+    void *              Map; // non-zero if we have a mapped file we're using for storage; length is in st_size
 } bitbucket_file_t;
 
 #define BITBUCKET_FILE_MAGIC (0x901bb9acacca7b19)
@@ -43,7 +46,7 @@ typedef struct _bitbucket_file {
 
 int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *FileName);
 int BitbucketAddFileToDirectory(bitbucket_inode_t *Parent, bitbucket_inode_t *File, const char *FileName);
-bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName);
+bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *FileName, bitbucket_userdata_t *BBud);
 int BitbucketDeleteFile(bitbucket_inode_t *Inode);
 
 bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char *FileName, const char *Link);
@@ -66,20 +69,23 @@ typedef struct _bitbucket_inode_table bitbucket_inode_table_t;
 #define BITBUCKET_INODE_TABLE_BUCKETS (1024)
 
 
-typedef struct _bitbucket_userdata {
+struct _bitbucket_userdata {
     uint64_t            Magic;
     uint8_t             Debug;
     uint8_t             Unused[7]; // For storing additional options!
     bitbucket_inode_t  *RootDirectory;
     void               *InodeTable;
     double              AttrTimeout; // Arbitrary for now.
-
+    const char         *StorageDir;
+    int                 Writeback;
+    int                 FileLock;
+    int                 CachePolicy;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;
         const char        *Name;
     } BitbucketMagicDirectories[16];
-} bitbucket_user_data_t;
+};
 
 #define BITBUCKET_MAGIC_BITBUCKET (0)
 #define BITBUCKET_MAGIC_SIZE      (1)
@@ -293,6 +299,8 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
 uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode);
 void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries);
 const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);
+
+int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength);
 
 
 // More random numbers

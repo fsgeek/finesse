@@ -9,7 +9,7 @@
 void bitbucket_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	size_t length;
 	const void *data;

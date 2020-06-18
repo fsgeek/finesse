@@ -5,13 +5,14 @@
 
 #include "bitbucket.h"
 #include <errno.h>
+#include <sys/mman.h>
 
 void bitbucket_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
-	int status = 0;
+	int status = EBADF;
 
 	(void) fi;
 
@@ -25,8 +26,19 @@ void bitbucket_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino);
 	}
 
-	if (NULL == inode) {
-		status = EBADF;
+	while (NULL != inode) {
+		status = 0;
+
+		if (BITBUCKET_FILE_TYPE == inode->InodeType) {
+			BitbucketLockInode(inode, 0);
+			if (inode->Instance.File.Map) {
+				status = msync(inode->Instance.File.Map, inode->Attributes.st_size, MS_ASYNC);
+				assert(0 == status); // otherwise it could be a programming bug
+			}
+			BitbucketUnlockInode(inode);
+		}
+
+		break;
 	}
 
 	fuse_reply_err(req, status);

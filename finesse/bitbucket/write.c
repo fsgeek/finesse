@@ -5,13 +5,15 @@
 
 #include "bitbucket.h"
 #include <errno.h>
+#include <string.h>
 
 void bitbucket_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = 0;
+	int extending = 0;
 
 	(void) buf;
 	(void) fi;
@@ -35,7 +37,7 @@ void bitbucket_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t siz
 	}
 
 	//
-	// This is what makes the file system a bit bucket: writes are discarded (with success, of course)
+	// We now support storage!
 	//
 	status = EBADF;
 	
@@ -48,13 +50,31 @@ void bitbucket_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t siz
 
 		status = 0; // success
 
+		BitbucketLockInode(inode, 0); // prevent size changes
 		if (off + size > inode->Attributes.st_size) {
+			extending = 1; // can't do this with the read lock
+
 			// move the EOF pointer out.
 			inode->Attributes.st_size = off + size;
 			inode->Attributes.st_blocks = inode->Attributes.st_size / inode->Attributes.st_blksize;
+
 		}
+		else {
+			char *ptr = (char *)((uintptr_t)inode->Instance.File.Map) + off;
+			memcpy(ptr, buf, size);
+		}
+		BitbucketUnlockInode(inode);
+
+		if (1 == extending) {
+			BitbucketLockInode(inode, 1); // we get to change this
+			status = BitbucketAdjustFileStorage(inode, off + size);
+			BitbucketUnlockInode(inode);
+			assert(0 == status); // if not, may be an OK failure, or it may be a code bug...
+		}
+
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
+		break;
 	}
 
 	if (0 == status) {

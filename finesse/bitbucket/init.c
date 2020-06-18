@@ -27,7 +27,7 @@ static const char *BitbucketMagicNames[] = {
 
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 {
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
 
 	assert(NULL != conn);
