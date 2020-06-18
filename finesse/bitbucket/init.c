@@ -76,8 +76,7 @@ void bitbucket_destroy(void *userdata)
 {
 	(void)userdata;
 
-#if 0
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
 
 	// Let's undo the work that we did in init.
@@ -96,6 +95,7 @@ void bitbucket_destroy(void *userdata)
 		BBud->BitbucketMagicDirectories[index].Inode = NULL;
 	}
 
+#if 0
 	// This is where we have to "come clean".
 	BitbucketDestroyInodeTable(BBud->InodeTable);
 	BBud->InodeTable = NULL;

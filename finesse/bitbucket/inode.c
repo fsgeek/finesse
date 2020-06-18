@@ -27,6 +27,7 @@ typedef struct _bitbucket_inode_table_entry {
 struct _bitbucket_inode_table {
     uint64_t            Magic;
     uint16_t            BucketCount;
+    uint64_t            InodeCount;
     struct {
         list_entry_t        ListEntry;
         pthread_rwlock_t    Lock;
@@ -244,6 +245,8 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
         ite = NULL;
     }
 
+    __atomic_fetch_add(&table->InodeCount, 1, __ATOMIC_RELAXED);
+
     return result;
 }
 
@@ -292,6 +295,20 @@ void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode)
     }
 }
 #endif // 0
+
+//
+// Return the number of Inodes in the table at the time of the
+// call (note this value is likely changing).
+//
+uint64_t BitbucketGetInodeTableCount(void *Table)
+{
+    bitbucket_inode_table_t *table = (bitbucket_inode_table_t *)Table;
+
+    assert(NULL != Table);
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);
+    
+    return __atomic_load_n(&table->InodeCount, __ATOMIC_RELAXED);
+}
 
 // Find an inode from the inode number in the specified table
 // If found, a reference counted pointer to the inode is returned
@@ -487,6 +504,7 @@ static void InodeDeallocate(void *Object, size_t Length)
     table = bbpi->Table;
     bitbucket_inode_table_entry_t *ite = NULL;
     uint16_t bucketId = hash_inode(bbpi->PublicInode.Attributes.st_ino);
+    uint64_t oldcount = 0;
 
     // We must be holding the inode table bucket lock EXCLUSIVE
     status = InodeTableTrylock(Object, 0);
@@ -502,6 +520,9 @@ static void InodeDeallocate(void *Object, size_t Length)
     // were the final reference to this object, we have the table locked
     // so nobody else found it, and now we can finish tearing it down.
     InodeTableUnlock(Object);
+    oldcount = __atomic_fetch_sub(&table->InodeCount, 1, __ATOMIC_RELAXED);
+    assert(0 != oldcount); // underflow!
+
     // No longer need the inode table entry
     free(ite);
     ite = NULL;
@@ -655,6 +676,46 @@ int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
     }
 
     return status;
+}
+
+//
+// Lock two different inodes in a canonical order
+//
+// Locks two inodes in a pre-defined order to avoid
+// trivial (obvious) deadlocks.
+//
+// Note that upon return, both inodes have been locked.
+// They may be unlocked in any order; the caller should
+// NOT lock any additional inodes until both locks have
+// been released (otherwise it may deadlock).
+//
+// This call may block
+//
+// @param Inode1 - the first inode to lock
+// @param Inode2 - the second inode to lock
+// @Exclusive - 0 if this is shared (read) 1 if this is exclusive (write)
+//
+void BitbucketLockTwoInodes(bitbucket_inode_t *Inode1, bitbucket_inode_t *Inode2, int Exclusive)
+{
+    bitbucket_inode_t *first = NULL;
+    bitbucket_inode_t *second = NULL;
+
+    assert(NULL != Inode1);
+    assert(NULL != Inode2);
+    assert(Inode1 != Inode2); // can't be the same inode!
+
+    if ((uintptr_t)Inode1 < (uintptr_t)Inode2) {
+        first = Inode2;
+        second = Inode1;
+    }
+    else {
+        first = Inode1;
+        second = Inode2;
+    }
+
+    BitbucketLockInode(first, Exclusive);
+    BitbucketLockInode(second, Exclusive);
+
 }
 
 

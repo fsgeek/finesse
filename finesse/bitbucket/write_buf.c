@@ -9,8 +9,7 @@
 
 void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi)
 {
-	void *userdata = fuse_req_userdata(req);
-	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
+	bitbucket_userdata_t *BBud;
 	bitbucket_inode_t *inode = NULL;
 	int status = 0;
 	size_t size = 0;
@@ -18,6 +17,11 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 	int extending = 0;
 
 	(void) fi;  // could probably just use fi here...
+
+	BBud = (bitbucket_userdata_t *) fuse_req_userdata(req);
+	assert(NULL != BBud);
+	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
+
 
 	// Compute the size
 	if (NULL != bufv) {
@@ -36,8 +40,6 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 
 	// TODO: should we be doing anything with the flags in fi->flags?
 
-	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
-
 	if (FUSE_ROOT_ID == ino) {
 		inode = BBud->RootDirectory;
 		BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE); // must have a lookup ref.
@@ -45,6 +47,9 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 	else {
 		inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino); // returns a lookup ref.	
 	}
+
+	assert(NULL != inode);
+	CHECK_BITBUCKET_INODE_MAGIC(inode);
 
 	//
 	// This is what makes the file system a bit bucket: writes are discarded (with success, of course)

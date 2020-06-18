@@ -6,7 +6,10 @@
 #include "bitbucket.h"
 #include <errno.h>
 #include <sys/statfs.h>
+#include <sys/statvfs.h>
 #include <string.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 {
@@ -23,20 +26,22 @@ void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 	assert(NULL != bbud);
 	CHECK_BITBUCKET_USER_DATA_MAGIC(bbud);
 
-	inode = BitbucketLookupInodeInTable(bbud->InodeTable, ino);
+	if (FUSE_ROOT_ID == ino) {
+		inode = bbud->RootDirectory;
+		BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
+	}
+	else {
+		inode = BitbucketLookupInodeInTable(bbud->InodeTable, ino);
+	}
 
 	while (NULL != inode) {
+
 		memset(&fsstat, 0, sizeof(fsstat));
+
+		// common values first
 		fsstat.f_bsize = inode->Attributes.st_blksize;
 		fsstat.f_frsize = fsstat.f_bsize;
-		fsstat.f_blocks = 0; // size of fs in f_frsize units
-		fsstat.f_bfree = 0;  // number of free blocks
-		fsstat.f_bavail = 0; // number of free blocks for unprivileged users
-		fsstat.f_files = 0;  // number of inodes
-		fsstat.f_ffree = 0;  // number of free inodes
-		fsstat.f_favail = 0; // number of free inodes for unprivileged users 
 		fsstat.f_fsid = 42; // no idea where this originates
-
 		// Options for flags are:
 		//  ST_MANDLOCK - Mandatory locking is permitted on the filesystem (see fcntl(2)).
 		//  ST_NOATIME -  Do not update access times; see mount(2).
@@ -48,9 +53,46 @@ void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 		//  ST_RELATIME - Update atime relative to mtime/ctime; see mount(2).
 		//  ST_SYNCHRONOUS - Writes are synched to the filesystem immediately (see the description of O_SYNC in open(2)).
 		fsstat.f_flag = 0;
-
 		fsstat.f_namemax = MAX_FILE_NAME_SIZE;
 
+		// now specific values
+		if (bbud->StorageDir) {
+			struct statvfs sdstat;
+
+			status = statvfs(bbud->StorageDir, &sdstat);
+			assert(0 == status); // if not, logic issue
+			fsstat.f_blocks = sdstat.f_blocks; // size of fs in f_frsize units
+			fsstat.f_bfree = sdstat.f_bfree; // number of free blocks
+			fsstat.f_bavail = sdstat.f_bavail; // available free blocks for unprivileged users
+			fsstat.f_files = sdstat.f_files; // number of inodes
+			fsstat.f_ffree = sdstat.f_ffree; // number of free inodes
+		}
+		else {
+			struct rlimit rlim;
+			struct rusage usage;
+			uint64_t count = BitbucketGetInodeTableCount(inode->Table);
+
+			status = getrusage(RUSAGE_SELF, &usage);
+			assert(0 == status);
+			status = getrlimit(RLIMIT_DATA, &rlim);
+			assert(0 == status);
+
+			fsstat.f_blocks = rlim.rlim_cur / fsstat.f_bsize;
+			fsstat.f_bfree = (rlim.rlim_cur - (usage.ru_ixrss + usage.ru_idrss + usage.ru_isrss)) / fsstat.f_bsize;
+			fsstat.f_bavail = (90 * fsstat.f_bfree) / 100; // 90%
+			fsstat.f_files = (10 * fsstat.f_bfree) / 100; // 10%
+			if (count > fsstat.f_files) {
+				fsstat.f_ffree = count - fsstat.f_files;
+			}
+			else {
+				fsstat.f_files = count + 1;
+				fsstat.f_ffree = 1;
+			}
+		}
+		fsstat.f_bavail = fsstat.f_bavail; // number of free blocks for unprivileged users
+		fsstat.f_favail = fsstat.f_favail; // number of free inodes for unprivileged users
+		status = 0;
+		break;
 	}
 
 	if (NULL != inode) {
@@ -61,6 +103,9 @@ void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 	if (0 != status) {
 		fuse_reply_err(req, status);
 		return;
+	}
+	else {
+		fuse_reply_statfs(req, &fsstat);
 	}
 
 }

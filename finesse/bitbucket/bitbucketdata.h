@@ -113,6 +113,7 @@ void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode);
 bitbucket_inode_t *BitbucketLookupInodeInTable(void *Table, ino_t Inode);
 void *BitbucketCreateInodeTable(uint16_t BucketCount);
 void BitbucketDestroyInodeTable(void *Table);
+uint64_t BitbucketGetInodeTableCount(void *Table);
 
 #define BITBUCKET_FILE_TYPE (0x10)
 #define BITBUCKET_DIR_TYPE  (0x11)
@@ -265,6 +266,7 @@ bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucke
 void BitbucketLockInode(bitbucket_inode_t *Inode, int Exclusive);
 void BitbucketUnlockInode(bitbucket_inode_t *Inode);
 int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive);
+void BitbucketLockTwoInodes(bitbucket_inode_t *Inode1, bitbucket_inode_t *Inode2, int Exclusive);
 
 static inline void EnsureInodeLockedAgainstChanges(bitbucket_inode_t *Inode)
 {
