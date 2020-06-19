@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <time.h>
+#include <fuse_log.h>
 
 int bitbucket_debug_refcount = 1;
 
@@ -637,7 +638,7 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
         uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
         uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
 
-        fprintf(stderr, 
+        fuse_log(FUSE_LOG_DEBUG, 
                 "Finesse: Add reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
                 bbpi->PublicInode.Attributes.st_ino, 
                 Reason,
@@ -661,7 +662,7 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
         uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
         uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
 
-        fprintf(stderr, 
+        fuse_log(FUSE_LOG_DEBUG, 
                 "Finesse: Remove reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
                 bbpi->PublicInode.Attributes.st_ino, 
                 Reason,

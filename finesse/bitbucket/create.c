@@ -116,4 +116,8 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 
 	assert(NULL == inode);
 
+	if (NULL != parentInode) {
+		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
+	}
+
 }

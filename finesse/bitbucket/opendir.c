@@ -41,6 +41,12 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 		break;
 	}
 
+	if (NULL != inode) {
+		BitbucketReferenceInode(inode, INODE_FUSE_OPENDIR_REFERENCE);   // matches release call
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		inode = NULL;
+	}
+
 	if (0 != status) {
 		fuse_reply_err(req, status);
 	}
@@ -48,12 +54,6 @@ void bitbucket_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 		fi->fh = (uint64_t)inode;
 		fi->cache_readdir = 1; // permit caching
 		fuse_reply_open(req, fi);
-	}
-
-	if (NULL != inode) {
-		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);   // matches release call
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
-		inode = NULL;
 	}
 
 }

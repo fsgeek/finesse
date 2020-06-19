@@ -36,7 +36,7 @@ void bitbucket_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info 
 	
 	if (NULL != inode) {
 		status = 0; // success
-		BitbucketDereferenceInode(inode, INODE_FUSE_OPEN_REFERENCE); // matches opendir
+		BitbucketDereferenceInode(inode, INODE_FUSE_OPENDIR_REFERENCE); // matches opendir
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 		inode = NULL;
 	}

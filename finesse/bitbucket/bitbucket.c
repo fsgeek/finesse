@@ -143,13 +143,13 @@ int main(int argc, char *argv[])
             // It exists, let's clean it up first
             childpid = vfork();
             if (childpid < 0) {
-                fprintf(stderr, "fork failed, errno %d (%s)\n", errno, strerror(errno));
+                fuse_log(FUSE_LOG_ERR, "fork failed, errno %d (%s)\n", errno, strerror(errno));
                 ret = 1;
                 goto err_out1;
             }
 
             if (0 == childpid) {
-                fprintf(stderr, "child invoking rm -rf %s\n", BBud.StorageDir);
+                fuse_log(FUSE_LOG_DEBUG, "child invoking rm -rf %s\n", BBud.StorageDir);
                 char * const rmargs[] = {
                     (char *)(uintptr_t)"rm",
                     (char *)(uintptr_t)"-rf",
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
         status = mkdir(BBud.StorageDir, 0700);
         if (0 != status) {
-            fprintf(stderr, "Unable to create %s (errno  = %d - %s)\n",
+            fuse_log(FUSE_LOG_ERR, "Unable to create %s (errno  = %d - %s)\n",
                     BBud.StorageDir, errno, strerror(errno));
             ret = 1;
             goto err_out1;

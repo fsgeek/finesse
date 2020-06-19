@@ -10,6 +10,17 @@
 #define __notused __attribute__((unused))
 #endif // 
 
+void fuse_log(enum fuse_log_level level, const char *fmt, ...)
+{
+	va_list ap;
+
+    (void) level;
+
+	va_start(ap, fmt);
+    fprintf(stderr, fmt, ap);
+	va_end(ap);
+}
+
 MunitResult
 test_null(
     const MunitParameter params[] __notused,

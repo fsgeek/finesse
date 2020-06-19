@@ -135,7 +135,8 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 			}
 
 			if (bitbucket_debug_readdirplus) {
-				fprintf(stderr, "Finesse (%s): added entry for %s with inode 0x%lx (%lu), mode = %o\n", 
+				fuse_log(FUSE_LOG_DEBUG, 
+						"Finesse (%s): added entry for %s with inode 0x%lx (%lu), mode = %o\n", 
 						__func__, 
 						dirEntry->Name, 
 						dirEntry->Inode->Attributes.st_ino, 
