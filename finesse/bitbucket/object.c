@@ -16,11 +16,11 @@ typedef struct _bitbucket_object_header {
     uint64_t                        ReferenceCount;
     uint32_t                        ReferenceReasons[BITBUCKET_MAX_REFERENCE_REASONS];
     size_t                          DataLength;
-    char                            Unused[8]; // used to pad so Data starts on a 64 byte boundary
+    char                            Unused[56]; // used to pad so Data starts on a 64 byte boundary
     uint64_t                        Data[1];
 } bitbucket_object_header_t;
 
-const char foo[(64 * 6) - offsetof(bitbucket_object_header_t, Data)];
+// const char foo[(64 * 9) - offsetof(bitbucket_object_header_t, Data)];
 _Static_assert(0 == (offsetof(bitbucket_object_header_t, Data) % 64), "Bad alignment");
 
 #define BITBUCKET_OBJECT_HEADER_MAGIC (0xc24e22f696a3861d)
@@ -294,7 +294,21 @@ uint64_t BitbucketGetObjectReferenceCount(void *Object)
     return __atomic_load_n(&bbobj->ReferenceCount, __ATOMIC_RELAXED);
 }
 
-// 
+uint64_t BitbucketGetObjectReasonReferenceCount(void *Object, uint8_t Reason)
+{
+    bitbucket_object_header_t *bbobj;
+    
+    assert(NULL != Object);
+    bbobj = container_of(Object, bitbucket_object_header_t, Data);
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
+    assert(Reason < BITBUCKET_MAX_REFERENCE_REASONS);
+
+    return __atomic_load_n(&bbobj->ReferenceReasons[Reason], __ATOMIC_RELAXED);
+
+}
+
+// Obtain the reason counts. Results are only for debug use, since this is done as
+// an unlocked operation.
 void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries)
 {
     bitbucket_object_header_t *bbobj;
@@ -305,9 +319,8 @@ void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uin
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
 
     assert(CountEntries <= BITBUCKET_MAX_REFERENCE_REASONS);
-    LockObject(bbobj, 1);
+    // Note that this is not guaranteed accurate!
     memcpy(Counts, bbobj->ReferenceReasons, sizeof(uint32_t) * bbobj->ReferenceCount);
-    UnlockObject(bbobj);
 
 }
 

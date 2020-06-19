@@ -266,27 +266,87 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
 
 static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Inode, const char *Name)
 {
+    bitbucket_inode_t *de_inode = NULL;
     bitbucket_dir_entry_t *dirent = NULL;
-    assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
-    
-    BitbucketLockInode(Inode, 1);
+    int status;
 
+    assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
+
+    // Ugliness: we need two locks here, but we don't know the second lock yet    
+    BitbucketLockInode(Inode, 1);
     while (NULL == dirent) {
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Inode->Instance.Directory.Children, Name);
         if (NULL == dirent) {
             break;
         }
 
-        BitbucketLockInode(dirent->Inode, 1);
-        // Remove the entries
+        //
+        // Slightly ugly locking here: if we have the dirent here and it points
+        // to the directory entry inode we locked, then we can proceed.
+        //
+        // First iteration through: de_inode is NULL.  We lock the directory,
+        // look up the dirent, which tells us which Inode we need to lock.
+        // We save dirent->Inode, refcount it, try to lock it.  If we can't lock
+        // it without blocking, we drop the directory inode count and then block and
+        // wait for both inodes.  When we have the locks, it cycles back up to
+        // the top of the loop.
+        //
+        // Second iteration: we have two inodes locked; since one is the directory,
+        // we lookup the entry we want to remove. We compare the Inode in that
+        // dirent with the Inode we stored previously.  If they are the same it
+        // means we have the correct locks.
+        //
+        // If not, we have lost a race, so we have to unlock our saved Inode,
+        // drop our reference on it, and then try to get the right lock all over again.
+        //
+        // Eventually we get the right locks.  We remove the directory entry from the
+        // queue and decrement the link count on the inode entry from that directory
+        // entry.  We return the directory entry; the caller is responsible for
+        // cleaning it up.
+        //
+        // Note that if this is the '.' entry in a directory, we don't need
+        // two locks either, so we skip the locking complexity and just proceed
+        //
+        if ((dirent->Inode != de_inode) && (dirent->Inode != Inode)) {
+            if (NULL != de_inode) {
+                BitbucketUnlockInode(de_inode);
+                BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+                de_inode = NULL;
+            }
+
+            de_inode = dirent->Inode;
+            BitbucketReferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+            status = BitbucketTryLockInode(dirent->Inode, 1);
+
+            if (0 != status) {
+                // can't lock it.  Let's back off
+                BitbucketUnlockInode(Inode);
+
+                // Try to get BOTH locks; I know the inodes won't disappear
+                // because I have references on both of them.
+                BitbucketLockTwoInodes(Inode, de_inode, 1);
+                continue; // go back to the top and rebuild state
+            }
+        }
+
+        // Make sure if they're the same we don't have a de_inode value.
+        assert((Inode != dirent->Inode) || (NULL == de_inode));
+
+        // Remove the entries; we return it to the caller.
         remove_list_entry(&dirent->ListEntry);
         TrieDeletion(&Inode->Instance.Directory.Children, Name);
         assert(dirent->Inode->Attributes.st_nlink > 0);
         dirent->Inode->Attributes.st_nlink--;
-        BitbucketUnlockInode(dirent->Inode);
     }
 
-    VerifyDirectoryEntries(Inode);
+    // TODO: make this a debug/check parameter
+    // VerifyDirectoryEntries(Inode);
+
+    if (NULL != de_inode) {
+        BitbucketUnlockInode(de_inode);
+        BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+        de_inode = NULL;
+    }
 
     BitbucketUnlockInode(Inode);
 

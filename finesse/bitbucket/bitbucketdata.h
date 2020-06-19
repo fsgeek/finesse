@@ -132,7 +132,7 @@ uint64_t BitbucketGetInodeTableCount(void *Table);
 // The lock/unlock operation(s) are optional.  If they are not provided, the object package will
 // use an internal default lock
 //
-#define BITBUCKET_MAX_REFERENCE_REASONS (8)
+#define BITBUCKET_MAX_REFERENCE_REASONS (12)
 #define BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH (32)
 typedef struct _bitbucket_object_attributes {
     uint64_t            Magic;
@@ -195,12 +195,14 @@ typedef struct _bitbucket_inode {
 #define BITBUCKET_INODE_MAGIC (0x3eb0674fe159eab4)
 #define CHECK_BITBUCKET_INODE_MAGIC(bbi) verify_magic("bitbucket_inode_t", __FILE__, __func__, __LINE__, BITBUCKET_INODE_MAGIC, (bbi)->Magic)
 
-#define INODE_LOOKUP_REFERENCE       (0)
-#define INODE_PARENT_REFERENCE       (1)
-#define INODE_DIRENT_REFERENCE       (2)
-#define INODE_ENUM_REFERENCE         (3)
-#define INODE_FUSE_LOOKUP_REFERENCE  (4) // lookup/forget
-#define INODE_FUSE_OPEN_REFERENCE    (5) // open/release
+#define INODE_LOOKUP_REFERENCE        (0)
+#define INODE_PARENT_REFERENCE        (1)
+#define INODE_DIRENT_REFERENCE        (2)
+#define INODE_ENUM_REFERENCE          (3)
+#define INODE_REMOVE_DIRENT_REFERENCE (4) // case in remove directory entry
+#define INODE_FUSE_LOOKUP_REFERENCE   (5) // lookup/forget
+#define INODE_FUSE_OPEN_REFERENCE     (6) // open/release
+#define INODE_FUSE_OPENDIR_REFERENCE  (7)
 
 typedef struct _bitbucket_dir_entry {
     uint64_t            Magic;
@@ -260,6 +262,7 @@ uint64_t BitbucketObjectCount(void);
 
 // Return the reference count of the given object
 uint64_t BitbucketGetObjectReferenceCount(void *Object);
+uint64_t BitbucketGetObjectReasonReferenceCount(void *Object, uint8_t Reason);
 
 
 bitbucket_inode_t *BitbucketCreateInode(bitbucket_inode_table_t *Table, bitbucket_object_attributes_t *ObjectAttributes, size_t DataLength);
@@ -301,6 +304,7 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
 uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode);
 void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries);
 const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);
+uint64_t BitbucketGetInodeReasonReferenceCount(bitbucket_inode_t *Inode, uint8_t Reason);
 
 int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength);
 

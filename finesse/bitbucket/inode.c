@@ -560,11 +560,15 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
         "Lookup",
         "Dir:Parent",
         "Dir:Entry",
-        "Enumeration",
-        "FuseLookup",
-        "Reason5",
-        "Reason6",
-        "Reason7",
+        "Dir:Enum",
+        "Remove Dirent",
+        "Fuse:Lookup",
+        "Fuse:Open",
+        "Fuse:Opendir",
+        "Reason8",
+        "Reason9",
+        "Reason10",
+        "Reason11",
     },
     .Initialize = InodeInitialize,
     .Deallocate = InodeDeallocate,
@@ -630,7 +634,16 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Add reference to inode %ld reason %d (%lu)\n", bbpi->PublicInode.Attributes.st_ino, Reason, BitbucketGetInodeReferenceCount(Inode));
+        uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
+        uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
+
+        fprintf(stderr, 
+                "Finesse: Add reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
+                bbpi->PublicInode.Attributes.st_ino, 
+                Reason,
+                InodePrivateObjectAttributes.ReferenceReasonsNames[Reason],
+                refcnt, refcnt + 1,
+                reasoncount, reasoncount + 1);
     }
 
     BitbucketObjectReference(bbpi, Reason);
@@ -645,7 +658,16 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d (%lu)\n", bbpi->PublicInode.Attributes.st_ino, Reason, BitbucketGetInodeReferenceCount(Inode));
+        uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
+        uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
+
+        fprintf(stderr, 
+                "Finesse: Remove reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
+                bbpi->PublicInode.Attributes.st_ino, 
+                Reason,
+                InodePrivateObjectAttributes.ReferenceReasonsNames[Reason],
+                refcnt, refcnt - 1,
+                reasoncount, reasoncount - 1);
     }
     
     BitbucketObjectDereference(bbpi, Reason);
@@ -659,6 +681,14 @@ uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     return BitbucketGetObjectReferenceCount(bbpi);
+}
+
+uint64_t BitbucketGetInodeReasonReferenceCount(bitbucket_inode_t *Inode, uint8_t Reason)
+{
+    bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+
+    return BitbucketGetObjectReasonReferenceCount(bbpi, Reason);
 }
 
 int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
