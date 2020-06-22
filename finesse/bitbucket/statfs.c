@@ -4,6 +4,7 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
@@ -11,7 +12,24 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+static int bitbucket_internal_statfs(fuse_req_t req, fuse_ino_t ino);
+
+
 void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_statfs(req, ino);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_STATFS, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_statfs(fuse_req_t req, fuse_ino_t ino)
 {
 
 	bitbucket_inode_t *inode = NULL;
@@ -102,10 +120,12 @@ void bitbucket_statfs(fuse_req_t req, fuse_ino_t ino)
 
 	if (0 != status) {
 		fuse_reply_err(req, status);
-		return;
+		return status;
 	}
 	else {
 		fuse_reply_statfs(req, &fsstat);
 	}
+
+	return status;
 
 }

@@ -4,11 +4,29 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <string.h>
 
 
+static int bitbucket_internal_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
+
+
 void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_open(req, ino, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_OPEN, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
@@ -58,6 +76,8 @@ void bitbucket_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 	else {
 		fuse_reply_open(req, fi);
 	}
+
+	return status;
 
 }
 

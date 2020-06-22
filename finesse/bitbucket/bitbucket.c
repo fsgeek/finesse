@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <fuse_common.h>
 
 #include <fuse_lowlevel.h>
@@ -92,6 +93,8 @@ static const struct fuse_opt bitbucket_opts[] = {
     { "disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
 	FUSE_OPT_END
 };
+
+bitbucket_call_statistics_t BitbucketCallStatistics[44];
 
 
 int main(int argc, char *argv[])

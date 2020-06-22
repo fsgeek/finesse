@@ -4,10 +4,28 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <string.h>
 
+static int bitbucket_internal_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags);
+
+
 void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_copy_file_range(req, ino_in, off_in, fi_in, ino_out, off_out, fi_out, len, flags);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_COPY_FILE_RANGE, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags)
 {
 
 	bitbucket_userdata_t *BBud;
@@ -34,7 +52,7 @@ void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, 
 	// so we should never have the root directory.
 	if ((FUSE_ROOT_ID == ino_in) || (FUSE_ROOT_ID == ino_out)) {
 		fuse_reply_err(req, EISDIR);
-		return;
+		return EISDIR;
 	}
 
 	in_inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino_in);
@@ -122,4 +140,6 @@ void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, 
 		BitbucketDereferenceInode(out_inode, INODE_LOOKUP_REFERENCE);
 		out_inode = NULL;
 	}
+
+	return status;
 }

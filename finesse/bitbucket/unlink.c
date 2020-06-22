@@ -4,9 +4,27 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 
+static int bitbucket_internal_unlink(fuse_req_t req, fuse_ino_t parent, const char *name);
+
+
 void bitbucket_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_unlink(req, parent, name);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_UNLINK, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 	void *userdata = fuse_req_userdata(req);
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
@@ -31,8 +49,6 @@ void bitbucket_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 
 		status = BitbucketDeleteDirectoryEntry(inode, name);
 		break;
-
-
 	}
 
 	fuse_reply_err(req, status);
@@ -40,4 +56,6 @@ void bitbucket_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 	if (NULL != inode) {
 		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
 	}
+
+	return status;
 }

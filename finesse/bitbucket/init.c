@@ -4,6 +4,7 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include "string.h"
 
 static const char *BitbucketMagicNames[] = {
@@ -25,7 +26,25 @@ static const char *BitbucketMagicNames[] = {
 	"Unused0",
 };
 
+static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn);
+static int bitbucket_internal_destroy(void *userdata);
+
+
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_init(userdata, conn);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_INIT, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn)
 {
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
@@ -68,14 +87,27 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	}
 
 	// All of these inodes have a lookup reference on them.
+	return 0;
 	
 }
 
 
 void bitbucket_destroy(void *userdata)
 {
-	(void)userdata;
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
 
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_destroy(userdata);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_INIT, status ? 0 : 1, &elapsed);
+}
+
+int bitbucket_internal_destroy(void *userdata)
+{
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
 
@@ -100,5 +132,7 @@ void bitbucket_destroy(void *userdata)
 	BitbucketDestroyInodeTable(BBud->InodeTable);
 	BBud->InodeTable = NULL;
 #endif // 0
+
+	return 0;
 
 }

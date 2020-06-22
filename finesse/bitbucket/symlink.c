@@ -4,6 +4,7 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -11,7 +12,24 @@
 #include <errno.h>
 #include <uuid/uuid.h>
 
+static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name);
+
+
 void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_symlink(req, link, parent, name);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_SYMLINK, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name)
 {
     int status = EACCES;
     bitbucket_inode_t *inode = NULL;
@@ -56,7 +74,7 @@ void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, cons
     // TODO: build the entry and return it.
     if (0 != status) {
         fuse_reply_err(req, status);
-        return;
+        return status;
     }
 
     assert(0 == status);
@@ -72,7 +90,7 @@ void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, cons
     BitbucketReferenceInode(symlinkInode, INODE_FUSE_LOOKUP_REFERENCE); // this matches the fuse_reply_entry
     BitbucketDereferenceInode(symlinkInode, INODE_LOOKUP_REFERENCE);
 
-    return;
+    return status;
 
 }
 

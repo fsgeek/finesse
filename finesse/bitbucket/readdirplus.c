@@ -4,6 +4,7 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -14,7 +15,24 @@
 
 int bitbucket_debug_readdirplus = 1;
 
+static int bitbucket_internal_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
+
+
 void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_readdirplus(req, ino, size, off, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_READDIRPLUS, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
@@ -33,7 +51,7 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 	if (~0 == off) { // this is our end of enumeration marker
 		// return the empty buffer
 		fuse_reply_buf(req, NULL, 0);
-		return;
+		return 0;
 	}
 
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
@@ -169,4 +187,5 @@ void bitbucket_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off_t of
 	free(responseBuffer);
 	responseBuffer = NULL;
 
+	return status;
 }

@@ -4,13 +4,31 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
+static int bitbucket_internal_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode);
+
+
 void bitbucket_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_mkdir(req, parent, name, mode);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_MKDIR, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 {
 	void *userdata = fuse_req_userdata(req);
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
@@ -83,4 +101,5 @@ void bitbucket_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t
 		child = NULL;
 	}
 
+	return status;
 }

@@ -4,10 +4,28 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <string.h>
 
+static int bitbucket_internal_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi);
+
+
 void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_create(req, parent, name, mode, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_CREATE, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, struct fuse_file_info *fi)
 {
 	void *userdata = fuse_req_userdata(req);
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
@@ -31,7 +49,7 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 
 	if (NULL == parentInode) {
 		fuse_reply_err(req, EBADF);
-		return;
+		return EBADF;
 	}
 
 	BitbucketLookupObjectInDirectory(parentInode, name, &inode);
@@ -119,5 +137,7 @@ void bitbucket_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_
 	if (NULL != parentInode) {
 		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
 	}
+
+	return status;
 
 }

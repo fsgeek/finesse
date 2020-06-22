@@ -4,10 +4,28 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <string.h>
 
+static int bitbucket_internal_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi);
+
+
 void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi)
+{
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_write_buf(req, ino, bufv, off, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	bitbucket_count_call(BITBUCKET_CALL_WRITE_BUF, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *bufv, off_t off, struct fuse_file_info *fi)
 {
 	bitbucket_userdata_t *BBud;
 	bitbucket_inode_t *inode = NULL;
@@ -35,7 +53,7 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 	if (0 == size) {
 		// zero byte writes always succeed
 		fuse_reply_write(req, 0);
-		return;
+		return size;
 	}
 
 	// TODO: should we be doing anything with the flags in fi->flags?
@@ -105,5 +123,7 @@ void bitbucket_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec *buf
 	else {
 		fuse_reply_err(req, status);
 	}
+
+	return status;
 
 }
