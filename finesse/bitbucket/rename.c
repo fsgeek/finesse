@@ -84,7 +84,7 @@ static int bitbucket_internal_rename(fuse_req_t req, fuse_ino_t parent, const ch
 
 		BitbucketLookupObjectInDirectory(old_parent, name, &old_inode);
 
-		if (NULL != old_inode) {
+		if (NULL == old_inode) {
 			status = ENOENT;
 			break;
 		}
@@ -152,6 +152,8 @@ static int bitbucket_internal_rename(fuse_req_t req, fuse_ino_t parent, const ch
 		break;
 
 	}
+
+	fuse_reply_err(req, status);
 
 	if (NULL != old_parent) {
 		BitbucketDereferenceInode(old_parent, INODE_LOOKUP_REFERENCE);
