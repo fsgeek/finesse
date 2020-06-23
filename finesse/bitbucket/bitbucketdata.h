@@ -298,6 +298,9 @@ void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name
 // Return ENOENT if the entry isn't found.
 int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name);
 
+uint64_t BitbucketDirectoryEntryCount(bitbucket_inode_t *Inode);
+int BitbucketExchangeObjectsInDirectory(bitbucket_inode_t *old_parent, bitbucket_inode_t *new_parent, const char *name, const char *newname);
+
 
 void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
 void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);

@@ -442,6 +442,33 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
 }
 
 //
+// This counts the number of entries in a directory.
+// Note that there is no guarantee the number of entries
+// won't change after this call..
+//
+// Do not hold the Inode locked when calling this.
+//
+// Note that an empty directory will have one entry ('.')
+// unless it is root (which will have "." and "..").
+//
+uint64_t BitbucketDirectoryEntryCount(bitbucket_inode_t *Inode) 
+{
+    uint64_t count = 0;
+    list_entry_t *le = NULL;
+
+    assert(NULL != Inode);
+
+    // This really should be in dir.c...
+    BitbucketLockInode(Inode, 0);
+    list_for_each(&Inode->Instance.Directory.Entries, le) {
+        count++;
+    }
+    BitbucketUnlockInode(Inode);
+
+    return count;
+}
+
+//
 // Invoke this when you want to initiate teardown of a directory.
 // This will do two things: 
 //   (1) it will remove the '.' entry for the directory
@@ -499,6 +526,44 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
     
     return status;
 }
+
+int BitbucketExchangeObjectsInDirectory(bitbucket_inode_t *old_parent, bitbucket_inode_t *new_parent, const char *name, const char *newname)
+{
+    int status = 0;
+    bitbucket_dir_entry_t *old_dirent = NULL;
+    bitbucket_dir_entry_t *new_dirent = NULL;
+    bitbucket_inode_t *inode = NULL;
+
+    assert(NULL != old_parent);
+    assert(NULL != new_parent);
+    assert(NULL != name);
+    assert(NULL != newname);
+
+    // We're just going to swap the inode references; this
+    // should not break refcounts
+    BitbucketLockTwoInodes(old_parent, new_parent, 1);
+    old_dirent = TrieSearch(old_parent->Instance.Directory.Children, name);
+    new_dirent = TrieSearch(new_parent->Instance.Directory.Children, newname);
+    if ((NULL != old_dirent) && (NULL != new_dirent)) {
+        inode = old_dirent->Inode;
+        old_dirent->Inode = new_dirent->Inode;
+        new_dirent->Inode = inode;
+    }
+    BitbucketUnlockInode(new_parent);
+    BitbucketUnlockInode(old_parent);
+
+    // Note: the dirents are not safe to access here, but we're just
+    // checking the local value of the pointer. 
+    if ((NULL == old_dirent) || (NULL == new_dirent)) {
+        // we didn't find an entry
+        status = ENOENT;
+    }
+
+    return status;
+
+}
+
+
 
 #if 0
 //

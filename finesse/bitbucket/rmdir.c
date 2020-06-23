@@ -30,7 +30,6 @@ static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const cha
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	bitbucket_inode_t *child = NULL;
-	list_entry_t *le = NULL;
 	unsigned count = 0;
 	int status = EBADF;
 
@@ -61,13 +60,7 @@ static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const cha
 			break;
 		}
 
-		// This really should be in dir.c...
-		BitbucketLockInode(child, 0);
-		count = 0;
-		list_for_each(&child->Instance.Directory.Entries, le) {
-			count++;
-		}
-		BitbucketUnlockInode(child);
+		count = BitbucketDirectoryEntryCount(child);
 
 		if (count > 2) {
 			// definitely not empty
