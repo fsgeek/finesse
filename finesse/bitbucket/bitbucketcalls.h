@@ -81,7 +81,7 @@ static inline void timespec_diff(struct timespec *begin, struct timespec *end, s
 static inline void timespec_add(struct timespec *one, struct timespec *two, struct timespec *result) {
     result->tv_sec = one->tv_sec + two->tv_sec;
     result->tv_nsec = one->tv_nsec + two->tv_nsec;
-    while ((long)1000000000 >= result->tv_nsec) {
+    while ((long)1000000000 <= result->tv_nsec) {
         result->tv_sec++;
         result->tv_nsec -= (long)1000000000;
     }
