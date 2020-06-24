@@ -21,7 +21,7 @@ void bitbucket_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name, size_t
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_GETXATTR, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_GETXATTR, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name, size_t size)

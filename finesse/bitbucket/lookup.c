@@ -22,7 +22,7 @@ void bitbucket_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_LOOKUP, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_LOOKUP, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)

@@ -2,6 +2,7 @@ bitbucket_sources = [
     'access.c',
     'bitbucket.c',
 	'bmap.c',
+	'calldata.c',
 	'copy_file_range.c',
 	'create.c',
 	'dir.c',

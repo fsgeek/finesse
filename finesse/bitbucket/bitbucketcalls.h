@@ -63,9 +63,16 @@ typedef struct _bitbucket_call_statistics {
 	uint64_t        Success;
 	uint64_t        Failure;
 	struct timespec ElapsedTime;
+    char const *    Name;
 } bitbucket_call_statistics_t;
 
-extern bitbucket_call_statistics_t BitbucketCallStatistics[44];
+void BitbucketInitializeCallStatistics(void);
+bitbucket_call_statistics_t *BitbucketGetCallStatistics(void);
+void BitbucketReleaseCallStatistics(bitbucket_call_statistics_t *CallStatistics);
+const char *BitbucketFormatCallData(bitbucket_call_statistics_t *CallData);
+void BitbucketFreeFormattedCallData(const char *FormattedData);
+void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, char *Buffer, size_t *BufferSize);
+
 
 static inline void timespec_diff(struct timespec *begin, struct timespec *end, struct timespec *diff) {
     struct timespec result = {.tv_sec = 0, .tv_nsec = 0};
@@ -87,15 +94,6 @@ static inline void timespec_add(struct timespec *one, struct timespec *two, stru
     }
 }
 
-
-
-static inline void bitbucket_count_call(uint8_t Call, uint8_t Success, struct timespec *Elapsed) {
-	assert((Call > BITBUCKET_CALL_BASE) && (Call < BITBUCKET_CALLS_MAX));
-	assert((0 == Success) || (1 == Success));
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Calls++;
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Success += Success;
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Failure += !Success;
-	timespec_add(&BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].ElapsedTime, Elapsed, &BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].ElapsedTime);
-}
+void BitbucketCountCall(uint8_t Call, uint8_t Success, struct timespec *Elapsed);
 
 #endif // ____BITBUCKET_CALLS_H__

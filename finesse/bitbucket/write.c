@@ -22,7 +22,7 @@ void bitbucket_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t siz
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_WRITE, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_WRITE, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)

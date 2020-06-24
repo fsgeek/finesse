@@ -22,7 +22,7 @@ void bitbucket_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, 
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_COPY_FILE_RANGE, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_COPY_FILE_RANGE, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in, fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags)

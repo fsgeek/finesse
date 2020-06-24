@@ -20,7 +20,7 @@ void bitbucket_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, stru
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_LSEEK, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_LSEEK, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, struct fuse_file_info *fi)

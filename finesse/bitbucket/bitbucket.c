@@ -94,8 +94,6 @@ static const struct fuse_opt bitbucket_opts[] = {
 	FUSE_OPT_END
 };
 
-bitbucket_call_statistics_t BitbucketCallStatistics[44];
-
 
 int main(int argc, char *argv[])
 {

@@ -20,7 +20,7 @@ void bitbucket_ioctl(fuse_req_t req, fuse_ino_t ino, unsigned int cmd, void *arg
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_IOCTL, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_IOCTL, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_ioctl(fuse_req_t req, fuse_ino_t ino, unsigned int cmd, void *arg, struct fuse_file_info *fi, unsigned flags, const void *in_buf, size_t in_bufsz, size_t out_bufsz)

@@ -26,7 +26,7 @@ void bitbucket_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, cons
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
-	bitbucket_count_call(BITBUCKET_CALL_SYMLINK, status ? 0 : 1, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_SYMLINK, status ? 0 : 1, &elapsed);
 }
 
 static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name)
