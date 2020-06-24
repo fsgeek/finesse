@@ -157,7 +157,7 @@ void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, ch
 {
 	uint64_t nsec = CallDataEntry->ElapsedTime.tv_sec * (unsigned long)1000000000 + (unsigned long) CallDataEntry->ElapsedTime.tv_nsec;
 	double average;
-	static const char *FormatString = "%16s: %8lu Calls (%8lu Success, %8lu Failure), Elapsed = %16lu (ns), Average = %8.2f (ns)\n";
+	static const char *FormatString = "%16s: %8lu Calls (%8lu Success, %8lu Failure), Elapsed = %16lu (ns), Average = %16.2f (ns)\n";
 	int retval;
 
 	if (CallDataEntry->Calls > 0) {
