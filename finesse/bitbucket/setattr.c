@@ -115,7 +115,7 @@ static int bitbucket_internal_setattr(fuse_req_t req, fuse_ino_t ino, struct sta
 	}
 
 	if (0 == status) {
-		fuse_reply_attr(req, &inode->Attributes, 30.0);
+		fuse_reply_attr(req, &inode->Attributes, BBud->AttrTimeout);
 	}
 	else {
 		fuse_reply_err(req, status);

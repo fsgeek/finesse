@@ -11,7 +11,6 @@ bitbucket_sources = [
 	'flock.c',
 	'flush.c',
 	'forget.c',
-	'forget_multi.c',
 	'fsync.c',
 	'fsyncdir.c',
 	'getattr.c',

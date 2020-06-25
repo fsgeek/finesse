@@ -77,9 +77,13 @@ struct _bitbucket_userdata {
     void               *InodeTable;
     double              AttrTimeout; // Arbitrary for now.
     const char         *StorageDir;
+    const char         *CallStatFile;
     int                 Writeback;
     int                 FileLock;
     int                 CachePolicy;
+    int                 FsyncDisable;
+    int                 NoXattr;
+    int                 BackgroundForget;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;

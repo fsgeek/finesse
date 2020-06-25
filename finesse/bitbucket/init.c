@@ -6,6 +6,8 @@
 #include "bitbucket.h"
 #include "bitbucketcalls.h"
 #include "string.h"
+#include <unistd.h>
+#include <errno.h>
 
 static const char *BitbucketMagicNames[] = {
 	"Bitbucket",
@@ -34,6 +36,7 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 {
 	struct timespec start, stop, elapsed;
 	int status, tstatus;
+	const char *calldata_string = NULL; 
 
 	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 	assert(0 == tstatus);
@@ -42,6 +45,15 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 	assert(0 == tstatus);
 	timespec_diff(&start, &stop, &elapsed);
 	BitbucketCountCall(BITBUCKET_CALL_INIT, status ? 0 : 1, &elapsed);
+
+	calldata_string = BitbucketFormatCallData(NULL);
+
+	if (NULL != calldata_string) {
+		printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+		BitbucketFreeFormattedCallData(calldata_string);
+		calldata_string = NULL;
+	}
+
 }
 
 static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn)
@@ -114,11 +126,33 @@ int bitbucket_internal_destroy(void *userdata)
 	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
 	const char *calldata_string = BitbucketFormatCallData(NULL);
+	int fd = -1;
+	ssize_t written = 0;
 
-	printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+	if (NULL != calldata_string) {
+		if (NULL != BBud->CallStatFile) {
+			fd = open(BBud->CallStatFile, O_WRONLY | O_APPEND | O_CREAT, 0664);
 
-	BitbucketFreeFormattedCallData(calldata_string);
-	calldata_string = NULL;
+			if (fd > 0) {
+				written = write(fd, calldata_string, strlen(calldata_string));
+				if (written > 0) {
+					written += write(fd, "\n", 1);
+				}
+				close(fd);
+				fd = -1;
+			}
+			else {
+				fprintf(stderr, "Unable to open %s, errno = %d (%s)", BBud->CallStatFile, errno, strerror(errno));
+			}
+		}
+
+		if (0 >= written) {
+			printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+		}
+
+		BitbucketFreeFormattedCallData(calldata_string);
+		calldata_string = NULL;
+	}
 
 	// Let's undo the work that we did in init.
 	// Note: this is going to crash if the volume isn't cleanly torn down, so that's probabl

@@ -49,7 +49,7 @@ static int bitbucket_internal_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_
 
 		if (BITBUCKET_FILE_TYPE == inode->InodeType) {
 			BitbucketLockInode(inode, 0);
-			if (inode->Instance.File.Map) {
+			if ((NULL != inode->Instance.File.Map) && (0 == BBud->FsyncDisable)) {
 				status = msync(inode->Instance.File.Map, inode->Attributes.st_size, MS_ASYNC);
 				assert(0 == status); // otherwise it could be a programming bug
 			}

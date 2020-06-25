@@ -107,8 +107,8 @@ static int bitbucket_internal_create(fuse_req_t req, fuse_ino_t parent, const ch
 		fep.ino = inode->Attributes.st_ino;
 		fep.generation = inode->Epoch;
 		fep.attr = inode->Attributes;
-		fep.attr_timeout = 30;
-		fep.entry_timeout = 30;
+		fep.attr_timeout = BBud->AttrTimeout;
+		fep.entry_timeout = BBud->AttrTimeout;
 
 		status = 0;
 		break;

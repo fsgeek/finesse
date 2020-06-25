@@ -9,7 +9,7 @@
 #include <malloc.h>
 #include <string.h>
 
-static bitbucket_call_statistics_t BitbucketCallStatistics[44];
+static bitbucket_call_statistics_t BitbucketCallStatistics[BITBUCKET_CALLS_MAX - BITBUCKET_CALL_INIT];
 
 static  const char * BitbucketCallDataNames[] = {
 	"Init",
@@ -89,10 +89,14 @@ void BitbucketReleaseCallStatistics(bitbucket_call_statistics_t *CallStatistics)
 void BitbucketCountCall(uint8_t Call, uint8_t Success, struct timespec *Elapsed) {
 	assert((Call > BITBUCKET_CALL_BASE) && (Call < BITBUCKET_CALLS_MAX));
 	assert((0 == Success) || (1 == Success));
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Calls++;
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Success += Success;
-	BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].Failure += !Success;
-	timespec_add(&BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].ElapsedTime, Elapsed, &BitbucketCallStatistics[Call - BITBUCKET_CALL_BASE].ElapsedTime);
+	BitbucketCallStatistics[Call - BITBUCKET_CALL_INIT].Calls++;
+	if (Success) {
+		BitbucketCallStatistics[Call - BITBUCKET_CALL_INIT].Success++;
+	}
+	else {
+		BitbucketCallStatistics[Call - BITBUCKET_CALL_INIT].Failure++;
+	}
+	timespec_add(&BitbucketCallStatistics[Call - BITBUCKET_CALL_INIT].ElapsedTime, Elapsed, &BitbucketCallStatistics[Call - BITBUCKET_CALL_INIT].ElapsedTime);
 }
 
 // Given a copy of the call data, this routine will create a single string suitable for printing

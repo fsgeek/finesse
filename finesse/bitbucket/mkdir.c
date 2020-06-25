@@ -75,8 +75,8 @@ static int bitbucket_internal_mkdir(fuse_req_t req, fuse_ino_t parent, const cha
 		fep.ino = child->Attributes.st_ino;
 		fep.generation = child->Epoch;
 		fep.attr = child->Attributes;
-		fep.attr_timeout = 30;
-		fep.entry_timeout = 30;
+		fep.attr_timeout = BBud->AttrTimeout;
+		fep.entry_timeout = BBud->AttrTimeout;
 
 		status = 0;
 		break;

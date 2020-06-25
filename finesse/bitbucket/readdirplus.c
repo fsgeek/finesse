@@ -126,8 +126,8 @@ static int bitbucket_internal_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t
 			// Let's try to pack an entry into this buffer
 			memset(&fep, 0, sizeof(fep));
 			fep.attr = dirEntry->Inode->Attributes;
-			fep.attr_timeout = 30.0; // TODO: this needs to be parameterized somewhere/somehow.
-			fep.entry_timeout = 30.0; // Ditto...
+			fep.attr_timeout = BBud->AttrTimeout; // TODO: this needs to be parameterized somewhere/somehow.
+			fep.entry_timeout = BBud->AttrTimeout; // Ditto...
 			fep.generation = dirEntry->Inode->Epoch;
 			fep.ino = dirEntry->Inode->Attributes.st_ino;
 			entrySize = fuse_add_direntry_plus(	req,  // FUSE request

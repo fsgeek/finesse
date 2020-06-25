@@ -72,25 +72,35 @@ static bitbucket_userdata_t BBud = {
     .Debug = 0,
     .RootDirectory = NULL,
     .InodeTable = NULL,
-    .AttrTimeout = 30.0, // pretty arbitrary value
+    .AttrTimeout = 3600.0, // pretty arbitrary value
     .StorageDir = "/tmp/bitbucket",
     .Writeback = 1,
     .CachePolicy = 1,
+    .FsyncDisable = 0,
+    .NoXattr = 1,
 };
 
 
 static void bitbucket_help(void) {
-    printf("    -no_writeback - disable writeback caching\n");
-    printf("    -storagedir=<path> - location to use for temporary storage (default /tmp/bitbucket)\n");
-    printf("    -timeout=<seconds> - attribute timeout (default=30)\n");
-    printf("    -disable_cache - disables all caching (default=enabled)\n");
+    printf("    --no_writeback - disable writeback caching\n");
+    printf("    --storagedir=<path> - location to use for temporary storage (default /tmp/bitbucket)\n");
+    printf("    --callstat=<path> - location to write call statistics on dismount\n");
+    printf("    --timeout=<seconds> - attribute timeout (default=3600)\n");
+    printf("    --disable_cache - disables all caching (default=enabled)\n");
+    printf("    --disable_fsync - disables fsync (default=enabled)\n");
+    printf("    --enable_xattr - enable xattr support (default=disabled)\n");
+    printf("    --bgforget - enable background forget handling (default=disabled)\n");
 }
 
 static const struct fuse_opt bitbucket_opts[] = {
-    { "no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
-    { "storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
-    { "timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
-    { "disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
+    { "--no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
+    { "--storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
+    { "--timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
+    { "--callstat=%s", offsetof(bitbucket_userdata_t, CallStatFile), 0},
+    { "--disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
+    { "--disable_fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 1},
+    { "--enable_xattr", offsetof(bitbucket_userdata_t, NoXattr), 0},
+    { "--bgforget", offsetof(bitbucket_userdata_t, BackgroundForget), 1},
 	FUSE_OPT_END
 };
 

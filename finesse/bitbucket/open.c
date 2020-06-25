@@ -56,7 +56,9 @@ static int bitbucket_internal_open(fuse_req_t req, fuse_ino_t ino, struct fuse_f
 		status = 0;
 		if (0 != (fi->flags & O_TRUNC)) {
 			BitbucketLockInode(inode, 1);
-			status = BitbucketAdjustFileStorage(inode, 0);
+			if (inode->Attributes.st_size > 0) {
+				status = BitbucketAdjustFileStorage(inode, 0);
+			}
 			BitbucketUnlockInode(inode);
 			assert(0 == status);
 		}

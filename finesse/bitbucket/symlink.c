@@ -83,8 +83,8 @@ static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino
     fep.ino = symlinkInode->Attributes.st_ino;
     fep.generation = symlinkInode->Epoch;
     fep.attr = symlinkInode->Attributes;
-    fep.attr_timeout = 30;
-    fep.entry_timeout = 30;
+    fep.attr_timeout = BBud->AttrTimeout;
+    fep.entry_timeout = BBud->AttrTimeout;
     fuse_reply_entry(req, &fep);
 
     BitbucketReferenceInode(symlinkInode, INODE_FUSE_LOOKUP_REFERENCE); // this matches the fuse_reply_entry

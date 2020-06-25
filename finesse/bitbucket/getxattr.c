@@ -33,6 +33,11 @@ static int bitbucket_internal_getxattr(fuse_req_t req, fuse_ino_t ino, const cha
 	const void *data;
 	int status = EBADF;
 
+	if (BBud->NoXattr) {
+		fuse_reply_err(req, ENOSYS);
+		return ENOENT;
+	}
+
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 
 	if (FUSE_ROOT_ID == ino) {
