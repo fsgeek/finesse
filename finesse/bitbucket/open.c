@@ -68,7 +68,7 @@ static int bitbucket_internal_open(fuse_req_t req, fuse_ino_t ino, struct fuse_f
 
 	if (NULL != inode) {
 		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);   // matches release call
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);    // drops our lookup ref on entry
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);    // drops our lookup ref on entry
 		inode = NULL;
 	}
 

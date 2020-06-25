@@ -67,7 +67,7 @@ static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino
     }
 
     if (NULL != inode) {
-        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
         inode = NULL;
     }
 
@@ -88,7 +88,7 @@ static int bitbucket_internal_symlink(fuse_req_t req, const char *link, fuse_ino
     fuse_reply_entry(req, &fep);
 
     BitbucketReferenceInode(symlinkInode, INODE_FUSE_LOOKUP_REFERENCE); // this matches the fuse_reply_entry
-    BitbucketDereferenceInode(symlinkInode, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(symlinkInode, INODE_LOOKUP_REFERENCE, 1);
 
     return status;
 
@@ -212,7 +212,7 @@ int BitbucketRemoveSymlinkFromDirectory(bitbucket_inode_t *Parent, const char *S
 	}
 
 	if (NULL != symlink) {
-		BitbucketDereferenceInode(symlink, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(symlink, INODE_LOOKUP_REFERENCE, 1);
 	}
 
 

@@ -156,22 +156,22 @@ static int bitbucket_internal_rename(fuse_req_t req, fuse_ino_t parent, const ch
 	fuse_reply_err(req, status);
 
 	if (NULL != old_parent) {
-		BitbucketDereferenceInode(old_parent, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(old_parent, INODE_LOOKUP_REFERENCE, 1);
 		old_parent = NULL;
 	}
 
 	if (NULL != new_parent) {
-		BitbucketDereferenceInode(new_parent, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(new_parent, INODE_LOOKUP_REFERENCE, 1);
 		new_parent = NULL;
 	}
 
 	if (NULL != old_inode) {
-		BitbucketDereferenceInode(old_inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(old_inode, INODE_LOOKUP_REFERENCE, 1);
 		old_inode = NULL;
 	}
 
 	if (NULL != new_inode) {
-		BitbucketDereferenceInode(new_inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(new_inode, INODE_LOOKUP_REFERENCE, 1);
 		new_inode = NULL;
 	}
 

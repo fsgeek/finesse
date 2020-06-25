@@ -42,11 +42,11 @@ static void background_forget(bitbucket_userdata_t *BBud, fuse_ino_t ino, uint64
 	if (NULL != inode) {
 
 		for (uint64_t index = 0; index < nlookup; index++) {
-			BitbucketDereferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE);
+			BitbucketDereferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE, 1);
 		}
 
 		// This matches the lookup *we* did
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 	}
 
 }

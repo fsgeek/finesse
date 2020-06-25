@@ -57,7 +57,7 @@ static int bitbucket_internal_access(fuse_req_t req, fuse_ino_t ino, int mask)
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

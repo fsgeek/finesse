@@ -226,7 +226,7 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
     }
 
     if (NULL != file) {       
-        BitbucketDereferenceInode(file, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(file, INODE_LOOKUP_REFERENCE, 1);
         file = NULL;
     }
 

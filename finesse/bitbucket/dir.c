@@ -310,7 +310,7 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
         if ((dirent->Inode != de_inode) && (dirent->Inode != Inode)) {
             if (NULL != de_inode) {
                 BitbucketUnlockInode(de_inode);
-                BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+                BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE, 1);
                 de_inode = NULL;
             }
 
@@ -344,7 +344,7 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
 
     if (NULL != de_inode) {
         BitbucketUnlockInode(de_inode);
-        BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+        BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE, 1);
         de_inode = NULL;
     }
 
@@ -401,10 +401,10 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
                 assert(de->Inode == Directory); // how could it not point to the parent?
                 assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
 
-                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE);
+                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE, 1);
                 de->Inode = NULL;
 
-                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE, 1);
                 dirent->Inode->Instance.Directory.Parent = NULL;
 
                 memset(de, 0, offsetof(bitbucket_dir_entry_t, Name));
@@ -419,12 +419,12 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     }
 
     if (NULL != inode) {
-        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
         inode = NULL;
     }
 
     if (NULL != dirent) {
-        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE);
+        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE, 1);
         dirent->Inode = NULL;
         memset(dirent, 0, offsetof(bitbucket_dir_entry_t, Name));
         free(dirent);
@@ -700,7 +700,7 @@ void BitbucketCleanupDirectoryEnumerationContext(bitbucket_dir_enum_context_t *E
     CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(EnumerationContext);
 
     if (NULL != EnumerationContext->Directory) {
-        BitbucketDereferenceInode(EnumerationContext->Directory, INODE_ENUM_REFERENCE);
+        BitbucketDereferenceInode(EnumerationContext->Directory, INODE_ENUM_REFERENCE, 1);
         EnumerationContext->Directory = NULL;
     }
 
@@ -936,7 +936,7 @@ void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory)
 
     // We need to get rid of the parent reference
     assert(NULL != RootDirectory->Instance.Directory.Parent);
-    BitbucketDereferenceInode(RootDirectory->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+    BitbucketDereferenceInode(RootDirectory->Instance.Directory.Parent, INODE_PARENT_REFERENCE, 1);
     RootDirectory->Instance.Directory.Parent = NULL;
     status = BitbucketDeleteDirectoryEntry(RootDirectory, "..");
     assert(0 == status);
@@ -948,5 +948,5 @@ void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory)
     assert(1 <= BitbucketGetInodeReferenceCount(RootDirectory));
 
     // Release our reference
-    BitbucketDereferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE, 1);
 }

@@ -102,7 +102,7 @@ test_inode_table_usage(
         munit_assert(2 == refcount);
 
         CHECK_BITBUCKET_INODE_MAGIC(inodes[index]);
-        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE); // this is my lookup reference above
+        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE, 1); // this is my lookup reference above
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(1 == refcount); // Mine from create
 
@@ -111,7 +111,7 @@ test_inode_table_usage(
         munit_assert(inodes[index] == inode);
         munit_assert(2 == refcount); // Mine from create + lookup
 
-        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE); // from the lookup call
+        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE, 1); // from the lookup call
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(1 == refcount); // create
 
@@ -123,7 +123,7 @@ test_inode_table_usage(
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(2 == refcount); // create + lookup
 
-        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(1 == refcount); // create 
     }
@@ -135,7 +135,7 @@ test_inode_table_usage(
         refcount = BitbucketGetInodeReferenceCount(inodes[index]);
         munit_assert(1 == refcount); // create
         ino = inodes[index]->Attributes.st_ino;
-        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(inodes[index], INODE_LOOKUP_REFERENCE, 1);
 
         inode = BitbucketLookupInodeInTable(Table, ino);
         assert(NULL == inode); // shouldn't be able to find it!

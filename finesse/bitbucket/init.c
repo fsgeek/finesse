@@ -166,7 +166,7 @@ int bitbucket_internal_destroy(void *userdata)
 		}
 
 		BitbucketDeleteDirectory(BBud->BitbucketMagicDirectories[index].Inode);
-		BitbucketDereferenceInode(BBud->BitbucketMagicDirectories[index].Inode, INODE_LOOKUP_REFERENCE); // undo original create ref
+		BitbucketDereferenceInode(BBud->BitbucketMagicDirectories[index].Inode, INODE_LOOKUP_REFERENCE, 1); // undo original create ref
 		BBud->BitbucketMagicDirectories[index].Inode = NULL;
 	}
 

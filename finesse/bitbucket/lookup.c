@@ -73,12 +73,12 @@ static int bitbucket_internal_lookup(fuse_req_t req, fuse_ino_t parent, const ch
 	}
 
 	if (NULL != parentInode) {
-		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE, 1);
 		parentInode = NULL;
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

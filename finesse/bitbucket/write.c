@@ -90,7 +90,7 @@ static int bitbucket_internal_write(fuse_req_t req, fuse_ino_t ino, const char *
 			assert(0 == status); // if not, may be an OK failure, or it may be a code bug...
 		}
 
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 		break;
 	}

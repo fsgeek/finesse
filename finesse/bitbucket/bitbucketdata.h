@@ -259,7 +259,7 @@ void BitbucketObjectReference(void *Object, uint8_t Reason);
 // call the deallocate callback and then delete the object.
 // Note: this is done in a thread-safe fashion, provided that the
 // object owner is locking it prior to lookup and reference counting it.
-void BitbucketObjectDereference(void *Object, uint8_t Reason);
+void BitbucketObjectDereference(void *Object, uint8_t Reason, uint64_t Bias);
 
 // Return the number of objects outstanding in the system
 uint64_t BitbucketObjectCount(void);
@@ -307,7 +307,7 @@ int BitbucketExchangeObjectsInDirectory(bitbucket_inode_t *old_parent, bitbucket
 
 
 void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
-void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
+void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason, uint64_t Bias);
 uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode);
 void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries);
 const char *BitbucketGetObjectReasonName(void *Object, uint8_t Reason);

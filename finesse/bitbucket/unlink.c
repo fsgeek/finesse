@@ -54,7 +54,7 @@ static int bitbucket_internal_unlink(fuse_req_t req, fuse_ino_t parent, const ch
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 	}
 
 	return status;

@@ -56,7 +56,7 @@ static int bitbucket_internal_getattr(fuse_req_t req, fuse_ino_t ino, struct fus
 
 	fuse_reply_attr(req, &inode->Attributes, BBud->AttrTimeout);
 
-	BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+	BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 	inode = NULL;
 
 	return 0;

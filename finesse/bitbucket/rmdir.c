@@ -91,7 +91,7 @@ static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const cha
 		//
 		status = BitbucketDeleteDirectory(child);
 		assert(0 == status);
-		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE, 1);
 		child = NULL;
 		break;
 
@@ -100,7 +100,7 @@ static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const cha
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 	}
 
 	return status;

@@ -122,7 +122,7 @@ static int bitbucket_internal_setattr(fuse_req_t req, fuse_ino_t ino, struct sta
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

@@ -229,53 +229,45 @@ void BitbucketObjectReference(void *Object, uint8_t Reason)
     assert(reasonRefCount <= refcount); // weak assert - should add them all up
 }
 
-void BitbucketObjectDereference(void *Object, uint8_t Reason) 
+void BitbucketObjectDereference(void *Object, uint8_t Reason, uint64_t Bias) 
 {
     bitbucket_object_header_t *bbobj = container_of(Object, bitbucket_object_header_t, Data);
     uint64_t refcount;
     uint32_t reasonRefCount;
-    int local_unlock = 0;
-    int status;
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
     assert(Reason < bbobj->ObjectAttributes.ReasonCount);
+    assert(Bias <= bbobj->ReferenceCount);
+    assert(Bias <= bbobj->ReferenceReasons[Reason]);
 
     LockObject(bbobj, 0);
-    refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
-    if (1 == refcount) {
+    refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
+    if (Bias == refcount) {
         // Unsafe to delete since we don't hold the exclusive lock
-        __atomic_fetch_add(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
     }
     else {
-        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
-        assert(0 != reasonRefCount);
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], Bias, __ATOMIC_RELAXED);
+        assert(reasonRefCount >= Bias); // if not, this is an underflow.
     }
     UnlockObject(bbobj);
     
-    if (1 == refcount) {
+    if (Bias == refcount) {
         // Since this was an attempt to delete the object, we must acquire the exclusive lock
         // and try this again.
         LockObject(bbobj, 1);
-        refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
-        assert(0 != refcount); // this means the ref count went negative, which is a bad thing.
-        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
-        assert(0 != reasonRefCount); // this means the ref count reason isn't correct
-        if (1 == refcount) {
+        refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
+        assert(refcount >= Bias); // this means the ref count went negative; this is bad.
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], Bias, __ATOMIC_RELAXED);
+        assert(reasonRefCount >= Bias); // underflow
+        if (Bias == refcount) {
             // Now it is safe for us to delete this
-            if (NULL == bbobj->ObjectAttributes.Lock) {
-                local_unlock = 1; // we have to release OUR lock
-            }
             bbobj->ObjectAttributes.Deallocate(Object, bbobj->DataLength); // This should remove all external usage of this object
-            if (local_unlock) {
-                status = pthread_rwlock_unlock(&DefaultObjectLock);
-                assert(0 == status);
-            }
             free(bbobj);
             bbobj = NULL;
             DecrementObjectCount();
         }
     }
-
 }
 
 uint64_t BitbucketObjectCount(void)

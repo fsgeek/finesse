@@ -132,12 +132,12 @@ static int bitbucket_internal_copy_file_range(fuse_req_t req, fuse_ino_t ino_in,
 	}
 
 	if (NULL != in_inode) {
-		BitbucketDereferenceInode(in_inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(in_inode, INODE_LOOKUP_REFERENCE, 1);
 		in_inode = NULL;
 	}
 
 	if (NULL != out_inode) {
-		BitbucketDereferenceInode(out_inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(out_inode, INODE_LOOKUP_REFERENCE, 1);
 		out_inode = NULL;
 	}
 

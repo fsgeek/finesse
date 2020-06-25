@@ -92,12 +92,12 @@ static int bitbucket_internal_mkdir(fuse_req_t req, fuse_ino_t parent, const cha
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 
 	if (NULL != child) {
-		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE, 1);
 		child = NULL;
 	}
 

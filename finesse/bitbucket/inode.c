@@ -653,7 +653,7 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
 //
 // Note: caller should destroy their reference after this call in most cases.
 //
-void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
+void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason, uint64_t Bias)
 {
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
@@ -671,7 +671,7 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
                 reasoncount, reasoncount - 1);
     }
     
-    BitbucketObjectDereference(bbpi, Reason);
+    BitbucketObjectDereference(bbpi, Reason, Bias);
     bbpi = NULL;
 }
 

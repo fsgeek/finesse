@@ -54,8 +54,8 @@ static int bitbucket_internal_release(fuse_req_t req, fuse_ino_t ino, struct fus
 	
 	if (NULL != inode) {
 		status = 0; // success
-		BitbucketDereferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_FUSE_OPEN_REFERENCE, 1);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

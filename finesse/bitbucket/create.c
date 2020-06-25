@@ -126,7 +126,7 @@ static int bitbucket_internal_create(fuse_req_t req, fuse_ino_t parent, const ch
 		fi->fh = (uint64_t)inode;
 		BitbucketReferenceInode(inode, INODE_FUSE_LOOKUP_REFERENCE);
 		BitbucketReferenceInode(inode, INODE_FUSE_OPEN_REFERENCE);
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 		
 		fuse_reply_create(req, &fep, fi);
@@ -135,7 +135,7 @@ static int bitbucket_internal_create(fuse_req_t req, fuse_ino_t parent, const ch
 	assert(NULL == inode);
 
 	if (NULL != parentInode) {
-		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(parentInode, INODE_LOOKUP_REFERENCE, 1);
 	}
 
 	return status;

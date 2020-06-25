@@ -61,7 +61,7 @@ static int bitbucket_internal_opendir(fuse_req_t req, fuse_ino_t ino, struct fus
 
 	if (NULL != inode) {
 		BitbucketReferenceInode(inode, INODE_FUSE_OPENDIR_REFERENCE);   // matches release call
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

@@ -67,7 +67,7 @@ static int bitbucket_internal_fsync(fuse_req_t req, fuse_ino_t ino, int datasync
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

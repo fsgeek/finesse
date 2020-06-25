@@ -153,7 +153,7 @@ static int bitbucket_internal_readdir(fuse_req_t req, fuse_ino_t ino, size_t siz
 
 	if (NULL != inode) {
 		// release our reference on the directory
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 	

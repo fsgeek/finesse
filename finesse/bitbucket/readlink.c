@@ -61,7 +61,7 @@ static int bitbucket_internal_readlink(fuse_req_t req, fuse_ino_t ino)
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

@@ -113,7 +113,7 @@ static int bitbucket_internal_write_buf(fuse_req_t req, fuse_ino_t ino, struct f
 		}
 		BitbucketUnlockInode(inode);
 
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 

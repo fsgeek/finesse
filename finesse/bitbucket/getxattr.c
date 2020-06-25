@@ -76,7 +76,7 @@ static int bitbucket_internal_getxattr(fuse_req_t req, fuse_ino_t ino, const cha
 
 	if (NULL != inode) {
 		BitbucketUnlockInode(inode);
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
 
