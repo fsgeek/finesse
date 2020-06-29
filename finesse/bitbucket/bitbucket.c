@@ -153,6 +153,7 @@ int main(int argc, char *argv[])
         if (0 == stat(BBud.StorageDir, &stbuf)) {
             // It exists, let's clean it up first
             childpid = vfork();
+            ret = -1;
             if (childpid < 0) {
                 fuse_log(FUSE_LOG_ERR, "fork failed, errno %d (%s)\n", errno, strerror(errno));
                 ret = 1;

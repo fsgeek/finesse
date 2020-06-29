@@ -318,15 +318,14 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength);
 
 // More random numbers
 // 
-//  
-//  
-//  13 5d 8f dd 8a 2f 16 ec
-//  08 83 59 60 59 ad 29 8b 
-//  18 1e c6 eb f4 fe 13 d5
-//  d8 20 1a 34 21 22 2f 70 
-//  33 62 53 e0 63 ce 2f df
-//  6d be b1 48 bd 55 70 e0 
-//
+//  0xdf5bcef89bea083b
+//  0x336253e063ce2fdf
+//  0x6dbeb148bd5570e0 
+//  0xde6757c7e6e00e43
+//  0x78e5d32a19bbdf0d
+//  0xf5e300f3c8c9c76c
+//  0xd21500fa00e01fe0
+// 
 // Source: https://www.random.org/cgi-bin/randbyte?nbytes=16&format=h
 
 #endif // _BITBUCKET_DATA_H_

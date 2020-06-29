@@ -161,7 +161,12 @@ void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, ch
 {
 	uint64_t nsec = CallDataEntry->ElapsedTime.tv_sec * (unsigned long)1000000000 + (unsigned long) CallDataEntry->ElapsedTime.tv_nsec;
 	double average;
-	static const char *FormatString = "%16s: %8lu Calls (%8lu Success, %8lu Failure), Elapsed = %16lu (ns), Average = %16.2f (ns)\n";
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+	// It fusses about the fact that this might truncate the value of... something.  Don't care, this is
+	// diagnostic code!
+	static const char *FormatString = "%16s: %10lu Calls (%10lu Success, %10lu Failure), Elapsed = %16lu (ns), Average = %16.2f (ns)\n";
+#pragma GCC diagnostic pop
 	int retval;
 
 	if (CallDataEntry->Calls > 0) {
@@ -181,7 +186,10 @@ void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, ch
 					  nsec,
 					  average);
 	
-	assert(retval >= 0);
-	*BufferSize = (size_t)retval;
-
+	if (retval >= 0) {
+		*BufferSize = (size_t)retval;
+	}
+	else {
+		*BufferSize = 150;
+	}
 }

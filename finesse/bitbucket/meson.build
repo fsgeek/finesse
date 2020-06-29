@@ -44,7 +44,6 @@ bitbucket_sources = [
 	'setxattr.c',
 	'statfs.c',
 	'symlink.c',
-	'trie.c',
 	'unlink.c',
 	'write.c',
 	'write_buf.c',
@@ -53,7 +52,7 @@ bitbucket_sources = [
 
 executable ('bitbucket',
             bitbucket_sources,
-            link_with: [libfuse],
+            link_with: [libfuse, finesse_utils],
             dependencies: [libfuse_dep],
             install: false
 )

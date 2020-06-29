@@ -40,6 +40,7 @@ static void lock_table_for_lookup(void);
 static void lock_table_for_change(void);
 static void unlock_table(void);
 
+
 static list_entry_t table_list = {.next = &table_list, .prev = &table_list};
 static uint64_t object_count;
 

@@ -82,11 +82,16 @@ static uint16_t hash_inode(ino_t Inode)
     // All I really want is a 10 bit value here
 
     ih = h & 0xFFF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
 
     return (ih & 0x3FF);
 }

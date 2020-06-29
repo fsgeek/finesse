@@ -10,15 +10,18 @@
 #define __notused __attribute__((unused))
 #endif // 
 
+int debug_enabled = 0;
+enum fuse_log_level debug_level = FUSE_LOG_ERR;
+
 void fuse_log(enum fuse_log_level level, const char *fmt, ...)
 {
 	va_list ap;
 
-    (void) level;
-
-	va_start(ap, fmt);
-    fprintf(stderr, fmt, ap);
-	va_end(ap);
+    if (debug_enabled && (debug_level <= level)) {
+        va_start(ap, fmt);
+        fprintf(stderr, fmt, ap);
+        va_end(ap);
+    }
 }
 
 MunitResult
@@ -71,7 +74,6 @@ MunitSuite *SetupMunitSuites()
     memset(testbitbucket_suites, 0, sizeof(testbitbucket_suites));
     testbitbucket_suites[index++] = object_suite;
     testbitbucket_suites[index++] = inode_suite;
-    testbitbucket_suites[index++] = trie_suite;
     testbitbucket_suites[index++] = dir_suite;
     testbitbucket_suites[index++] = xattr_suite;
     testbitbucket_suites[index++] = file_suite;

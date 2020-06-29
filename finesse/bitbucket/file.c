@@ -216,11 +216,11 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
         // definitely shouldn't be called here.
         assert(S_IFREG == (file->Attributes.st_mode & S_IFREG));
 
+        assert(file->Attributes.st_nlink > 0); // shouldn't go negative
         status = BitbucketDeleteDirectoryEntry(Parent, FileName);
         if (0 != status) {
             break;
         }
-        assert(file->Attributes.st_nlink > 0); // shouldn't go negative
 
         break;
     }

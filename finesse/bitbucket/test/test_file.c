@@ -49,6 +49,7 @@ test_create(
         uuid_unparse(file_data[index].Uuid, file_data[index].UuidString);
         file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
+        munit_assert(file_data[index].inode->Attributes.st_nlink > 0);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
         munit_assert(predictedRefCount == refcount); // shouldn't change
     }

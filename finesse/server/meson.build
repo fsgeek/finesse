@@ -25,6 +25,6 @@ finesse_server = static_library('finesse_server',
                                  finesse_server_sources,
                                  dependencies: deps,
                                  c_args: ['-DFUSE_USE_VERSION=39', '-Wall', '-Wextra', '-Werror'],
-                                 link_with: finesscommunications,
+                                 link_with: [finesscommunications, finesse_utils],
                                  include_directories: [include_dirs, finesse_inc_dirs])
 

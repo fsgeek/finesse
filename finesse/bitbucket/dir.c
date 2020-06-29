@@ -335,8 +335,10 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
         // Remove the entries; we return it to the caller.
         remove_list_entry(&dirent->ListEntry);
         TrieDeletion(&Inode->Instance.Directory.Children, Name);
-        assert(dirent->Inode->Attributes.st_nlink > 0);
-        dirent->Inode->Attributes.st_nlink--;
+        if (NULL != de_inode) { // this is not a self-referential entry (e.g., '.')
+            assert(dirent->Inode->Attributes.st_nlink > 0);
+            dirent->Inode->Attributes.st_nlink--;
+        }
     }
 
     // TODO: make this a debug/check parameter
