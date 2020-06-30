@@ -6,7 +6,7 @@
 #include "config.h"
 #endif
 
-#include "test_bitbucket.h"
+#include "test_utils.h"
 #include "trie.h"
 #include <uuid/uuid.h>
 

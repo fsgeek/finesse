@@ -341,11 +341,13 @@ static uint16_t GetBucketIndex(lookup_entry_table_t *Table, void *Key, size_t Ke
 
 static inline uint16_t GetBucketIndexForInode(lookup_entry_table_t *Table, fuse_ino_t InodeNumber)
 {
+    assert(0 != InodeNumber);
     return GetBucketIndex(Table, &InodeNumber, sizeof(fuse_ino_t));
 }
 
 static inline uint16_t GetBucketIndexForUuid(lookup_entry_table_t *Table, uuid_t *Uuid)
 {
+    assert(!uuid_is_null(*Uuid));
     return GetBucketIndex(Table, Uuid, sizeof(uuid_t));
 }
 
@@ -419,6 +421,9 @@ finesse_object_t *FinesseObjectLookupByIno(finesse_object_table_t *Table, fuse_i
 
     LockBucket(bucket, 0);
     entry = lookup_entry(bucket, InodeNumber, &null_uuid);
+    if (NULL != entry) {
+        __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED); // bump ref count
+    }
     UnlockBucket(&table->Buckets[index]);
 
     if (NULL != entry) {
@@ -444,6 +449,9 @@ finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_
 
     LockBucket(bucket, 0);
     entry = lookup_entry(bucket, 0, Uuid);
+    if (NULL != entry) {
+        __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED); // bump ref count
+    }
     UnlockBucket(&table->Buckets[index]);
 
     if (NULL != entry) {
@@ -452,7 +460,7 @@ finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_
     return NULL;
 }
 
-static void remove_entry(lookup_entry_table_t *Table, lookup_entry_t * Entry)
+static void release_entry(lookup_entry_table_t *Table, lookup_entry_t * Entry)
 {
     uint16_t index, first, second;
     uint64_t refCount = 0;
@@ -514,7 +522,7 @@ void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Objec
     UnlockBucket(bucket);
 
     if (1 == refCount) {
-        remove_entry(table, entry);
+        release_entry(table, entry);
     }
 }
 
@@ -558,10 +566,10 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     assert(LookupEntryTypeLinkedLists == uuid_bucket->LookupEntryType);
 
     insert_list_tail(&inode_bucket->LookupEntryInstance.LinkedLists.InodeTableEntry, &entry->InodeListEntry);
-    insert_list_tail(&uuid_bucket->LookupEntryInstance.LinkedLists.InodeTableEntry, &entry->UuidListEntry);
+    insert_list_tail(&uuid_bucket->LookupEntryInstance.LinkedLists.UuidTableEntry, &entry->UuidListEntry);
 
     __atomic_fetch_add(&inode_bucket->EntryCount, 1, __ATOMIC_RELAXED);
-    __atomic_fetch_add(&uuid_bucket, 1, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&uuid_bucket->EntryCount, 1, __ATOMIC_RELAXED);
 
     if (first != second) {
         UnlockBucket(&Table->Buckets[second]);
@@ -604,7 +612,9 @@ finesse_object_table_t *FinesseCreateTable(uint64_t EstimatedSize)
         bucket_count = 1024; // smallest size we're doing for now
     }
 
-    bucket_count %= 65536;
+    if (bucket_count > 32768) {
+        bucket_count = 32768;
+    }
 
     // Let's guarantee this is a power-of-two value
     index = 10;
