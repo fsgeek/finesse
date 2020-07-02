@@ -16,11 +16,11 @@ typedef struct _bitbucket_object_header {
     uint64_t                        ReferenceCount;
     uint32_t                        ReferenceReasons[BITBUCKET_MAX_REFERENCE_REASONS];
     size_t                          DataLength;
-    char                            Unused[8]; // used to pad so Data starts on a 64 byte boundary
+    char                            Unused[56]; // used to pad so Data starts on a 64 byte boundary
     uint64_t                        Data[1];
 } bitbucket_object_header_t;
 
-const char foo[(64 * 6) - offsetof(bitbucket_object_header_t, Data)];
+// const char foo[(64 * 9) - offsetof(bitbucket_object_header_t, Data)];
 _Static_assert(0 == (offsetof(bitbucket_object_header_t, Data) % 64), "Bad alignment");
 
 #define BITBUCKET_OBJECT_HEADER_MAGIC (0xc24e22f696a3861d)
@@ -229,53 +229,45 @@ void BitbucketObjectReference(void *Object, uint8_t Reason)
     assert(reasonRefCount <= refcount); // weak assert - should add them all up
 }
 
-void BitbucketObjectDereference(void *Object, uint8_t Reason) 
+void BitbucketObjectDereference(void *Object, uint8_t Reason, uint64_t Bias) 
 {
     bitbucket_object_header_t *bbobj = container_of(Object, bitbucket_object_header_t, Data);
     uint64_t refcount;
     uint32_t reasonRefCount;
-    int local_unlock = 0;
-    int status;
 
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
     assert(Reason < bbobj->ObjectAttributes.ReasonCount);
+    assert(Bias <= bbobj->ReferenceCount);
+    assert(Bias <= bbobj->ReferenceReasons[Reason]);
 
     LockObject(bbobj, 0);
-    refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
-    if (1 == refcount) {
+    refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
+    if (Bias == refcount) {
         // Unsafe to delete since we don't hold the exclusive lock
-        __atomic_fetch_add(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
     }
     else {
-        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
-        assert(0 != reasonRefCount);
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], Bias, __ATOMIC_RELAXED);
+        assert(reasonRefCount >= Bias); // if not, this is an underflow.
     }
     UnlockObject(bbobj);
     
-    if (1 == refcount) {
+    if (Bias == refcount) {
         // Since this was an attempt to delete the object, we must acquire the exclusive lock
         // and try this again.
         LockObject(bbobj, 1);
-        refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, 1, __ATOMIC_RELAXED);
-        assert(0 != refcount); // this means the ref count went negative, which is a bad thing.
-        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], 1, __ATOMIC_RELAXED);
-        assert(0 != reasonRefCount); // this means the ref count reason isn't correct
-        if (1 == refcount) {
+        refcount = __atomic_fetch_sub(&bbobj->ReferenceCount, Bias, __ATOMIC_RELAXED);
+        assert(refcount >= Bias); // this means the ref count went negative; this is bad.
+        reasonRefCount = __atomic_fetch_sub(&bbobj->ReferenceReasons[Reason], Bias, __ATOMIC_RELAXED);
+        assert(reasonRefCount >= Bias); // underflow
+        if (Bias == refcount) {
             // Now it is safe for us to delete this
-            if (NULL == bbobj->ObjectAttributes.Lock) {
-                local_unlock = 1; // we have to release OUR lock
-            }
             bbobj->ObjectAttributes.Deallocate(Object, bbobj->DataLength); // This should remove all external usage of this object
-            if (local_unlock) {
-                status = pthread_rwlock_unlock(&DefaultObjectLock);
-                assert(0 == status);
-            }
             free(bbobj);
             bbobj = NULL;
             DecrementObjectCount();
         }
     }
-
 }
 
 uint64_t BitbucketObjectCount(void)
@@ -294,7 +286,21 @@ uint64_t BitbucketGetObjectReferenceCount(void *Object)
     return __atomic_load_n(&bbobj->ReferenceCount, __ATOMIC_RELAXED);
 }
 
-// 
+uint64_t BitbucketGetObjectReasonReferenceCount(void *Object, uint8_t Reason)
+{
+    bitbucket_object_header_t *bbobj;
+    
+    assert(NULL != Object);
+    bbobj = container_of(Object, bitbucket_object_header_t, Data);
+    CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
+    assert(Reason < BITBUCKET_MAX_REFERENCE_REASONS);
+
+    return __atomic_load_n(&bbobj->ReferenceReasons[Reason], __ATOMIC_RELAXED);
+
+}
+
+// Obtain the reason counts. Results are only for debug use, since this is done as
+// an unlocked operation.
 void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uint8_t CountEntries)
 {
     bitbucket_object_header_t *bbobj;
@@ -305,9 +311,8 @@ void BitbucketGetObjectReasonReferenceCounts(void *Object, uint32_t *Counts, uin
     CHECK_BITBUCKET_OBJECT_HEADER_MAGIC(bbobj);
 
     assert(CountEntries <= BITBUCKET_MAX_REFERENCE_REASONS);
-    LockObject(bbobj, 1);
+    // Note that this is not guaranteed accurate!
     memcpy(Counts, bbobj->ReferenceReasons, sizeof(uint32_t) * bbobj->ReferenceCount);
-    UnlockObject(bbobj);
 
 }
 

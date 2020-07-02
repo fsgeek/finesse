@@ -47,8 +47,9 @@ test_create(
     for (unsigned index = 0; index < file_count; index++) {
         uuid_generate_random(file_data[index].Uuid);
         uuid_unparse(file_data[index].Uuid, file_data[index].UuidString);
-        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString);
+        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
+        munit_assert(file_data[index].inode->Attributes.st_nlink > 0);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
         munit_assert(predictedRefCount == refcount); // shouldn't change
     }
@@ -63,7 +64,7 @@ test_create(
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
         munit_assert(1 == refcount); // lookup
 
-        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE, 1);
         file_data[index].inode = NULL;
 
         // Now let's make sure we don't find the entry
@@ -74,7 +75,7 @@ test_create(
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);
@@ -118,7 +119,7 @@ test_forget(
     for (unsigned index = 0; index < file_count; index++) {
         uuid_generate_random(file_data[index].Uuid);
         uuid_unparse(file_data[index].Uuid, file_data[index].UuidString);
-        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString);
+        file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
         munit_assert(predictedRefCount == refcount); // shouldn't change
@@ -144,7 +145,7 @@ test_forget(
         BitbucketReferenceInode(file_data[index].inode, INODE_FUSE_LOOKUP_REFERENCE);
         ino = file_data[index].inode->Attributes.st_ino;
 
-        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE, 1);
         file_data[index].inode = NULL;
 
         // Now let's use the inode number to find it
@@ -152,8 +153,8 @@ test_forget(
         assert(NULL != file_data[index].inode);
 
         // Now let's release the lookup reference
-        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE);
-        BitbucketDereferenceInode(file_data[index].inode, INODE_FUSE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE, 1);
+        BitbucketDereferenceInode(file_data[index].inode, INODE_FUSE_LOOKUP_REFERENCE, 1);
 
         // Make sure we can't find it now...
         file_data[index].inode = BitbucketLookupInodeInTable(Table, ino);
@@ -163,7 +164,7 @@ test_forget(
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);

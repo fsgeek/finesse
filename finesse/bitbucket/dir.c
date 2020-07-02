@@ -87,6 +87,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     size_t entry_length = offsetof(bitbucket_dir_entry_t, Name);
     size_t name_length = 0;
     void *tobj = NULL;
+    int status;
 
     assert(NULL != DirInode);
     assert(NULL != Inode);
@@ -114,27 +115,50 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
         assert(strlen(newentry->Name) == strlen(Name)); // must be the same
     }
 
-    BitbucketLockInode(DirInode, 1);
-    newentry->Offset = DirInode->Epoch;
-    if (NULL == DirInode->Instance.Directory.Children) {
-        DirInode->Instance.Directory.Children = TrieCreateNode();
+    if (DirInode != Inode) {
+        BitbucketLockTwoInodes(DirInode, Inode, 1);
     }
-    assert(NULL != DirInode->Instance.Directory.Children);
+    else {
+        BitbucketLockInode(DirInode, 1);
+    }
+    while (NULL != DirInode) {
+        newentry->Offset = DirInode->Epoch;
+        if (NULL == DirInode->Instance.Directory.Children) {
+            DirInode->Instance.Directory.Children = TrieCreateNode();
+        }
+        assert(NULL != DirInode->Instance.Directory.Children);
 
-    tobj = TrieSearch(DirInode->Instance.Directory.Children, Name);
-    assert(NULL == tobj); // TODO: deal with name collision
-    TrieInsert(DirInode->Instance.Directory.Children, Name, newentry);
+        tobj = TrieSearch(DirInode->Instance.Directory.Children, Name);
 
-    insert_list_head(&DirInode->Instance.Directory.Entries, &newentry->ListEntry);
+        if (NULL != tobj) {
+            // caller can deal with this case
+            status = EEXIST;
+            break;
+        }
 
-    DirInode->Attributes.st_nlink++;
+        TrieInsert(DirInode->Instance.Directory.Children, Name, newentry);
 
-    VerifyDirectoryEntries(DirInode);
+        insert_list_head(&DirInode->Instance.Directory.Entries, &newentry->ListEntry);
 
-    BitbucketUnlockInode(DirInode);
+        if (Inode != DirInode) {
+            Inode->Attributes.st_nlink++;
+        }
 
+        // TODO: make this conditional on some debugging parameter(s)
+        // VerifyDirectoryEntries(DirInode);
 
-    return 0;
+        status = 0;
+        break;
+    }
+    if (DirInode != Inode) {
+        BitbucketUnlockInode(DirInode);
+        BitbucketUnlockInode(Inode);
+    }
+    else {
+        BitbucketUnlockInode(DirInode);
+    }
+
+    return status;
 }
 
 void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name, bitbucket_inode_t **Object) 
@@ -242,23 +266,89 @@ bitbucket_inode_t *BitbucketCreateDirectory(bitbucket_inode_t *Parent, const cha
 
 static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Inode, const char *Name)
 {
+    bitbucket_inode_t *de_inode = NULL;
     bitbucket_dir_entry_t *dirent = NULL;
-    assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
-    
-    BitbucketLockInode(Inode, 1);
+    int status;
 
+    assert(BITBUCKET_DIR_TYPE == Inode->InodeType);
+
+    // Ugliness: we need two locks here, but we don't know the second lock yet    
+    BitbucketLockInode(Inode, 1);
     while (NULL == dirent) {
         dirent = (bitbucket_dir_entry_t *) TrieSearch(Inode->Instance.Directory.Children, Name);
         if (NULL == dirent) {
             break;
         }
 
-        // Remove the entries
+        //
+        // Slightly ugly locking here: if we have the dirent here and it points
+        // to the directory entry inode we locked, then we can proceed.
+        //
+        // First iteration through: de_inode is NULL.  We lock the directory,
+        // look up the dirent, which tells us which Inode we need to lock.
+        // We save dirent->Inode, refcount it, try to lock it.  If we can't lock
+        // it without blocking, we drop the directory inode count and then block and
+        // wait for both inodes.  When we have the locks, it cycles back up to
+        // the top of the loop.
+        //
+        // Second iteration: we have two inodes locked; since one is the directory,
+        // we lookup the entry we want to remove. We compare the Inode in that
+        // dirent with the Inode we stored previously.  If they are the same it
+        // means we have the correct locks.
+        //
+        // If not, we have lost a race, so we have to unlock our saved Inode,
+        // drop our reference on it, and then try to get the right lock all over again.
+        //
+        // Eventually we get the right locks.  We remove the directory entry from the
+        // queue and decrement the link count on the inode entry from that directory
+        // entry.  We return the directory entry; the caller is responsible for
+        // cleaning it up.
+        //
+        // Note that if this is the '.' entry in a directory, we don't need
+        // two locks either, so we skip the locking complexity and just proceed
+        //
+        if ((dirent->Inode != de_inode) && (dirent->Inode != Inode)) {
+            if (NULL != de_inode) {
+                BitbucketUnlockInode(de_inode);
+                BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE, 1);
+                de_inode = NULL;
+            }
+
+            de_inode = dirent->Inode;
+            BitbucketReferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE);
+            status = BitbucketTryLockInode(dirent->Inode, 1);
+
+            if (0 != status) {
+                // can't lock it.  Let's back off
+                BitbucketUnlockInode(Inode);
+
+                // Try to get BOTH locks; I know the inodes won't disappear
+                // because I have references on both of them.
+                BitbucketLockTwoInodes(Inode, de_inode, 1);
+                continue; // go back to the top and rebuild state
+            }
+        }
+
+        // Make sure if they're the same we don't have a de_inode value.
+        assert((Inode != dirent->Inode) || (NULL == de_inode));
+
+        // Remove the entries; we return it to the caller.
         remove_list_entry(&dirent->ListEntry);
         TrieDeletion(&Inode->Instance.Directory.Children, Name);
+        if (NULL != de_inode) { // this is not a self-referential entry (e.g., '.')
+            assert(dirent->Inode->Attributes.st_nlink > 0);
+            dirent->Inode->Attributes.st_nlink--;
+        }
     }
 
-    VerifyDirectoryEntries(Inode);
+    // TODO: make this a debug/check parameter
+    // VerifyDirectoryEntries(Inode);
+
+    if (NULL != de_inode) {
+        BitbucketUnlockInode(de_inode);
+        BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE, 1);
+        de_inode = NULL;
+    }
 
     BitbucketUnlockInode(Inode);
 
@@ -313,10 +403,10 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
                 assert(de->Inode == Directory); // how could it not point to the parent?
                 assert(dirent->Inode->Instance.Directory.Parent == Directory); // if not, how did we find it?
 
-                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE);
+                BitbucketDereferenceInode(de->Inode, INODE_DIRENT_REFERENCE, 1);
                 de->Inode = NULL;
 
-                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+                BitbucketDereferenceInode(dirent->Inode->Instance.Directory.Parent, INODE_PARENT_REFERENCE, 1);
                 dirent->Inode->Instance.Directory.Parent = NULL;
 
                 memset(de, 0, offsetof(bitbucket_dir_entry_t, Name));
@@ -331,12 +421,12 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     }
 
     if (NULL != inode) {
-        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
         inode = NULL;
     }
 
     if (NULL != dirent) {
-        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE);
+        BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE, 1);
         dirent->Inode = NULL;
         memset(dirent, 0, offsetof(bitbucket_dir_entry_t, Name));
         free(dirent);
@@ -351,6 +441,33 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     assert(NULL == de);
 
     return status;
+}
+
+//
+// This counts the number of entries in a directory.
+// Note that there is no guarantee the number of entries
+// won't change after this call..
+//
+// Do not hold the Inode locked when calling this.
+//
+// Note that an empty directory will have one entry ('.')
+// unless it is root (which will have "." and "..").
+//
+uint64_t BitbucketDirectoryEntryCount(bitbucket_inode_t *Inode) 
+{
+    uint64_t count = 0;
+    list_entry_t *le = NULL;
+
+    assert(NULL != Inode);
+
+    // This really should be in dir.c...
+    BitbucketLockInode(Inode, 0);
+    list_for_each(&Inode->Instance.Directory.Entries, le) {
+        count++;
+    }
+    BitbucketUnlockInode(Inode);
+
+    return count;
 }
 
 //
@@ -411,6 +528,44 @@ int BitbucketDeleteDirectory(bitbucket_inode_t *Inode)
     
     return status;
 }
+
+int BitbucketExchangeObjectsInDirectory(bitbucket_inode_t *old_parent, bitbucket_inode_t *new_parent, const char *name, const char *newname)
+{
+    int status = 0;
+    bitbucket_dir_entry_t *old_dirent = NULL;
+    bitbucket_dir_entry_t *new_dirent = NULL;
+    bitbucket_inode_t *inode = NULL;
+
+    assert(NULL != old_parent);
+    assert(NULL != new_parent);
+    assert(NULL != name);
+    assert(NULL != newname);
+
+    // We're just going to swap the inode references; this
+    // should not break refcounts
+    BitbucketLockTwoInodes(old_parent, new_parent, 1);
+    old_dirent = TrieSearch(old_parent->Instance.Directory.Children, name);
+    new_dirent = TrieSearch(new_parent->Instance.Directory.Children, newname);
+    if ((NULL != old_dirent) && (NULL != new_dirent)) {
+        inode = old_dirent->Inode;
+        old_dirent->Inode = new_dirent->Inode;
+        new_dirent->Inode = inode;
+    }
+    BitbucketUnlockInode(new_parent);
+    BitbucketUnlockInode(old_parent);
+
+    // Note: the dirents are not safe to access here, but we're just
+    // checking the local value of the pointer. 
+    if ((NULL == old_dirent) || (NULL == new_dirent)) {
+        // we didn't find an entry
+        status = ENOENT;
+    }
+
+    return status;
+
+}
+
+
 
 #if 0
 //
@@ -547,7 +702,7 @@ void BitbucketCleanupDirectoryEnumerationContext(bitbucket_dir_enum_context_t *E
     CHECK_BITBUCKET_DIR_ENUM_CONTEXT_MAGIC(EnumerationContext);
 
     if (NULL != EnumerationContext->Directory) {
-        BitbucketDereferenceInode(EnumerationContext->Directory, INODE_ENUM_REFERENCE);
+        BitbucketDereferenceInode(EnumerationContext->Directory, INODE_ENUM_REFERENCE, 1);
         EnumerationContext->Directory = NULL;
     }
 
@@ -783,7 +938,7 @@ void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory)
 
     // We need to get rid of the parent reference
     assert(NULL != RootDirectory->Instance.Directory.Parent);
-    BitbucketDereferenceInode(RootDirectory->Instance.Directory.Parent, INODE_PARENT_REFERENCE);
+    BitbucketDereferenceInode(RootDirectory->Instance.Directory.Parent, INODE_PARENT_REFERENCE, 1);
     RootDirectory->Instance.Directory.Parent = NULL;
     status = BitbucketDeleteDirectoryEntry(RootDirectory, "..");
     assert(0 == status);
@@ -795,5 +950,5 @@ void BitbucketDeleteRootDirectory(bitbucket_inode_t *RootDirectory)
     assert(1 <= BitbucketGetInodeReferenceCount(RootDirectory));
 
     // Release our reference
-    BitbucketDereferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(RootDirectory, INODE_LOOKUP_REFERENCE, 1);
 }

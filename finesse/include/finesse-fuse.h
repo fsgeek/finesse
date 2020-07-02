@@ -14,6 +14,20 @@ typedef struct _finesse_object
     // TODO: we may need additional data here
 } finesse_object_t;
 
+typedef struct _finesse_object_table finesse_object_table_t;
+
+// These are the replacement APIs for the previous lookup package
+// They generalize the table (no requirement for a single global table)
+// and the internal implementation changes to improve parallel behavior.
+finesse_object_t *FinesseObjectLookupByIno(finesse_object_table_t *Table, fuse_ino_t InodeNumber);
+finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_t *Uuid);
+void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Object);
+finesse_object_t *FinesseObjectCreate(finesse_object_table_t *Table, fuse_ino_t InodeNumber, uuid_t *Uuid);
+uint64_t FinesseObjectGetTableSize(finesse_object_table_t *Table);
+void FinesseInitializeTable(finesse_object_table_t *Table);
+void FinesseDestroyTable(finesse_object_table_t *Table);
+finesse_object_table_t *FinesseCreateTable(uint64_t EstimatedSize);
+
 finesse_object_t *finesse_object_lookup_by_ino(fuse_ino_t inode);
 finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid);
 void finesse_object_release(finesse_object_t *object);

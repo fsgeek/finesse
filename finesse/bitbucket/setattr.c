@@ -4,12 +4,30 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
+
+static int bitbucket_internal_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi);
+
 
 void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_setattr(req, ino, attr, to_set, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_SETATTR, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
+{
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = EBADF;
 
@@ -48,10 +66,14 @@ void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to
 		}
 
 		if (to_set & FUSE_SET_ATTR_SIZE) {
-			// Note: for a real file system we'd likely have to
-			// do a truncate.  But for a bitbucket, we don't care.
-			inode->Attributes.st_size = attr->st_size;
 			status = 0;
+			if (inode->Attributes.st_size != attr->st_size) {
+				BitbucketLockInode(inode, 1); // exclusive lock
+				// note that this call updates the size in the inode
+				status = BitbucketAdjustFileStorage(inode, attr->st_size);
+				assert(0 == status); // if not, debug
+				BitbucketUnlockInode(inode);
+			}
 		}
 
 		if (to_set & FUSE_SET_ATTR_ATIME) {
@@ -93,14 +115,16 @@ void bitbucket_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to
 	}
 
 	if (0 == status) {
-		fuse_reply_attr(req, &inode->Attributes, 30.0);
+		fuse_reply_attr(req, &inode->Attributes, BBud->AttrTimeout);
 	}
 	else {
 		fuse_reply_err(req, status);
 	}
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
+
+	return status;
 }

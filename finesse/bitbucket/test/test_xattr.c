@@ -38,7 +38,7 @@ test_insert(
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
 
-    testfile = BitbucketCreateFile(rootdir, "testfile");
+    testfile = BitbucketCreateFile(rootdir, "testfile", NULL);
     munit_assert(NULL != testfile);
 
     BitbucketLockInode(testfile, 1);
@@ -54,14 +54,14 @@ test_insert(
 
     status = BitbucketDeleteDirectoryEntry(rootdir, "testfile");
     assert(0 == status);
-    BitbucketDereferenceInode(testfile, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(testfile, INODE_LOOKUP_REFERENCE, 1);
     testfile = NULL;
     
 
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);
@@ -99,7 +99,7 @@ test_lookup(
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);

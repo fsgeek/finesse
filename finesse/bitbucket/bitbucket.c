@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <fuse_common.h>
 
 #include <fuse_lowlevel.h>
@@ -66,13 +67,43 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .lseek = bitbucket_lseek,
 };
 
-static bitbucket_user_data_t BBud = {
+static bitbucket_userdata_t BBud = {
     .Magic = BITBUCKET_USER_DATA_MAGIC,
     .Debug = 0,
     .RootDirectory = NULL,
     .InodeTable = NULL,
-    .AttrTimeout = 5.0, // pretty arbitrary value
+    .AttrTimeout = 3600.0, // pretty arbitrary value
+    .StorageDir = "/tmp/bitbucket",
+    .Writeback = 1,
+    .CachePolicy = 1,
+    .FsyncDisable = 0,
+    .NoXattr = 1,
 };
+
+
+static void bitbucket_help(void) {
+    printf("    --no_writeback - disable writeback caching\n");
+    printf("    --storagedir=<path> - location to use for temporary storage (default /tmp/bitbucket)\n");
+    printf("    --callstat=<path> - location to write call statistics on dismount\n");
+    printf("    --timeout=<seconds> - attribute timeout (default=3600)\n");
+    printf("    --disable_cache - disables all caching (default=enabled)\n");
+    printf("    --disable_fsync - disables fsync (default=enabled)\n");
+    printf("    --enable_xattr - enable xattr support (default=disabled)\n");
+    printf("    --bgforget - enable background forget handling (default=disabled)\n");
+}
+
+static const struct fuse_opt bitbucket_opts[] = {
+    { "--no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
+    { "--storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
+    { "--timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
+    { "--callstat=%s", offsetof(bitbucket_userdata_t, CallStatFile), 0},
+    { "--disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
+    { "--disable_fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 1},
+    { "--enable_xattr", offsetof(bitbucket_userdata_t, NoXattr), 0},
+    { "--bgforget", offsetof(bitbucket_userdata_t, BackgroundForget), 1},
+	FUSE_OPT_END
+};
+
 
 int main(int argc, char *argv[])
 {
@@ -88,6 +119,7 @@ int main(int argc, char *argv[])
 		printf("usage: %s [options] <mountpoint>\n\n", argv[0]);
 		fuse_cmdline_help();
 		fuse_lowlevel_help();
+        bitbucket_help();
 		ret = 0;
 		goto err_out1;
 	} else if (opts.show_version) {
@@ -106,6 +138,54 @@ int main(int argc, char *argv[])
 
     if(opts.debug) {
         BBud.Debug = 1;
+    }
+
+    if (fuse_opt_parse(&args, &BBud, bitbucket_opts, NULL)) {
+        ret = 1;
+        goto err_out1;
+    }
+
+    if (NULL != BBud.StorageDir) {
+        struct stat stbuf;
+        int status = 0;
+        pid_t childpid = 0;
+
+        if (0 == stat(BBud.StorageDir, &stbuf)) {
+            // It exists, let's clean it up first
+            childpid = vfork();
+            ret = -1;
+            if (childpid < 0) {
+                fuse_log(FUSE_LOG_ERR, "fork failed, errno %d (%s)\n", errno, strerror(errno));
+                ret = 1;
+                goto err_out1;
+            }
+
+            if (0 == childpid) {
+                fuse_log(FUSE_LOG_DEBUG, "child invoking rm -rf %s\n", BBud.StorageDir);
+                char * const rmargs[] = {
+                    (char *)(uintptr_t)"rm",
+                    (char *)(uintptr_t)"-rf",
+                    (char *)(uintptr_t)BBud.StorageDir,
+                    NULL
+                };
+                status = execv("/bin/rm", rmargs);
+                if (0 != status) {
+                    ret = 1;
+                    goto err_out1;
+                }
+            }
+        }
+
+        sleep(1);
+
+        status = mkdir(BBud.StorageDir, 0700);
+        if (0 != status) {
+            fuse_log(FUSE_LOG_ERR, "Unable to create %s (errno  = %d - %s)\n",
+                    BBud.StorageDir, errno, strerror(errno));
+            ret = 1;
+            goto err_out1;
+        }
+
     }
 
 	se = fuse_session_new(&args, &bitbucket_ll_oper,

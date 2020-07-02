@@ -38,6 +38,6 @@ TAGS
 /GSYMS
 /GTAGS
 /test/test_setattr
-/build/
+/build*
 .vscode/
 finesse/bitbucket/scratch

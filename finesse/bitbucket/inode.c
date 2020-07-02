@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <time.h>
+#include <fuse_log.h>
 
 int bitbucket_debug_refcount = 1;
 
@@ -27,6 +28,7 @@ typedef struct _bitbucket_inode_table_entry {
 struct _bitbucket_inode_table {
     uint64_t            Magic;
     uint16_t            BucketCount;
+    uint64_t            InodeCount;
     struct {
         list_entry_t        ListEntry;
         pthread_rwlock_t    Lock;
@@ -80,11 +82,16 @@ static uint16_t hash_inode(ino_t Inode)
     // All I really want is a 10 bit value here
 
     ih = h & 0xFFF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
-    ih ^= (h >> 10) & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
+    h = h >> 10;
+    ih ^= h & 0x3FF;
 
     return (ih & 0x3FF);
 }
@@ -244,6 +251,8 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
         ite = NULL;
     }
 
+    __atomic_fetch_add(&table->InodeCount, 1, __ATOMIC_RELAXED);
+
     return result;
 }
 
@@ -292,6 +301,20 @@ void BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode)
     }
 }
 #endif // 0
+
+//
+// Return the number of Inodes in the table at the time of the
+// call (note this value is likely changing).
+//
+uint64_t BitbucketGetInodeTableCount(void *Table)
+{
+    bitbucket_inode_table_t *table = (bitbucket_inode_table_t *)Table;
+
+    assert(NULL != Table);
+    CHECK_BITBUCKET_INODE_TABLE_MAGIC(table);
+    
+    return __atomic_load_n(&table->InodeCount, __ATOMIC_RELAXED);
+}
 
 // Find an inode from the inode number in the specified table
 // If found, a reference counted pointer to the inode is returned
@@ -487,6 +510,7 @@ static void InodeDeallocate(void *Object, size_t Length)
     table = bbpi->Table;
     bitbucket_inode_table_entry_t *ite = NULL;
     uint16_t bucketId = hash_inode(bbpi->PublicInode.Attributes.st_ino);
+    uint64_t oldcount = 0;
 
     // We must be holding the inode table bucket lock EXCLUSIVE
     status = InodeTableTrylock(Object, 0);
@@ -502,6 +526,9 @@ static void InodeDeallocate(void *Object, size_t Length)
     // were the final reference to this object, we have the table locked
     // so nobody else found it, and now we can finish tearing it down.
     InodeTableUnlock(Object);
+    oldcount = __atomic_fetch_sub(&table->InodeCount, 1, __ATOMIC_RELAXED);
+    assert(0 != oldcount); // underflow!
+
     // No longer need the inode table entry
     free(ite);
     ite = NULL;
@@ -539,11 +566,15 @@ static bitbucket_object_attributes_t InodePrivateObjectAttributes =
         "Lookup",
         "Dir:Parent",
         "Dir:Entry",
-        "Enumeration",
-        "FuseLookup",
-        "Reason5",
-        "Reason6",
-        "Reason7",
+        "Dir:Enum",
+        "Remove Dirent",
+        "Fuse:Lookup",
+        "Fuse:Open",
+        "Fuse:Opendir",
+        "Reason8",
+        "Reason9",
+        "Reason10",
+        "Reason11",
     },
     .Initialize = InodeInitialize,
     .Deallocate = InodeDeallocate,
@@ -609,7 +640,16 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Add reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+        uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
+        uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
+
+        fuse_log(FUSE_LOG_DEBUG, 
+                "Finesse: Add reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
+                bbpi->PublicInode.Attributes.st_ino, 
+                Reason,
+                InodePrivateObjectAttributes.ReferenceReasonsNames[Reason],
+                refcnt, refcnt + 1,
+                reasoncount, reasoncount + 1);
     }
 
     BitbucketObjectReference(bbpi, Reason);
@@ -618,16 +658,25 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
 //
 // Note: caller should destroy their reference after this call in most cases.
 //
-void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
+void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason, uint64_t Bias)
 {
     bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     if (bitbucket_debug_refcount) {
-        fprintf(stderr, "Finesse: Remove reference to inode %ld reason %d\n", bbpi->PublicInode.Attributes.st_ino, Reason);
+        uint64_t refcnt = BitbucketGetInodeReferenceCount(Inode);
+        uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
+
+        fuse_log(FUSE_LOG_DEBUG, 
+                "Finesse: Remove reference to inode %ld reason %d (%s) (ref: %lu -> %lu, reason: %lu -> %lu)\n", 
+                bbpi->PublicInode.Attributes.st_ino, 
+                Reason,
+                InodePrivateObjectAttributes.ReferenceReasonsNames[Reason],
+                refcnt, refcnt - 1,
+                reasoncount, reasoncount - 1);
     }
     
-    BitbucketObjectDereference(bbpi, Reason);
+    BitbucketObjectDereference(bbpi, Reason, Bias);
     bbpi = NULL;
 }
 
@@ -638,6 +687,14 @@ uint64_t BitbucketGetInodeReferenceCount(bitbucket_inode_t *Inode)
     CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
 
     return BitbucketGetObjectReferenceCount(bbpi);
+}
+
+uint64_t BitbucketGetInodeReasonReferenceCount(bitbucket_inode_t *Inode, uint8_t Reason)
+{
+    bitbucket_private_inode_t *bbpi = container_of(Inode, bitbucket_private_inode_t, PublicInode);
+    CHECK_BITBUCKET_PRIVATE_INODE_MAGIC(bbpi);
+
+    return BitbucketGetObjectReasonReferenceCount(bbpi, Reason);
 }
 
 int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
@@ -655,6 +712,68 @@ int BitbucketTryLockInode(bitbucket_inode_t *Inode, int Exclusive)
     }
 
     return status;
+}
+
+//
+// Lock two different inodes in a canonical order
+//
+// Locks two inodes in a pre-defined order to avoid
+// trivial (obvious) deadlocks.
+//
+// Note that upon return, both inodes have been locked.
+// They may be unlocked in any order; the caller should
+// NOT lock any additional inodes until both locks have
+// been released (otherwise it may deadlock).
+//
+// This call may block
+//
+// @param Inode1 - the first inode to lock
+// @param Inode2 - the second inode to lock
+// @Exclusive - 0 if this is shared (read) 1 if this is exclusive (write)
+//
+void BitbucketLockTwoInodes(bitbucket_inode_t *Inode1, bitbucket_inode_t *Inode2, int Exclusive)
+{
+    bitbucket_inode_t *first = NULL;
+    bitbucket_inode_t *second = NULL;
+
+    assert(NULL != Inode1);
+    assert(NULL != Inode2);
+    assert(Inode1 != Inode2); // can't be the same inode!
+
+    //
+    // Lock hierarchy:
+    //   - Table lock (not an inode lock)
+    //   - Dir lock
+    //   - File lock
+    //   - Symlink lock
+    //   - Devnode
+    _Static_assert(BITBUCKET_DIR_TYPE < BITBUCKET_FILE_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_FILE_TYPE < BITBUCKET_SYMLINK_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_SYMLINK_TYPE < BITBUCKET_DEVNODE_TYPE, "locking relies upon type value");
+    _Static_assert(BITBUCKET_SYMLINK_TYPE < BITBUCKET_UNKNOWN_TYPE, "locking relies upon type value");
+    assert((BITBUCKET_DIR_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_FILE_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_SYMLINK_TYPE == Inode1->InodeType) ||
+           (BITBUCKET_DEVNODE_TYPE == Inode1->InodeType));
+
+    if (Inode1->InodeType < Inode2->InodeType) {
+        first = Inode1;
+        second = Inode2;
+    }
+    else {
+        if ((uintptr_t)Inode1 < (uintptr_t)Inode2) {
+            first = Inode2;
+            second = Inode1;
+        }
+        else {
+            first = Inode1;
+            second = Inode2;
+        }
+    }
+
+    BitbucketLockInode(first, Exclusive);
+    BitbucketLockInode(second, Exclusive);
+
 }
 
 

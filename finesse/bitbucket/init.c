@@ -4,7 +4,10 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include "string.h"
+#include <unistd.h>
+#include <errno.h>
 
 static const char *BitbucketMagicNames[] = {
 	"Bitbucket",
@@ -25,9 +28,37 @@ static const char *BitbucketMagicNames[] = {
 	"Unused0",
 };
 
+static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn);
+static int bitbucket_internal_destroy(void *userdata);
+
+
 void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 {
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+	const char *calldata_string = NULL; 
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_init(userdata, conn);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_INIT, status ? 0 : 1, &elapsed);
+
+	calldata_string = BitbucketFormatCallData(NULL);
+
+	if (NULL != calldata_string) {
+		printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+		BitbucketFreeFormattedCallData(calldata_string);
+		calldata_string = NULL;
+	}
+
+}
+
+static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn)
+{
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
 
 	assert(NULL != conn);
@@ -67,18 +98,61 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
 		BBud->BitbucketMagicDirectories[index].Inode->Attributes.st_mode &= ~0222; // strip off write bits
 	}
 
+	BitbucketInitializeCallStatistics();
+
+
 	// All of these inodes have a lookup reference on them.
+	return 0;
 	
 }
 
 
 void bitbucket_destroy(void *userdata)
 {
-	(void)userdata;
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
 
-#if 0
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_destroy(userdata);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_INIT, status ? 0 : 1, &elapsed);
+}
+
+int bitbucket_internal_destroy(void *userdata)
+{
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	unsigned index = 0;
+	const char *calldata_string = BitbucketFormatCallData(NULL);
+	int fd = -1;
+	ssize_t written = 0;
+
+	if (NULL != calldata_string) {
+		if (NULL != BBud->CallStatFile) {
+			fd = open(BBud->CallStatFile, O_WRONLY | O_APPEND | O_CREAT, 0664);
+
+			if (fd > 0) {
+				written = write(fd, calldata_string, strlen(calldata_string));
+				if (written > 0) {
+					written += write(fd, "\n", 1);
+				}
+				close(fd);
+				fd = -1;
+			}
+			else {
+				fprintf(stderr, "Unable to open %s, errno = %d (%s)", BBud->CallStatFile, errno, strerror(errno));
+			}
+		}
+
+		if (0 >= written) {
+			printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+		}
+
+		BitbucketFreeFormattedCallData(calldata_string);
+		calldata_string = NULL;
+	}
 
 	// Let's undo the work that we did in init.
 	// Note: this is going to crash if the volume isn't cleanly torn down, so that's probabl
@@ -92,13 +166,18 @@ void bitbucket_destroy(void *userdata)
 		}
 
 		BitbucketDeleteDirectory(BBud->BitbucketMagicDirectories[index].Inode);
-		BitbucketDereferenceInode(BBud->BitbucketMagicDirectories[index].Inode, INODE_LOOKUP_REFERENCE); // undo original create ref
+		BitbucketDereferenceInode(BBud->BitbucketMagicDirectories[index].Inode, INODE_LOOKUP_REFERENCE, 1); // undo original create ref
 		BBud->BitbucketMagicDirectories[index].Inode = NULL;
 	}
 
+#if 0
 	// This is where we have to "come clean".
 	BitbucketDestroyInodeTable(BBud->InodeTable);
 	BBud->InodeTable = NULL;
 #endif // 0
+
+
+
+	return 0;
 
 }

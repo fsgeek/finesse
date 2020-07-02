@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include "bitbucket.h"
+#include <stdint.h>
 #include "trie.h"
 
 // Source: https://www.techiedelight.com/trie-implementation-insert-search-delete

@@ -40,7 +40,7 @@ test_create_dir(
     // Thus, tearing down a root directory requires more work than tearing down a regular
     // directory, due to the self-referential nature of the root directory.
     BitbucketDeleteRootDirectory(rootdir);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE); // from the original creation
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1); // from the original creation
 
     rootdir = NULL;
 
@@ -104,14 +104,14 @@ test_create_subdir(
         refcount = BitbucketGetInodeReferenceCount(subdir_data[index].inode);
         munit_assert(1 == refcount); // lookup
 
-        BitbucketDereferenceInode(subdir_data[index].inode, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(subdir_data[index].inode, INODE_LOOKUP_REFERENCE, 1);
         subdir_data[index].inode = NULL;
     }
 
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount);
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);
@@ -167,7 +167,7 @@ test_enumerate_dir(
         refcount = BitbucketGetInodeReferenceCount(child);
         munit_assert(3 == refcount); // lookup + 2 dir
 
-        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
+        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE, 1);
         refcount = BitbucketGetInodeReferenceCount(child);
         munit_assert(2 == refcount); // 2 dir
         child = NULL;
@@ -249,7 +249,7 @@ test_enumerate_dir(
         munit_assert(0 == status);
         refcount = BitbucketGetInodeReferenceCount(child);
         munit_assert(1 == refcount);
-        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE); // release lookup
+        BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE, 1); // release lookup
         child = NULL;
     }
 
@@ -260,7 +260,7 @@ test_enumerate_dir(
     BitbucketDeleteRootDirectory(rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
     munit_assert(1 == refcount); // just the lookup reference
-    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE);
+    BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
     
     BitbucketDestroyInodeTable(Table);

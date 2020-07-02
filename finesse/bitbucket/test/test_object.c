@@ -112,8 +112,8 @@ test_create_object(
     toc = (test_object_t *)object;
     toc->Save = &to;
     BitbucketObjectReference(toc, 1);
-    BitbucketObjectDereference(toc, 1);
-    BitbucketObjectDereference(object, 0);
+    BitbucketObjectDereference(toc, 1, 1);
+    BitbucketObjectDereference(object, 0, 1);
     // No easy way to verify it has been deleted, is there...
 
     munit_assert(42 == to.Magic);
@@ -140,7 +140,7 @@ test_create_object_with_defaults(
     object = BitbucketObjectCreate(NULL, length, 0);
     munit_assert(NULL != object);
 
-    BitbucketObjectDereference(object, 0);
+    BitbucketObjectDereference(object, 0, 1);
     // No easy way to verify it has been deleted, is there...
 
     return MUNIT_OK;

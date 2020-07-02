@@ -4,15 +4,32 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
+
+static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name);
+
 
 void bitbucket_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_rmdir(req, parent, name);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_RMDIR, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
+{
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	bitbucket_inode_t *child = NULL;
-	list_entry_t *le = NULL;
 	unsigned count = 0;
 	int status = EBADF;
 
@@ -43,13 +60,7 @@ void bitbucket_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 			break;
 		}
 
-		// This really should be in dir.c...
-		BitbucketLockInode(child, 0);
-		count = 0;
-		list_for_each(&child->Instance.Directory.Entries, le) {
-			count++;
-		}
-		BitbucketUnlockInode(child);
+		count = BitbucketDirectoryEntryCount(child);
 
 		if (count > 2) {
 			// definitely not empty
@@ -80,7 +91,7 @@ void bitbucket_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 		//
 		status = BitbucketDeleteDirectory(child);
 		assert(0 == status);
-		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(child, INODE_LOOKUP_REFERENCE, 1);
 		child = NULL;
 		break;
 
@@ -89,7 +100,9 @@ void bitbucket_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 	}
+
+	return status;
 
 }

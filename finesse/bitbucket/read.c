@@ -4,32 +4,43 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
 #include <malloc.h>
 
 #define PAGE_SIZE (4096)
 
-static const char zeropagebuf[PAGE_SIZE];
-static const void *zeropage = (void *)zeropagebuf;
+static int bitbucket_internal_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);
+
 
 void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
 {
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_read(req, ino, size, off, fi);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_READ, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi)
+{
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = 0;
-	struct fuse_bufvec *bufv = NULL;
-	unsigned int flags = FUSE_BUF_NO_SPLICE;
-	size_t page_size = PAGE_SIZE; // TODO: find a better way to do this for "real world"
-	unsigned page_count = 0;
-	size_t bufv_size = 0;
-
+	size_t outsize = 0;
+	
 	(void) fi;
 
 	if (0 == size) {
 		// zero byte reads always succeed
 		fuse_reply_buf(req, NULL, 0);
-		return;
+		return 0;
 	}
 
 	// TODO: should we be doing anything with the flags in fi->flags?
@@ -49,6 +60,7 @@ void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
 	//
 	status = EBADF;
 	
+	BitbucketLockInode(inode, 0);
 	while (NULL != inode) {
 
 		if (BITBUCKET_FILE_TYPE != inode->InodeType) {
@@ -56,63 +68,44 @@ void bitbucket_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, stru
 			break;			
 		}
 
+		status = 0; // only success cases after this point
+		if (off > inode->Attributes.st_size) {
+			// no data to read
+			outsize = 0;
+			break;
+		}
+
 		if (size + off > inode->Attributes.st_size) {
-			if (off > inode->Attributes.st_size) {
-				size = 0;
-				break;
-			}
-			else {
-				size = inode->Attributes.st_size - off;
-			}
-		}
-
-		page_count = size / page_size;
-		if (page_count * page_size < size) {
-			page_count++;
-		}
-		bufv_size = offsetof(struct fuse_bufvec, buf) + page_count * sizeof(struct fuse_buf);
-		bufv = (struct fuse_bufvec *)malloc(bufv_size);
-		assert(NULL != bufv);
-		bufv->count = page_count;
-		bufv->idx = 0; // identity of current page
-		bufv->off = 0; // offset within the buffer
-		for (unsigned index = 0; index < page_count; index++) {
-			bufv->buf[index].mem = (void *)(uintptr_t)zeropage;
-			bufv->buf[index].fd = -1;
-			bufv->buf[index].flags = 0;
-			bufv->buf[index].pos = 0; // unused
-			bufv->buf[index].size = page_size;
-		}
-		if ((page_count -1) * page_size < size) {
-			// adjust the size of the last page
-			bufv->buf[page_count-1].size = size & (page_size - 1);
-		}
-		status = 0; // success
-		break;
-	}
-
-	if (0 == status) {
-
-		if (0 == size) {
-			fuse_reply_buf(req, NULL, 0);
+			outsize = inode->Attributes.st_size - off;
 		}
 		else {
-			assert(NULL != bufv);
-			fuse_reply_data(req, bufv, flags);
+			outsize = size;
 		}
+
+		if (outsize > 0) {
+			// We need to ensure the file doesn't shrink while the data is being returned
+			fuse_reply_buf(req, (void *)(((uintptr_t)inode->Instance.File.Map) + off), outsize);
+		}
+		break;
+	}
+	BitbucketUnlockInode(inode); // don't need stable size any longer
+
+	if (0 == status) {
+		if (0 == outsize) {
+			fuse_reply_buf(req, NULL, 0);
+		}
+		// else: we sent it with the lock held
 	}
 	else {
 		fuse_reply_err(req, status);
 	}
 
-	if (NULL != bufv) {
-		free(bufv);
-	}
-
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 
 	}
+
+	return status;
 
 }

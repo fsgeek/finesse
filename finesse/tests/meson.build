@@ -20,11 +20,6 @@ testfinesse_sources = [
     'fincomm_test.c',
 ]
 
-testutils_sources = [
-    'pathdata.c',
-    'testutils.c',
-]
-
 testfuse_sources = [
     'fuse_test.c',
 ]
@@ -33,9 +28,16 @@ testperf_sources = [
     'perf_test.c',
 ]
 
+testutils_sources = [
+    'test_fastlookup.c',
+    'test_lookup.c',
+    'test_trie.c',
+    'test_utils.c',
+]
+
 
 executable('testutils',
-           [common_sources, testutils_sources],
+           [testutils_sources],
            dependencies: [deps, munit],
            include_directories: [include_dirs, finesse_inc_dirs],
            link_with: [finesscommunications, finesse_utils, libfinesse_api]

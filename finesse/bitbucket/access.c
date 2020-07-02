@@ -4,12 +4,30 @@
 // All Rights Reserved
 
 #include "bitbucket.h"
+#include "bitbucketcalls.h"
 #include <errno.h>
+
+static int bitbucket_internal_access(fuse_req_t req, fuse_ino_t ino, int mask);
+
 
 void bitbucket_access(fuse_req_t req, fuse_ino_t ino, int mask)
 {
+	struct timespec start, stop, elapsed;
+	int status, tstatus;
+
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+	assert(0 == tstatus);
+	status = bitbucket_internal_access(req, ino, mask);
+	tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+	assert(0 == tstatus);
+	timespec_diff(&start, &stop, &elapsed);
+	BitbucketCountCall(BITBUCKET_CALL_ACCESS, status ? 0 : 1, &elapsed);
+}
+
+static int bitbucket_internal_access(fuse_req_t req, fuse_ino_t ino, int mask)
+{
 	void *userdata = fuse_req_userdata(req);
-	bitbucket_user_data_t *BBud = (bitbucket_user_data_t *)userdata;
+	bitbucket_userdata_t *BBud = (bitbucket_userdata_t *)userdata;
 	bitbucket_inode_t *inode = NULL;
 	int status = EBADF;
 
@@ -39,8 +57,10 @@ void bitbucket_access(fuse_req_t req, fuse_ino_t ino, int mask)
 	fuse_reply_err(req, status);
 
 	if (NULL != inode) {
-		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE);
+		BitbucketDereferenceInode(inode, INODE_LOOKUP_REFERENCE, 1);
 		inode = NULL;
 	}
+
+	return status;
 
 }
