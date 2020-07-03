@@ -435,7 +435,8 @@ finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_
     lookup_entry_table_t *       table  = (lookup_entry_table_t *)Table;
     lookup_entry_table_bucket_t *bucket = NULL;
     uint16_t                     index;
-    lookup_entry_t *             entry = NULL;
+    lookup_entry_t *             entry    = NULL;
+    uint64_t                     refcount = 0;
 
     assert(NULL != table);
     CHECK_FAST_LOOKUP_TABLE_MAGIC(table);
@@ -448,7 +449,8 @@ finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_
     LockBucket(bucket, 0);
     entry = lookup_entry(bucket, 0, Uuid);
     if (NULL != entry) {
-        __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump ref count
+        refcount = __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump ref count
+        assert(refcount > 0);  // shouldn't ever do 0->1 transition.  If it does, there's a logic bug.
     }
     UnlockBucket(&table->Buckets[index]);
 
@@ -512,6 +514,7 @@ void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Objec
     entry = lookup_entry(bucket, 0, &Object->uuid);
     assert(NULL != entry);  // logic error otherwise
     refCount = __atomic_fetch_sub(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);
+    assert(0 != refCount);  // This is an underflow - logic error
     if (1 == refCount) {
         // this is the removal but we don't hold the exclusive lock
         __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);
@@ -523,6 +526,13 @@ void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Objec
     }
 }
 
+//
+// This routine creates a new entry in the table.  Since the table is indexed by the inode number and uuid
+// this routine takes both; presently this is the only state that is stored here.  It could be extended
+// if useful.
+//
+// Note: the returned object has two references.
+//
 static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t InodeNumber, uuid_t *Uuid)
 {
     uint16_t                     index, first, second;
@@ -547,7 +557,7 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     entry = malloc(sizeof(lookup_entry_t));
     assert(NULL != entry);
     entry->Magic          = FAST_LOOKUP_ENTRY_MAGIC;
-    entry->ReferenceCount = 1;
+    entry->ReferenceCount = 2;
     initialize_list_entry(&entry->InodeListEntry);
     initialize_list_entry(&entry->UuidListEntry);
     entry->Object.inode = InodeNumber;
@@ -623,7 +633,7 @@ finesse_object_table_t *FinesseCreateTable(uint64_t EstimatedSize)
     return (finesse_object_table_t *)CreateLookupTable(bucket_count, 0);
 }
 
-lookup_entry_table_t *ObjectTable;
+finesse_object_table_t *ObjectTable;
 
 static void create_lookup_table(void)
 {
@@ -671,5 +681,5 @@ finesse_object_t *finesse_object_create(fuse_ino_t inode, uuid_t *uuid)
 
 uint64_t finesse_object_get_table_size(void)
 {
-    return ObjectTable->EntryCount;
+    return ((lookup_entry_table_t *)ObjectTable)->EntryCount;
 }

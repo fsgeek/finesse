@@ -3,7 +3,8 @@
 */
 #include "fs-internal.h"
 
-static int Stat(struct fuse_session *se, void *Client, fincomm_message Message) {
+static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
+{
     finesse_msg *            fmsg   = NULL;
     int                      status = 0;
     finesse_server_handle_t *fsh;
@@ -68,10 +69,12 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message) 
             if (0 != status) {
                 break;
             }
-        } else {
+        }
+        else {
             // This is UUID based; note that we shouldn't get both a parent AND file Inode - that's a logic error
             assert(uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode));
             uuid_unparse(fmsg->Message.Fuse.Request.Parameters.Stat.Inode, uuid_buffer);
+            assert(NULL == finobj);  // make sure we're not overwriting a previous lookup
             finobj = finesse_object_lookup_by_uuid(&fmsg->Message.Fuse.Request.Parameters.Stat.Inode);
             if (NULL == finobj) {
                 status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, EBADF);
