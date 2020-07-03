@@ -37,7 +37,7 @@ typedef struct finesse_lookup_info
 
 
 int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent, const char *Name, finesse_object_t **Finobj);
-
+int FinsesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, fuse_ino_t *InodeNumber);
 
 extern FinesseServerStat *FinesseServerStats;
 

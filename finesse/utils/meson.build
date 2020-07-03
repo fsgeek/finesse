@@ -12,7 +12,6 @@ finesse_utils_sources = [
     'crc.c',
     'fastlookup.c',
     'fasttrie.c',
-    'lookup.c',
     'murmurhash3.c',
     'trie.c',
 ]
