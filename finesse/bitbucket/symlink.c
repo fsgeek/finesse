@@ -3,6 +3,8 @@
 // Tony Mason
 // All Rights Reserved
 
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -170,6 +172,7 @@ bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char 
     CHECK_BITBUCKET_SYMLINK_MAGIC(&newlink->Instance.SymbolicLink);
     assert(S_IFLNK == (newlink->Attributes.st_mode & S_IFMT));
     newlink->Attributes.st_mode |= 0777;  // "On Linux the permissions of a symlink ... are always 0777"
+    strncpy(newlink->Instance.SymbolicLink.LinkContents, Link, length + existing_space);
 
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);

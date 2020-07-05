@@ -318,6 +318,7 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
                 // Try to get BOTH locks; I know the inodes won't disappear
                 // because I have references on both of them.
                 BitbucketLockTwoInodes(Inode, de_inode, 1);
+                dirent = NULL;
                 continue;  // go back to the top and rebuild state
             }
         }
@@ -342,6 +343,9 @@ static bitbucket_dir_entry_t *RemoveDirEntryFromDirectory(bitbucket_inode_t *Ino
         BitbucketDereferenceInode(de_inode, INODE_REMOVE_DIRENT_REFERENCE, 1);
         de_inode = NULL;
     }
+
+    // ensure it is not on the list!
+    assert((NULL == dirent) || (dirent->ListEntry.next == &dirent->ListEntry));
 
     BitbucketUnlockInode(Inode);
 
@@ -414,6 +418,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
     }
 
     if (NULL != dirent) {
+        assert(dirent->ListEntry.prev == &dirent->ListEntry);  // must not be on the directory list still
         BitbucketDereferenceInode(dirent->Inode, INODE_DIRENT_REFERENCE, 1);
         dirent->Inode = NULL;
         memset(dirent, 0, offsetof(bitbucket_dir_entry_t, Name));
