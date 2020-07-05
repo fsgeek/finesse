@@ -3,23 +3,23 @@
 // Tony Mason
 // All Rights Reserved
 
-#include "bitbucket.h"
 #include <errno.h>
-#include <string.h>
 #include <malloc.h>
+#include <string.h>
+#include "bitbucket.h"
 
 // Extended Attributes support
 typedef struct _bitbucket_xattr {
-    uint64_t            Magic;
-    list_entry_t        ListEntry;
-    size_t              NameLength;
-    size_t              DataLength;
-    char                Data[1];
+    uint64_t     Magic;
+    list_entry_t ListEntry;
+    size_t       NameLength;
+    size_t       DataLength;
+    char         Data[1];
 } bitbucket_xattr_t;
 
 #define BITBUCKET_XATTR_MAGIC (0xfe15bce7d848e1c8)
-#define CHECK_BITBUCKET_XATTR_MAGIC(x) verify_magic("bitbucket_xattr_t", __FILE__, __func__, __LINE__, BITBUCKET_XATTR_MAGIC, (x)->Magic)
-
+#define CHECK_BITBUCKET_XATTR_MAGIC(x) \
+    verify_magic("bitbucket_xattr_t", __FILE__, __func__, __LINE__, BITBUCKET_XATTR_MAGIC, (x)->Magic)
 
 void BitbucketInitializeExtendedAttributes(bitbucket_inode_t *Inode)
 {
@@ -28,7 +28,6 @@ void BitbucketInitializeExtendedAttributes(bitbucket_inode_t *Inode)
 
     initialize_list_entry(&Inode->ExtendedAttributes);
     Inode->ExtendedAttributeTrie = NULL;
-
 }
 
 //
@@ -44,10 +43,10 @@ void BitbucketInitializeExtendedAttributes(bitbucket_inode_t *Inode)
 //
 int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name, size_t DataLength, const void *Data)
 {
-    int status = EINVAL;
-    bitbucket_xattr_t *xattr = NULL;
-    size_t nameLength = 0;
-    size_t xattrLength = 0;
+    int                status      = EINVAL;
+    bitbucket_xattr_t *xattr       = NULL;
+    size_t             nameLength  = 0;
+    size_t             xattrLength = 0;
 
     assert(NULL != Inode);
     CHECK_BITBUCKET_INODE_MAGIC(Inode);
@@ -57,8 +56,9 @@ int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
 
     while (nameLength > 0) {
         xattrLength = offsetof(bitbucket_xattr_t, Data) + strlen(Name) + 1 + DataLength;
-        xattrLength = (xattrLength + 0x3F) & ~0x3F; // round up
-        assert(xattrLength >= offsetof(bitbucket_xattr_t, Data) + nameLength + 1 + DataLength); // in case I screw up rounding up...
+        xattrLength = (xattrLength + 0x3F) & ~0x3F;  // round up
+        assert(xattrLength >=
+               offsetof(bitbucket_xattr_t, Data) + nameLength + 1 + DataLength);  // in case I screw up rounding up...
 
         // this is how we verify proper locking - we can't acquire a shared lock
         status = BitbucketTryLockInode(Inode, 0);
@@ -100,13 +100,13 @@ int BitbucketInsertExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
 
         TrieInsert(Inode->ExtendedAttributeTrie, Name, xattr);
         insert_list_head(&Inode->ExtendedAttributes, &xattr->ListEntry);
-        xattr = NULL;
+        xattr  = NULL;
         status = 0;
         break;
     }
 
     if (NULL != xattr) {
-        free(xattr); // something must have gone wrong, so we clean up here
+        free(xattr);  // something must have gone wrong, so we clean up here
     }
 
     return status;
@@ -137,16 +137,16 @@ int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
 
     if (NULL == xattr) {
         *DataLength = 0;
-        *Data = NULL;
+        *Data       = NULL;
         return ENODATA;
     }
 
     CHECK_BITBUCKET_XATTR_MAGIC(xattr);
 
     *DataLength = xattr->DataLength;
-    *Data = ((char *)xattr->Data) + xattr->NameLength + 1;
+    *Data       = ((char *)xattr->Data) + xattr->NameLength + 1;
 
-    return 0; // success
+    return 0;  // success
 }
 
 //
@@ -156,7 +156,7 @@ int BitbucketLookupExtendedAttribute(bitbucket_inode_t *Inode, const char *Name,
 //
 // Returns 0 on success, error otherwise (e.g., ENOENT if it doesn't exist)
 //
-int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name) 
+int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name)
 {
     bitbucket_xattr_t *xattr = NULL;
     assert(NULL != Inode);
@@ -175,40 +175,38 @@ int BitbucketRemoveExtendedAttribute(bitbucket_inode_t *Inode, const char *Name)
     }
 
     status = TrieDeletion(&Inode->ExtendedAttributeTrie, Name);
-    assert(1 == status); // boolean - this means we deleted it (since we JUST found it...)
+    assert(0 == status);  // 0 = success
+
+    remove_list_entry(&xattr->ListEntry);
 
     free(xattr);
     xattr = NULL;
 
     return 0;
-
 }
 
 //
 // Call this when destroying an inode with extended attributes
 //
-// Note: this call is NOT assuming any locking as it should only 
+// Note: this call is NOT assuming any locking as it should only
 // be called in object teardown (when there can't be any other
 // references!)
 void BitbucketDestroyExtendedAttributes(bitbucket_inode_t *Inode)
 {
-    list_entry_t *le = NULL;
-    bitbucket_xattr_t *xattr = NULL;
-    int status = 0;
+    list_entry_t *     le     = NULL;
+    bitbucket_xattr_t *xattr  = NULL;
+    int                status = 0;
 
     // clean up extended attributes
     while (!empty_list(&Inode->ExtendedAttributes)) {
-        le = remove_list_head(&Inode->ExtendedAttributes);
+        le    = remove_list_head(&Inode->ExtendedAttributes);
         xattr = container_of(le, bitbucket_xattr_t, ListEntry);
 
         // The (null terminated) name is the first element in the Data block
         status = TrieDeletion(&Inode->ExtendedAttributeTrie, (const char *)xattr->Data);
-        assert(0 == status); // if not, something is wrong
+        assert(0 == status);  // if not, something is wrong
 
         free(xattr);
         xattr = NULL;
     }
-
-
 }
-
