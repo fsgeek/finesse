@@ -3,6 +3,8 @@
 // All Rights Reserved
 //
 
+#define _GNU_SOURCE
+
 #include "bitbucket.h"
 #include "bitbucketdata.h"
 #include <unistd.h>
@@ -37,7 +39,7 @@ static void FileDeallocate(void *Inode, size_t Length)
 {
     bitbucket_inode_t *bbi;
     int status = 0;
-    
+
     assert(NULL != Inode);
     bbi = (bitbucket_inode_t *)Inode;
     assert(NULL != bbi);
@@ -45,20 +47,24 @@ static void FileDeallocate(void *Inode, size_t Length)
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_FILE_MAGIC(&bbi->Instance.File); // layers of sanity checking
 
-    if (NULL != bbi->Instance.File.Map) {
+    if (NULL != bbi->Instance.File.Map)
+    {
         // Can't reference the inode at this point, so we have to manually dismember
         // the map here (versus call adjust length)
-        if (NULL == bbi->Instance.File.MapName) {
+        if (NULL == bbi->Instance.File.MapName)
+        {
             free(bbi->Instance.File.Map);
             bbi->Instance.File.Map = NULL;
         }
-        else {
+        else
+        {
             status = munmap(bbi->Instance.File.Map, bbi->Attributes.st_size);
             assert(0 == status); // must be a programming bug...
         }
     }
 
-    if (NULL != bbi->Instance.File.MapName) {
+    if (NULL != bbi->Instance.File.MapName)
+    {
         status = unlink(bbi->Instance.File.MapName);
         assert(0 == status); // if not, probably a program bug.
         free(bbi->Instance.File.MapName);
@@ -67,8 +73,7 @@ static void FileDeallocate(void *Inode, size_t Length)
 
     bbi->Instance.File.Magic = ~BITBUCKET_FILE_MAGIC; // make it easy to recognize use after free
 
-    // Our state is torn down at this point. 
-
+    // Our state is torn down at this point.
 }
 
 #if 0
@@ -131,7 +136,8 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     assert(BITBUCKET_DIR_TYPE == Parent->InodeType); // don't support anything else with "contents" (for now)
     CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
     assert(NULL != Parent->Table); // Parent must be in a table
-    if (NULL != BBud) {
+    if (NULL != BBud)
+    {
         CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
         storage_dir = BBud->StorageDir;
     }
@@ -143,7 +149,8 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     CHECK_BITBUCKET_FILE_MAGIC(&newfile->Instance.File);
     assert(S_IFREG == (newfile->Attributes.st_mode & S_IFMT));
 
-    if (NULL != storage_dir) {
+    if (NULL != storage_dir)
+    {
         // Create a location for storage
         size_t size = strlen(storage_dir) + strlen(newfile->UuidString) + 3;
         size_t used = size + 1;
@@ -151,7 +158,7 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
         int fd = -1;
 
         used = snprintf(storage_name, size, "%s/%s", storage_dir, newfile->UuidString);
-        assert(used < size); // if not, the logic here was wrong
+        assert(used < size);                                      // if not, the logic here was wrong
         fd = open(storage_name, O_RDWR | O_CREAT | O_EXCL, 0600); // shouldn't already exist!
         assert(fd >= 0);
         close(fd);
@@ -167,7 +174,6 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     assert(0 == status);
 
     return newfile;
-
 }
 
 //
@@ -207,8 +213,10 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
     BitbucketLookupObjectInDirectory(Parent, FileName, &file);
 
-    while (NULL != file) {
-        if (S_IFDIR == (file->Attributes.st_mode & S_IFDIR)) {
+    while (NULL != file)
+    {
+        if (S_IFDIR == (file->Attributes.st_mode & S_IFDIR))
+        {
             status = EISDIR;
             break;
         }
@@ -218,21 +226,21 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
         assert(file->Attributes.st_nlink > 0); // shouldn't go negative
         status = BitbucketDeleteDirectoryEntry(Parent, FileName);
-        if (0 != status) {
+        if (0 != status)
+        {
             break;
         }
 
         break;
     }
 
-    if (NULL != file) {       
+    if (NULL != file)
+    {
         BitbucketDereferenceInode(file, INODE_LOOKUP_REFERENCE, 1);
         file = NULL;
     }
 
-    return status;    
-
-
+    return status;
 }
 
 //
@@ -249,21 +257,25 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
     assert(BITBUCKET_FILE_TYPE == Inode->InodeType);
     CHECK_BITBUCKET_FILE_MAGIC(&Inode->Instance.File);
 
-
     EnsureInodeLockedAgainstChanges(Inode);
-    while (NULL != Inode) {
-        if (NewLength == Inode->Attributes.st_size)  {
+    while (NULL != Inode)
+    {
+        if (NewLength == Inode->Attributes.st_size)
+        {
             // No work to do in this case
             status = 0;
             break;
         }
 
-        if (NULL == Inode->Instance.File.Map) {
+        if (NULL == Inode->Instance.File.Map)
+        {
             // Create a new mapping
-            if (NULL == Inode->Instance.File.MapName) {
+            if (NULL == Inode->Instance.File.MapName)
+            {
                 Inode->Instance.File.Map = malloc(NewLength);
 
-                if (NULL == Inode->Instance.File.Map) {
+                if (NULL == Inode->Instance.File.Map)
+                {
                     status = ENOSPC;
                     break;
                 }
@@ -275,20 +287,22 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
 
             fd = open(Inode->Instance.File.MapName, O_RDWR | O_CREAT, 0600);
 
-            if (fd < 0) {
+            if (fd < 0)
+            {
                 status = errno;
                 break;
             }
 
             // Make sure the file is big enough.
             status = posix_fallocate(fd, 0, NewLength);
-            if (0 != status) {
+            if (0 != status)
+            {
                 break;
             }
 
-
-            Inode->Instance.File.Map = mmap(NULL, NewLength, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-            if (MAP_FAILED == Inode->Instance.File.Map) {
+            Inode->Instance.File.Map = mmap(NULL, NewLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            if (MAP_FAILED == Inode->Instance.File.Map)
+            {
                 status = ENOSPC;
                 break;
             }
@@ -300,18 +314,22 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
             break;
         }
 
-        if (0 == NewLength) {
+        if (0 == NewLength)
+        {
 
-            if (NULL == Inode->Instance.File.MapName) {
+            if (NULL == Inode->Instance.File.MapName)
+            {
                 // memory was allocated
                 free(Inode->Instance.File.Map);
                 status = 0;
             }
-            else {
+            else
+            {
                 status = munmap(Inode->Instance.File.Map, NewLength);
             }
 
-            if (0 != status) {
+            if (0 != status)
+            {
                 // error path, no changes
                 break;
             }
@@ -321,17 +339,19 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
             Inode->Attributes.st_blocks = 0;
             status = 0;
             break;
-
         }
 
         // Otherwise we already have a mapping, we're just adjusting its size
-        if (NULL == Inode->Instance.File.MapName) {
+        if (NULL == Inode->Instance.File.MapName)
+        {
             // this was dynamically allocated.
             newbuf = realloc(Inode->Instance.File.Map, NewLength);
-            if (NULL == newbuf) {
+            if (NULL == newbuf)
+            {
                 status = ENOSPC;
             }
-            else {
+            else
+            {
                 status = 0;
             }
             break;
@@ -339,13 +359,15 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
 
         // At this point it was created using mmap
         fd = open(Inode->Instance.File.MapName, O_RDWR); // it must exit
-        assert(fd >= 0); // it should exist
+        assert(fd >= 0);                                 // it should exist
         status = posix_fallocate(fd, 0, NewLength);
-        if (0 != status) {
+        if (0 != status)
+        {
             break;
         }
-        newbuf = mmap(NULL, NewLength, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
-        if (MAP_FAILED == newbuf) {
+        newbuf = mmap(NULL, NewLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (MAP_FAILED == newbuf)
+        {
             assert(0); // figure out if this is OK or not
             status = ENOSPC;
             break;
@@ -361,16 +383,17 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
         break;
     }
 
-    if (fd >= 0) {
+    if (fd >= 0)
+    {
         close(fd);
         fd = -1;
     }
 
-    if (NULL != newbuf) {
+    if (NULL != newbuf)
+    {
         free(newbuf);
         newbuf = NULL;
     }
-    
-    return status;
 
+    return status;
 }

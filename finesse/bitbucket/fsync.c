@@ -37,6 +37,12 @@ static int bitbucket_internal_fsync(fuse_req_t req, fuse_ino_t ino, int datasync
 
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 
+	if (1 == BBud->FsyncDisable) {
+		status = 0;
+		fuse_reply_err(req, status);
+		return status;
+	}
+
 	if (FUSE_ROOT_ID == ino) {
 		inode = BBud->RootDirectory;
 		BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
@@ -50,7 +56,7 @@ static int bitbucket_internal_fsync(fuse_req_t req, fuse_ino_t ino, int datasync
 
 		if (BITBUCKET_FILE_TYPE == inode->InodeType) {
 			BitbucketLockInode(inode, 0);
-			if ((NULL != inode->Instance.File.Map) && (0 == BBud->FsyncDisable)) {
+			if (NULL != inode->Instance.File.Map) {
 				status = msync(inode->Instance.File.Map, inode->Attributes.st_size, MS_SYNC);
 				assert(0 == status);
 			}
@@ -72,5 +78,5 @@ static int bitbucket_internal_fsync(fuse_req_t req, fuse_ino_t ino, int datasync
 	}
 
 	return status;
-	
+
 }

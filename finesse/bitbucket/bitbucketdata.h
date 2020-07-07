@@ -84,6 +84,8 @@ struct _bitbucket_userdata {
     int                 FsyncDisable;
     int                 NoXattr;
     int                 BackgroundForget;
+    int                 FlushEnable;
+    int                 FsyncEnable;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;
@@ -109,7 +111,7 @@ struct _bitbucket_userdata {
 #define BITBUCKET_MAGIC_UNUSED0   (15)
 
 
-#define BITBUCKET_USER_DATA_MAGIC 0xb2035aef09927b87  
+#define BITBUCKET_USER_DATA_MAGIC 0xb2035aef09927b87
 #define CHECK_BITBUCKET_USER_DATA_MAGIC(bbud) verify_magic("bitbucket_userdata_t", __FILE__, __func__, __LINE__, BITBUCKET_USER_DATA_MAGIC, (bbud)->Magic)
 
 int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode);
@@ -241,7 +243,7 @@ int BitbucketSeekDirectory(bitbucket_dir_enum_context_t *EnumerationContext, uin
 // Create a reference counted object;  On return the region returned will be at least
 // ObjectSize bytes long and may be used as the caller sees fit.
 //
-// Note: the callbacks registered are invoked as needed: 
+// Note: the callbacks registered are invoked as needed:
 //   * initialize (set up this object)
 //   * deallocate (prepare this object for deletion) - called with the lock held
 //   * lock (synchronize access to this object)
@@ -317,15 +319,15 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength);
 
 
 // More random numbers
-// 
+//
 //  0xdf5bcef89bea083b
 //  0x336253e063ce2fdf
-//  0x6dbeb148bd5570e0 
+//  0x6dbeb148bd5570e0
 //  0xde6757c7e6e00e43
 //  0x78e5d32a19bbdf0d
 //  0xf5e300f3c8c9c76c
 //  0xd21500fa00e01fe0
-// 
+//
 // Source: https://www.random.org/cgi-bin/randbyte?nbytes=16&format=h
 
 #endif // _BITBUCKET_DATA_H_
