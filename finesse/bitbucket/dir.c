@@ -2,6 +2,7 @@
 // (C) Copyright 2020 Tony Mason (fsgeek@cs.ubc.ca)
 // All Rights Reserved
 //
+#define _GNU_SOURCE
 
 #include <errno.h>
 #include <stdlib.h>
@@ -12,6 +13,13 @@
 #include "bitbucketdata.h"
 #include "finesse-list.h"
 #include "trie.h"
+
+static int VerifyDirectoriesEnabled = 0;
+
+void BitbucketEnableDirectoryVerification()
+{
+    VerifyDirectoriesEnabled = 1;
+}
 
 static void DirectoryInitialize(void *Inode, size_t Length)
 {
@@ -47,7 +55,7 @@ static void DirectoryDeallocate(void *Inode, size_t Length)
     // Our state is torn down at this point.
 }
 
-static void VerifyDirectoryEntries(bitbucket_inode_t *Directory)
+static void VerifyDirectoryEntriesInternal(bitbucket_inode_t *Directory)
 {
     list_entry_t *         le       = NULL;
     bitbucket_dir_entry_t *dirEntry = NULL;
@@ -65,6 +73,13 @@ static void VerifyDirectoryEntries(bitbucket_inode_t *Directory)
         CHECK_BITBUCKET_DIR_ENTRY_MAGIC(dirEntry);
     }
     BitbucketUnlockInode(Directory);
+}
+
+static inline void VerifyDirectoryEntries(bitbucket_inode_t *Directory)
+{
+    if (0 != VerifyDirectoriesEnabled) {
+        VerifyDirectoryEntriesInternal(Directory);
+    }
 }
 
 static bitbucket_object_attributes_t DirectoryObjectAttributes = {

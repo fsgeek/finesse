@@ -95,6 +95,7 @@ struct _bitbucket_userdata {
     int                BackgroundForget;
     int                FlushEnable;
     int                FsyncEnable;
+    int                VerifyDirectories;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;
@@ -317,6 +318,7 @@ int BitbucketDeleteDirectoryEntry(bitbucket_inode_t *Directory, const char *Name
 uint64_t BitbucketDirectoryEntryCount(bitbucket_inode_t *Inode);
 int      BitbucketExchangeObjectsInDirectory(bitbucket_inode_t *old_parent, bitbucket_inode_t *new_parent, const char *name,
                                              const char *newname);
+void     BitbucketEnableDirectoryVerification(void);
 
 void        BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason);
 void        BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason, uint64_t Bias);

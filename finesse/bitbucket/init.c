@@ -85,6 +85,10 @@ static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn)
 
     BitbucketInitializeCallStatistics();
 
+    if (BBud->VerifyDirectories) {
+        BitbucketEnableDirectoryVerification();
+    }
+
     // All of these inodes have a lookup reference on them.
     return 0;
 }
