@@ -147,6 +147,7 @@ bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char 
     bitbucket_inode_t *newlink        = NULL;
     int                status         = 0;
     size_t             length         = 0;
+    size_t             link_length    = 0;
     size_t             existing_space = sizeof(bitbucket_inode_t) - offsetof(bitbucket_inode_t, Instance.SymbolicLink.LinkContents);
 
     CHECK_BITBUCKET_INODE_MAGIC(Parent);
@@ -155,9 +156,9 @@ bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char 
     assert(NULL != Parent->Table);  // Parent must be in a table
     assert(NULL != Link);
 
+    link_length = strlen(Link) + 1;
     // This is slightly complicated by the fact we have some space in the structure we can already use
-    //
-    length = strlen(Link) + 1;
+    length = link_length + 1;
     if (length > existing_space) {
         length -= existing_space;  // we need a bit extra
     }
@@ -172,7 +173,9 @@ bitbucket_inode_t *BitbucketCreateSymlink(bitbucket_inode_t *Parent, const char 
     CHECK_BITBUCKET_SYMLINK_MAGIC(&newlink->Instance.SymbolicLink);
     assert(S_IFLNK == (newlink->Attributes.st_mode & S_IFMT));
     newlink->Attributes.st_mode |= 0777;  // "On Linux the permissions of a symlink ... are always 0777"
-    strncpy(newlink->Instance.SymbolicLink.LinkContents, Link, length + existing_space);
+    fuse_log(FUSE_LOG_DEBUG, "%s: Link %s (%zu), space is %zu\n", __func__, Link, strlen(Link), length + existing_space);
+    assert(link_length <= length + existing_space);
+    memcpy(newlink->Instance.SymbolicLink.LinkContents, Link, link_length);
 
     // Parent points to the child (if there's a name)
     assert(NULL != FileName);
