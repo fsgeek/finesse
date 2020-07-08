@@ -398,6 +398,11 @@ static void mknod_symlink(fuse_req_t req, fuse_ino_t parent,
     Inode& inode_p = get_inode(parent);
     auto saverr = ENOMEM;
 
+    if ((NULL == link) || 0 == strlen(link)) {
+        saverr = EINVAL;
+        goto out;
+    }
+
     if (S_ISDIR(mode))
         res = mkdirat(inode_p.fd, name, mode);
     else if (S_ISLNK(mode))

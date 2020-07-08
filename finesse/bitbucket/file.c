@@ -4,9 +4,18 @@
 //
 #define _GNU_SOURCE
 
+<<<<<<< HEAD
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+=======
+#define _GNU_SOURCE
+
+#include "bitbucket.h"
+#include "bitbucketdata.h"
+#include <unistd.h>
+#include <sys/types.h>
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -51,27 +60,35 @@ static void FileDeallocate(void *Inode, size_t Length)
     CHECK_BITBUCKET_INODE_MAGIC(bbi);
     CHECK_BITBUCKET_FILE_MAGIC(&bbi->Instance.File);  // layers of sanity checking
 
-    if (NULL != bbi->Instance.File.Map) {
+    if (NULL != bbi->Instance.File.Map)
+    {
         // Can't reference the inode at this point, so we have to manually dismember
         // the map here (versus call adjust length)
-        if (NULL == bbi->Instance.File.MapName) {
+        if (NULL == bbi->Instance.File.MapName)
+        {
             free(bbi->Instance.File.Map);
             bbi->Instance.File.Map = NULL;
         }
-        else {
+        else
+        {
             status = munmap(bbi->Instance.File.Map, bbi->Attributes.st_size);
             assert(0 == status);  // must be a programming bug...
         }
     }
 
-    if (NULL != bbi->Instance.File.MapName) {
+    if (NULL != bbi->Instance.File.MapName)
+    {
         status = unlink(bbi->Instance.File.MapName);
         assert(0 == status);  // if not, probably a program bug.
         free(bbi->Instance.File.MapName);
         bbi->Instance.File.MapName = NULL;
     }
 
+<<<<<<< HEAD
     bbi->Instance.File.Magic = ~BITBUCKET_FILE_MAGIC;  // make it easy to recognize use after free
+=======
+    bbi->Instance.File.Magic = ~BITBUCKET_FILE_MAGIC; // make it easy to recognize use after free
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
 
     // Our state is torn down at this point.
 }
@@ -135,8 +152,14 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     CHECK_BITBUCKET_INODE_MAGIC(Parent);
     assert(BITBUCKET_DIR_TYPE == Parent->InodeType);  // don't support anything else with "contents" (for now)
     CHECK_BITBUCKET_DIR_MAGIC(&Parent->Instance.Directory);
+<<<<<<< HEAD
     assert(NULL != Parent->Table);  // Parent must be in a table
     if (NULL != BBud) {
+=======
+    assert(NULL != Parent->Table); // Parent must be in a table
+    if (NULL != BBud)
+    {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
         CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
         storage_dir = BBud->StorageDir;
     }
@@ -148,7 +171,8 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
     CHECK_BITBUCKET_FILE_MAGIC(&newfile->Instance.File);
     assert(S_IFREG == (newfile->Attributes.st_mode & S_IFMT));
 
-    if (NULL != storage_dir) {
+    if (NULL != storage_dir)
+    {
         // Create a location for storage
         size_t size         = strlen(storage_dir) + strlen(newfile->UuidString) + 3;
         size_t used         = size + 1;
@@ -156,8 +180,13 @@ bitbucket_inode_t *BitbucketCreateFile(bitbucket_inode_t *Parent, const char *Fi
         int    fd           = -1;
 
         used = snprintf(storage_name, size, "%s/%s", storage_dir, newfile->UuidString);
+<<<<<<< HEAD
         assert(used < size);                                       // if not, the logic here was wrong
         fd = open(storage_name, O_RDWR | O_CREAT | O_EXCL, 0600);  // shouldn't already exist!
+=======
+        assert(used < size);                                      // if not, the logic here was wrong
+        fd = open(storage_name, O_RDWR | O_CREAT | O_EXCL, 0600); // shouldn't already exist!
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
         assert(fd >= 0);
         close(fd);
         fd                             = -1;
@@ -211,8 +240,10 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
     BitbucketLookupObjectInDirectory(Parent, FileName, &file);
 
-    while (NULL != file) {
-        if (S_IFDIR == (file->Attributes.st_mode & S_IFDIR)) {
+    while (NULL != file)
+    {
+        if (S_IFDIR == (file->Attributes.st_mode & S_IFDIR))
+        {
             status = EISDIR;
             break;
         }
@@ -222,14 +253,20 @@ int BitbucketRemoveFileFromDirectory(bitbucket_inode_t *Parent, const char *File
 
         assert(file->Attributes.st_nlink > 0);  // shouldn't go negative
         status = BitbucketDeleteDirectoryEntry(Parent, FileName);
-        if (0 != status) {
+        if (0 != status)
+        {
             break;
         }
 
         break;
     }
 
+<<<<<<< HEAD
     if (NULL != file) {
+=======
+    if (NULL != file)
+    {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
         BitbucketDereferenceInode(file, INODE_LOOKUP_REFERENCE, 1);
         file = NULL;
     }
@@ -252,13 +289,21 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
     CHECK_BITBUCKET_FILE_MAGIC(&Inode->Instance.File);
 
     EnsureInodeLockedAgainstChanges(Inode);
+<<<<<<< HEAD
     while (NULL != Inode) {
         if (NewLength == Inode->Attributes.st_size) {
+=======
+    while (NULL != Inode)
+    {
+        if (NewLength == Inode->Attributes.st_size)
+        {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
             // No work to do in this case
             status = 0;
             break;
         }
 
+<<<<<<< HEAD
         if (NULL == Inode->Instance.File.Map) {
             if (0 == NewLength) {
                 // No work to do here
@@ -266,11 +311,17 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
                 break;
             }
 
+=======
+        if (NULL == Inode->Instance.File.Map)
+        {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
             // Create a new mapping
-            if (NULL == Inode->Instance.File.MapName) {
+            if (NULL == Inode->Instance.File.MapName)
+            {
                 Inode->Instance.File.Map = malloc(NewLength);
 
-                if (NULL == Inode->Instance.File.Map) {
+                if (NULL == Inode->Instance.File.Map)
+                {
                     status = ENOSPC;
                     break;
                 }
@@ -282,20 +333,32 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
 
             fd = open(Inode->Instance.File.MapName, O_RDWR | O_CREAT, 0600);
 
-            if (fd < 0) {
+            if (fd < 0)
+            {
                 status = errno;
                 break;
             }
 
             // Make sure the file is big enough.
+<<<<<<< HEAD
             status = ftruncate(fd, NewLength);
             if (0 != status) {
                 assert(0);  // debug this.
+=======
+            status = posix_fallocate(fd, 0, NewLength);
+            if (0 != status)
+            {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
                 break;
             }
 
             Inode->Instance.File.Map = mmap(NULL, NewLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+<<<<<<< HEAD
             if (MAP_FAILED == Inode->Instance.File.Map) {
+=======
+            if (MAP_FAILED == Inode->Instance.File.Map)
+            {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
                 status = ENOSPC;
                 break;
             }
@@ -307,17 +370,32 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
             break;
         }
 
+<<<<<<< HEAD
         if (0 == NewLength) {
             if (NULL == Inode->Instance.File.MapName) {
+=======
+        if (0 == NewLength)
+        {
+
+            if (NULL == Inode->Instance.File.MapName)
+            {
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
                 // memory was allocated
                 free(Inode->Instance.File.Map);
                 status = 0;
             }
+<<<<<<< HEAD
             else {
                 status = munmap(Inode->Instance.File.Map, Inode->Attributes.st_size);
+=======
+            else
+            {
+                status = munmap(Inode->Instance.File.Map, NewLength);
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
             }
 
-            if (0 != status) {
+            if (0 != status)
+            {
                 // error path, no changes
                 break;
             }
@@ -330,19 +408,23 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
         }
 
         // Otherwise we already have a mapping, we're just adjusting its size
-        if (NULL == Inode->Instance.File.MapName) {
+        if (NULL == Inode->Instance.File.MapName)
+        {
             // this was dynamically allocated.
             newbuf = realloc(Inode->Instance.File.Map, NewLength);
-            if (NULL == newbuf) {
+            if (NULL == newbuf)
+            {
                 status = ENOSPC;
             }
-            else {
+            else
+            {
                 status = 0;
             }
             break;
         }
 
         // At this point it was created using mmap
+<<<<<<< HEAD
         fd = open(Inode->Instance.File.MapName, O_RDWR);  // it must exit
         assert(fd >= 0);                                  // it should exist
         status = 0;
@@ -364,6 +446,21 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
                 status = ENOSPC;
                 break;
             }
+=======
+        fd = open(Inode->Instance.File.MapName, O_RDWR); // it must exit
+        assert(fd >= 0);                                 // it should exist
+        status = posix_fallocate(fd, 0, NewLength);
+        if (0 != status)
+        {
+            break;
+        }
+        newbuf = mmap(NULL, NewLength, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        if (MAP_FAILED == newbuf)
+        {
+            assert(0); // figure out if this is OK or not
+            status = ENOSPC;
+            break;
+>>>>>>> 01eee290f60f002beacbc8bcb5c9e3428cc4b36f
         }
         status = munmap(Inode->Instance.File.Map, Inode->Attributes.st_size);
         assert(0 == status);  // if not, write more plumbing
@@ -377,12 +474,14 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength)
         break;
     }
 
-    if (fd >= 0) {
+    if (fd >= 0)
+    {
         close(fd);
         fd = -1;
     }
 
-    if (NULL != newbuf) {
+    if (NULL != newbuf)
+    {
         free(newbuf);
         newbuf = NULL;
     }

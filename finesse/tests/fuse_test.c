@@ -26,7 +26,7 @@
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
-#endif // 
+#endif //
 
 #define TEST_MOUNT_PREFIX (char *)(uintptr_t)"mountprefix"
 #define TEST_OPEN_FILE_PARAM_FILE (char *)(uintptr_t)"file"
@@ -43,7 +43,7 @@ static int ServerRunning = 0;
 static int finesse_enabled = 0;
 
 
-static int finesse_check(void) 
+static int finesse_check(void)
 {
     int status = 0;
     finesse_client_handle_t fch;
@@ -125,7 +125,7 @@ static void generate_files(const char *test_dir, const char *base_file_name, uns
 }
 
 
-static int get_finesse_option(const MunitParameter params[]) 
+static int get_finesse_option(const MunitParameter params[])
 {
     const char *finesse = munit_parameters_get(params, TEST_FINESSE_OPTION);
     int enabled = 0; // default is false
@@ -134,7 +134,7 @@ static int get_finesse_option(const MunitParameter params[])
         if (0 == strcmp(TEST_FINESSE_OPTION_TRUE, finesse)) {
             enabled = 1;
         }
-    }    
+    }
 
     return enabled;
 }
@@ -191,7 +191,7 @@ static void setup_test(const MunitParameter params[])
     const char *dir;
     const char *file;
     const char *filecount;
-    unsigned file_count; 
+    unsigned file_count;
     int dfd;
 
     dir = munit_parameters_get(params, TEST_OPEN_FILE_PARAM_DIR);
@@ -221,7 +221,7 @@ static void cleanup_files(void)
 {
     unsigned index;
 
-    while (NULL != test_files) {    
+    while (NULL != test_files) {
 
         index = 0;
         while (NULL != test_files[index]) {
@@ -284,7 +284,7 @@ test_open_dir(
     char scratch[512];
 
     finesse_init();
-    
+
 
     setup_test(params);
 
@@ -293,11 +293,13 @@ test_open_dir(
 
     pathname = munit_parameters_get(params, TEST_OPEN_FILE_PARAM_DIR);
     munit_assert_not_null(pathname);
-    
+
     if (finesse_enabled)
         munit_assert(0 == finesse_init_file_state_mgr());
 
-    strncpy(scratch, prefix, sizeof(scratch));
+    assert(strlen(prefix) < sizeof(scratch));
+    strncpy(scratch, prefix, sizeof(scratch) - 1);
+    scratch[sizeof(scratch) - 1] = '\0';
     strncat(scratch, pathname, sizeof(scratch) - strlen(scratch) - 1);
 
     if (finesse_enabled) {
@@ -316,9 +318,9 @@ test_open_dir(
     else {
         munit_assert_int(close(fd), >=, 0);
     }
-    
+
     cleanup_test(params);
-    
+
     finesse_shutdown();
 
     return MUNIT_OK;
@@ -347,7 +349,7 @@ test_open_existing_files(
     if (finesse_enabled) {
     	munit_assert(0 == finesse_init_file_state_mgr());
     }
- 
+
     // create files
     index = 0;
     while (NULL != test_files[index]) {
@@ -355,7 +357,7 @@ test_open_existing_files(
             fd = finesse_open(test_files[index], O_CREAT, 0664); // existing
         }
         else {
-            fd = open(test_files[index], O_CREAT, 0664); // existing           
+            fd = open(test_files[index], O_CREAT, 0664); // existing
         }
         munit_assert_int(fd, >=, 0);
         if (finesse_enabled) {
@@ -370,14 +372,16 @@ test_open_existing_files(
     // now open the files
     index = 0;
     while (NULL != test_files[index]) {
-        strncpy(scratch, prefix, sizeof(scratch));
+        assert(strlen(prefix) < sizeof(scratch));
+        strncpy(scratch, prefix, sizeof(scratch) - 1);
+        scratch[sizeof(scratch) - 1] = '\0';
         strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch) - 1);
 
         if (finesse_enabled) {
           fd = finesse_open(scratch, 0); // existing
         }
         else {
-          fd = open(scratch, 0); // existing            
+          fd = open(scratch, 0); // existing
         }
         if (0 > fd) {
             perror("finesse_open");
@@ -440,7 +444,8 @@ test_open_nonexistant_files(
 
     index = 0;
     while (NULL != test_files[index]) {
-        strncpy(scratch, prefix, sizeof(scratch));
+        strncpy(scratch, prefix, sizeof(scratch) - 1);
+        scratch[sizeof(scratch) - 1] = '\0';
         strncat(scratch, test_files[index], sizeof(scratch) - strlen(scratch) - 1);
 
         if (finesse_enabled) {
@@ -466,7 +471,7 @@ test_open_nonexistant_files(
 static MunitResult
 test_fstatfs(
     const MunitParameter params[] __notused,
-    void *prv __notused) 
+    void *prv __notused)
 {
     int fd;
     int status;
@@ -477,10 +482,10 @@ test_fstatfs(
     char scratch[512];
 
     finesse_enabled = get_finesse_option(params);
-   
+
     finesse_init();
     setup_test(params);
-    
+
     prefix =  munit_parameters_get(params, TEST_MOUNT_PREFIX);
     munit_assert_not_null(prefix);
     prefix_length = strlen(prefix);
@@ -488,7 +493,7 @@ test_fstatfs(
     munit_assert_not_null(test_files);
     test_file = test_files[0];
     munit_assert_not_null(test_file);
-    
+
     if(finesse_enabled)
         munit_assert(0 == finesse_init_file_state_mgr());
 
@@ -503,7 +508,7 @@ test_fstatfs(
 
     if (finesse_enabled && (prefix_length > 0)) {
         // Now using the passthrough name, open the file
-        strncpy(scratch, prefix, sizeof(scratch));
+        strcpy(scratch, prefix);
         strncat(scratch, test_file, sizeof(scratch) - strlen(scratch) - 1);
 
         fd = finesse_open(scratch, O_RDONLY);
@@ -527,7 +532,7 @@ test_fstatfs(
         munit_assert_int(status, ==, 0);
         munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, offsetof(struct statvfs, f_favail)));
 
-    } 
+    }
     else {
         fd = finesse_open(test_file, O_RDONLY);
         munit_assert_int(fd, >=, 0);
@@ -540,17 +545,17 @@ test_fstatfs(
         munit_assert(0 == memcmp(&statfsstruc, &statfsstruc2, sizeof(statfsstruc)));
     }
 
-    munit_assert(0 <= fd); 
+    munit_assert(0 <= fd);
 
     if (finesse_enabled) {
         munit_assert_int(finesse_close(fd), >=, 0);
     }
     else {
-       munit_assert_int(close(fd), >=, 0); 
+       munit_assert_int(close(fd), >=, 0);
     }
-    
+
     cleanup_test(params);
-    
+
     if (finesse_enabled){
         finesse_terminate_file_state_mgr();
     }
@@ -562,7 +567,7 @@ test_fstatfs(
 static MunitResult
 test_openat(
     const MunitParameter params[] __notused,
-    void *prv __notused) 
+    void *prv __notused)
 {
     int fd = -1;
     int dirfd = -1;
@@ -577,10 +582,10 @@ test_openat(
         // not interested in the native path here
         return MUNIT_OK;
     }
-   
+
     finesse_init();
     setup_test(params);
-    
+
     prefix =  munit_parameters_get(params, TEST_MOUNT_PREFIX);
     munit_assert_not_null(prefix);
 
@@ -590,7 +595,7 @@ test_openat(
     munit_assert_not_null(test_files);
     test_file = test_files[0];
     munit_assert_not_null(test_file);
-    
+
     if(finesse_enabled) {
         munit_assert(0 == finesse_init_file_state_mgr());
     }
@@ -621,7 +626,7 @@ test_openat(
     dirfd = -1;
 
     cleanup_test(params);
-    
+
     if (finesse_enabled){
         finesse_terminate_file_state_mgr();
     }
@@ -638,9 +643,9 @@ static const char *dirs[] = { "/tmp/nicfs/dir1", NULL};
 static const char *file_counts[] = { "1", /* "100", "1000",  "10000",*/ NULL};
 static char *TEST_FINESSE_OPTIONS[] = {/*TEST_FINESSE_OPTION_FALSE,*/ TEST_FINESSE_OPTION_TRUE, NULL};
 
-MunitParameterEnum open_params[] = 
+MunitParameterEnum open_params[] =
 {
-    {.name = (char *)(uintptr_t)TEST_MOUNT_PREFIX, .values = (char **)(uintptr_t)mount_prefix}, 
+    {.name = (char *)(uintptr_t)TEST_MOUNT_PREFIX, .values = (char **)(uintptr_t)mount_prefix},
     {.name = (char *)(uintptr_t)TEST_OPEN_FILE_PARAM_FILE, .values = (char **)(uintptr_t)files},
     {.name = (char *)(uintptr_t)TEST_OPEN_FILE_PARAM_DIR,  .values = (char **)(uintptr_t)dirs},
     {.name = (char *)(uintptr_t)TEST_FILE_COUNT, .values = (char **)(uintptr_t)file_counts},

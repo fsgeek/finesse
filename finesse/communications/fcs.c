@@ -223,7 +223,7 @@ static void *inbound_request_worker(void *context)
     return NULL;
 }
 
-static void *listener(void *context) 
+static void *listener(void *context)
 {
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *) context;
     int status = 0;
@@ -239,7 +239,7 @@ static void *listener(void *context)
         fincomm_registration_info *reg_info = (fincomm_registration_info *)buffer;
         struct stat stat;
         int new_client_fd = -1;
-        
+
         new_client_fd = accept(scs->server_connection, 0, 0);
 
         if (NULL == new_client) {
@@ -250,7 +250,7 @@ static void *listener(void *context)
         memset(new_client, 0, sizeof(server_connection_state_t));
         new_client->client_shm_fd = -1;
         new_client->client_connection = new_client_fd;
- 
+
         if (scs->shutdown) {
             // don't care about errors, we're done.
             if (NULL != new_client) {
@@ -275,7 +275,7 @@ static void *listener(void *context)
 
         status = fstat(new_client->client_shm_fd, &stat);
         assert(status >= 0);
-        assert(stat.st_size >= SHM_PAGE_SIZE); 
+        assert(stat.st_size >= SHM_PAGE_SIZE);
         new_client->client_shm_size = stat.st_size;
 
         new_client->client_shm = mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
@@ -355,7 +355,8 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
         client_sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         assert(client_sock >= 0);
         server_addr.sun_family = AF_UNIX;
-        strncpy(server_addr.sun_path, scs->server_connection_name, sizeof(server_addr.sun_path));
+        assert(strlen(scs->server_connection_name) < sizeof(server_addr.sun_path));
+        strcpy(server_addr.sun_path, scs->server_connection_name);
 
         status = connect(client_sock, &server_addr, sizeof(server_addr));
         if (status < 0) {
@@ -372,7 +373,7 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
     if (client_sock >= 0) {
         close(client_sock);
     }
-    
+
     return status;
 }
 
@@ -408,7 +409,7 @@ int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t
 
         status = GenerateServerName(MountPoint, scs->server_connection_name, sizeof(scs->server_connection_name));
         assert(0 == status);
-        
+
         status = CheckForLiveServer(scs);
         assert(0 == status);
 
@@ -456,7 +457,7 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     assert(NULL != FinesseServerHandle);
 
     scs->shutdown = 1;
-    
+
     // Tell any waiting service callers that the state of teh world has changed
     pthread_cond_broadcast(&scs->server_cond);
 
@@ -523,7 +524,7 @@ int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Clien
 // the table.
 //
 // Yes, this is an ugly subroutine.
-// 
+//
 static int scan_for_request(unsigned start, unsigned end, server_internal_connection_state_t *scs, uint64_t *bitmap, fincomm_message *message, unsigned *index)
 {
     int status = ENOENT;
@@ -747,8 +748,8 @@ void fincomm_release_aux_shm(finesse_server_handle_t ServerHandle, unsigned Clie
 }
 
 int FinesseGetMessageAuxBuffer(
-    finesse_server_handle_t FinesseServerHandle, 
-    void *Client, 
+    finesse_server_handle_t FinesseServerHandle,
+    void *Client,
     void *Message,
     void **Buffer,
     size_t *BufferSize)
@@ -774,8 +775,8 @@ int FinesseGetMessageAuxBuffer(
 }
 
 const char *FinesseGetMessageAuxBufferName(
-    finesse_server_handle_t FinesseServerHandle, 
-    void *Client, 
+    finesse_server_handle_t FinesseServerHandle,
+    void *Client,
     void *Message)
 {
     unsigned index;

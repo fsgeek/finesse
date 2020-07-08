@@ -258,7 +258,7 @@ finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *ke
         file_state->fd = fd;
         memcpy(&file_state->key, key, sizeof(uuid_t));
         file_state->pathname = (char *)(file_state+1);
-        strncpy(file_state->pathname, pathname, pathlen);
+        strcpy(file_state->pathname, pathname);
         file_state->current_offset = 0;
         file_state->client = client;
 
@@ -283,7 +283,7 @@ finesse_file_state_t *finesse_lookup_file_state(int fd)
 {
     finesse_file_state_t *file_state;
     int status;
-    
+
     if (NULL == fd_lookup_table) {
         // This can happen during shutdown.
         return NULL;
@@ -307,7 +307,7 @@ void finesse_update_offset(finesse_file_state_t *file_state, size_t offset)
 void finesse_delete_file_state(finesse_file_state_t *file_state)
 {
     int fd;
-    int status; 
+    int status;
 
     assert(fd_lookup_table);
     fd = file_state->fd;
@@ -319,7 +319,7 @@ void finesse_delete_file_state(finesse_file_state_t *file_state)
 
     // cleanup the file state
     free(file_state);
-    
+
 }
 
 int finesse_init_file_state_mgr(void)
@@ -328,7 +328,7 @@ int finesse_init_file_state_mgr(void)
     int status = 0;
 
     while (NULL == fd_lookup_table) {
-        /* 
+        /*
          * table size: this is a speed/space trade-off.  I did a quick run with various power-of-two values with
          * a test of 64K file descriptors (which is the max on my linux box at this time for a single process).
          * I don't want to add dynamic resizing into the mix, though someone _could_ do so, if they thought it
@@ -344,7 +344,7 @@ int finesse_init_file_state_mgr(void)
          * 2048 -  4.050 seconds
          * 1024 -  7.654 seconds
          *  512 - 14.118 seconds
-         * 
+         *
          */
         new_table = lookup_table_create(4096, "FinesseFD", NULL, sizeof(int));
 

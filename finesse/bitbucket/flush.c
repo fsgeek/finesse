@@ -34,7 +34,14 @@ static int bitbucket_internal_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_
 
 	(void) fi;
 
+
 	CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
+
+	if (0 == BBud->FlushEnable) {
+		status = 0;
+		fuse_reply_err(req, status);
+		return status;
+	}
 
 	if (FUSE_ROOT_ID == ino) {
 		inode = BBud->RootDirectory;

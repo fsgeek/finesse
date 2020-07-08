@@ -91,6 +91,8 @@ struct _bitbucket_userdata {
     int                 FsyncDisable;
     int                 NoXattr;
     int                 BackgroundForget;
+    int                 FlushEnable;
+    int                 FsyncEnable;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;
@@ -325,6 +327,7 @@ int BitbucketAdjustFileStorage(bitbucket_inode_t *Inode, size_t NewLength);
 
 // More random numbers
 //
+<<<<<<< HEAD
 //
 //  0x336253e063ce2fdf
 //  0x6dbeb148bd5570e0

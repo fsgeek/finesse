@@ -76,8 +76,10 @@ static bitbucket_userdata_t BBud = {
     .StorageDir = "/tmp/bitbucket",
     .Writeback = 1,
     .CachePolicy = 1,
-    .FsyncDisable = 0,
+    .FsyncDisable = 1,
     .NoXattr = 1,
+    .BackgroundForget = 0,
+    .FlushEnable = 0,
 };
 
 
@@ -87,9 +89,10 @@ static void bitbucket_help(void) {
     printf("    --callstat=<path> - location to write call statistics on dismount\n");
     printf("    --timeout=<seconds> - attribute timeout (default=3600)\n");
     printf("    --disable_cache - disables all caching (default=enabled)\n");
-    printf("    --disable_fsync - disables fsync (default=enabled)\n");
+    printf("    --fsync - enables fsync (default=disabled)\n");
     printf("    --enable_xattr - enable xattr support (default=disabled)\n");
     printf("    --bgforget - enable background forget handling (default=disabled)\n");
+    printf("    --flush - enable flush handling (default=disabled)\n");
 }
 
 static const struct fuse_opt bitbucket_opts[] = {
@@ -98,9 +101,10 @@ static const struct fuse_opt bitbucket_opts[] = {
     { "--timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
     { "--callstat=%s", offsetof(bitbucket_userdata_t, CallStatFile), 0},
     { "--disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
-    { "--disable_fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 1},
+    { "--fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 0},
     { "--enable_xattr", offsetof(bitbucket_userdata_t, NoXattr), 0},
     { "--bgforget", offsetof(bitbucket_userdata_t, BackgroundForget), 1},
+    { "--flush", offsetof(bitbucket_userdata_t, FlushEnable), 1},
 	FUSE_OPT_END
 };
 
@@ -149,6 +153,7 @@ int main(int argc, char *argv[])
         struct stat stbuf;
         int status = 0;
         pid_t childpid = 0;
+        unsigned retries = 0;
 
         if (0 == stat(BBud.StorageDir, &stbuf)) {
             // It exists, let's clean it up first
@@ -176,14 +181,24 @@ int main(int argc, char *argv[])
             }
         }
 
-        sleep(1);
+        status = 0;
+        retries = 0;
+        do {
+            if (0 != status) {
+                sleep(1);
+            }
+            status = mkdir(BBud.StorageDir, 0700);
+            retries++;
+        } while ((status != 0) && (retries < 10));
 
-        status = mkdir(BBud.StorageDir, 0700);
         if (0 != status) {
             fuse_log(FUSE_LOG_ERR, "Unable to create %s (errno  = %d - %s)\n",
                     BBud.StorageDir, errno, strerror(errno));
             ret = 1;
             goto err_out1;
+        }
+        else {
+            fuse_log(FUSE_LOG_DEBUG, "Created %s successfully\n", BBud.StorageDir);
         }
 
     }
@@ -204,7 +219,7 @@ int main(int argc, char *argv[])
 	/* Block until ctrl+c or fusermount -u */
 	if (opts.singlethread) {
 		ret = fuse_session_loop(se);
-	} 
+	}
     else {
         config.clone_fd = opts.clone_fd;
         config.max_idle_threads = opts.max_idle_threads;
