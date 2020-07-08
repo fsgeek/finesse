@@ -3,14 +3,12 @@
 // All Right Reserved
 //
 
-
 #if !defined(__BITBUCKET_CALLS_H__)
 #define __BITBUCKET_CALLS_H__ (1)
 #define BITBUCKET_CALL_BASE (100)
-#include <time.h>
-#include <stdint.h>
 #include <assert.h>
-
+#include <stdint.h>
+#include <time.h>
 
 #define BITBUCKET_CALL_INIT (BITBUCKET_CALL_BASE + 1)
 #define BITBUCKET_CALL_DESTROY (BITBUCKET_CALL_BASE + 2)
@@ -59,22 +57,22 @@
 #define BITBUCKET_CALLS_MAX (144)
 
 typedef struct _bitbucket_call_statistics {
-	uint64_t        Calls;
-	uint64_t        Success;
-	uint64_t        Failure;
-	struct timespec ElapsedTime;
+    uint64_t        Calls;
+    uint64_t        Success;
+    uint64_t        Failure;
+    struct timespec ElapsedTime;
     char const *    Name;
 } bitbucket_call_statistics_t;
 
-void BitbucketInitializeCallStatistics(void);
+void                         BitbucketInitializeCallStatistics(void);
 bitbucket_call_statistics_t *BitbucketGetCallStatistics(void);
-void BitbucketReleaseCallStatistics(bitbucket_call_statistics_t *CallStatistics);
-const char *BitbucketFormatCallData(bitbucket_call_statistics_t *CallData);
-void BitbucketFreeFormattedCallData(const char *FormattedData);
-void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, char *Buffer, size_t *BufferSize);
+void                         BitbucketReleaseCallStatistics(bitbucket_call_statistics_t *CallStatistics);
+const char *                 BitbucketFormatCallData(bitbucket_call_statistics_t *CallData, int CsvFormat);
+void                         BitbucketFreeFormattedCallData(const char *FormattedData);
+void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, int CsvFormat, char *Buffer, size_t *BufferSize);
 
-
-static inline void timespec_diff(struct timespec *begin, struct timespec *end, struct timespec *diff) {
+static inline void timespec_diff(struct timespec *begin, struct timespec *end, struct timespec *diff)
+{
     struct timespec result = {.tv_sec = 0, .tv_nsec = 0};
     assert((end->tv_sec > begin->tv_sec) || ((end->tv_sec == begin->tv_sec) && end->tv_nsec >= begin->tv_nsec));
     result.tv_sec = end->tv_sec - begin->tv_sec;
@@ -85,8 +83,9 @@ static inline void timespec_diff(struct timespec *begin, struct timespec *end, s
     *diff = result;
 }
 
-static inline void timespec_add(struct timespec *one, struct timespec *two, struct timespec *result) {
-    result->tv_sec = one->tv_sec + two->tv_sec;
+static inline void timespec_add(struct timespec *one, struct timespec *two, struct timespec *result)
+{
+    result->tv_sec  = one->tv_sec + two->tv_sec;
     result->tv_nsec = one->tv_nsec + two->tv_nsec;
     while ((long)1000000000 <= result->tv_nsec) {
         result->tv_sec++;
@@ -96,4 +95,4 @@ static inline void timespec_add(struct timespec *one, struct timespec *two, stru
 
 void BitbucketCountCall(uint8_t Call, uint8_t Success, struct timespec *Elapsed);
 
-#endif // ____BITBUCKET_CALLS_H__
+#endif  // ____BITBUCKET_CALLS_H__
