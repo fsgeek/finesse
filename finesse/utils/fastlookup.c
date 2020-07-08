@@ -668,7 +668,8 @@ void finesse_object_release(finesse_object_t *object)
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
-    return FinesseObjectRelease(ObjectTable, object);
+    FinesseObjectRelease(ObjectTable, object);
+    return;
 }
 
 finesse_object_t *finesse_object_create(fuse_ino_t inode, uuid_t *uuid)
