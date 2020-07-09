@@ -35,7 +35,7 @@ void bitbucket_init(void *userdata, struct fuse_conn_info *conn)
     calldata_string = BitbucketFormatCallData(NULL, 0);
 
     if (NULL != calldata_string) {
-        printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+        fuse_log(FUSE_LOG_INFO, "Bitbucket Final Call Data:\n%s\n", calldata_string);
         BitbucketFreeFormattedCallData(calldata_string);
         calldata_string = NULL;
     }
@@ -128,12 +128,12 @@ int bitbucket_internal_destroy(void *userdata)
                 fd = -1;
             }
             else {
-                fprintf(stderr, "Unable to open %s, errno = %d (%s)", BBud->CallStatFile, errno, strerror(errno));
+                fuse_log(FUSE_LOG_ERR, "Unable to open %s, errno = %d (%s)", BBud->CallStatFile, errno, strerror(errno));
             }
         }
 
         if (0 >= written) {
-            printf("Bitbucket Final Call Data:\n%s\n", calldata_string);
+            fuse_log(FUSE_LOG_INFO, "Bitbucket Final Call Data:\n%s\n", calldata_string);
         }
 
         BitbucketFreeFormattedCallData(calldata_string);

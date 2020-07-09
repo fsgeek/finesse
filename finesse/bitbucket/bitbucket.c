@@ -84,7 +84,7 @@ static void BitbucketSetupLogging(bitbucket_userdata_t *BBud)
     else {
         if ((int)BBud->LogLevel != BitbucketLogLevel) {
             BitbucketLogLevel = (enum fuse_log_level)BBud->LogLevel;
-            fuse_log(FUSE_LOG_INFO, "Set log level to %s\n", LogLevelToString);
+            fuse_log(FUSE_LOG_INFO, "Set log level to %s\n", LogLevelToString(BBud->LogLevel));
         }
     }
 
