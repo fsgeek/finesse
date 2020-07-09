@@ -79,23 +79,25 @@ typedef struct _bitbucket_inode_table bitbucket_inode_table_t;
 #define BITBUCKET_INODE_TABLE_BUCKETS (1024)
 
 struct _bitbucket_userdata {
-    uint64_t           Magic;
-    uint8_t            Debug;
-    uint8_t            Unused[7];  // For storing additional options!
-    bitbucket_inode_t *RootDirectory;
-    void *             InodeTable;
-    double             AttrTimeout;  // Arbitrary for now.
-    const char *       StorageDir;
-    const char *       CallStatFile;
-    int                Writeback;
-    int                FileLock;
-    int                CachePolicy;
-    int                FsyncDisable;
-    int                NoXattr;
-    int                BackgroundForget;
-    int                FlushEnable;
-    int                FsyncEnable;
-    int                VerifyDirectories;
+    uint64_t            Magic;
+    uint8_t             Debug;
+    uint8_t             Unused[7];  // For storing additional options!
+    bitbucket_inode_t * RootDirectory;
+    void *              InodeTable;
+    double              AttrTimeout;  // Arbitrary for now.
+    const char *        StorageDir;
+    const char *        CallStatFile;
+    int                 Writeback;
+    int                 FileLock;
+    int                 CachePolicy;
+    int                 FsyncDisable;
+    int                 NoXattr;
+    int                 BackgroundForget;
+    int                 FlushEnable;
+    int                 FsyncEnable;
+    int                 VerifyDirectories;
+    const char *        LogFile;
+    enum fuse_log_level LogLevel;
     // These are some magic directories I'm going to create
     struct {
         bitbucket_inode_t *Inode;

@@ -12,13 +12,84 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fuse_common.h>
+#include <fuse_lowlevel.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "bitbucketcalls.h"
 
-#include <fuse_lowlevel.h>
+#define BITBUCKET_DEFAULT_LOG_LEVEL FUSE_LOG_ERR
+
+static enum fuse_log_level BitbucketLogLevel = BITBUCKET_DEFAULT_LOG_LEVEL;
+static FILE *              logFile;
+
+static void bitbucket_log_func(__attribute__((unused)) enum fuse_log_level level, const char *fmt, va_list ap)
+{
+    vfprintf(logFile, fmt, ap);
+}
+
+static const char *LogLevelToString(enum fuse_log_level LogLevel)
+{
+    const char *str = "Invalid";
+
+    switch (LogLevel) {
+        case FUSE_LOG_EMERG:
+            str = "FUSE_LOG_EMERG";
+            break;
+        case FUSE_LOG_ALERT:
+            str = "FUSE_LOG_ALERT";
+            break;
+        case FUSE_LOG_CRIT:
+            str = "FUSE_LOG_CRIT";
+            break;
+        case FUSE_LOG_ERR:
+            str = "FUSE_LOG_ERR";
+            break;
+        case FUSE_LOG_WARNING:
+            str = "FUSE_LOG_WARNING";
+            break;
+        case FUSE_LOG_NOTICE:
+            str = "FUSE_LOG_NOTICE";
+            break;
+        case FUSE_LOG_INFO:
+            str = "FUSE_LOG_INFO";
+            break;
+        case FUSE_LOG_DEBUG:
+            str = "FUSE_LOG_DEBUG";
+            break;
+    }
+
+    return str;
+}
+
+static void BitbucketSetupLogging(bitbucket_userdata_t *BBud)
+{
+    assert(NULL != BBud);
+    if (BBud->LogFile) {
+        logFile = fopen(BBud->LogFile, "w+");
+        if (NULL == logFile) {
+            fuse_log(FUSE_LOG_ERR, "Unable to open file %s for writing\n", BBud->LogFile);
+        }
+    }
+
+    if (NULL == logFile) {
+        logFile = stderr;
+    }
+
+    if ((BBud->LogLevel < FUSE_LOG_EMERG) || (BBud->LogLevel > FUSE_LOG_DEBUG)) {
+        // outside allowed range
+        fuse_log(FUSE_LOG_ERR, "Specified invalid log level %d, defaulting to %d\n", (int)BBud->LogLevel, BitbucketLogLevel);
+    }
+    else {
+        if ((int)BBud->LogLevel != BitbucketLogLevel) {
+            BitbucketLogLevel = (enum fuse_log_level)BBud->LogLevel;
+            fuse_log(FUSE_LOG_INFO, "Set log level to %s\n", LogLevelToString);
+        }
+    }
+
+    fuse_set_log_func(bitbucket_log_func);
+}
 
 static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .init            = bitbucket_init,
@@ -95,19 +166,25 @@ static void bitbucket_help(void)
     printf("    --bgforget - enable background forget handling (default=disabled)\n");
     printf("    --flush - enable flush handling (default=disabled)\n");
     printf("    --verifydirectories - enable directory consistency checks (default=disabled)\n");
+    printf("    --logfile=<path> - location to write log output (default stderr)\n");
+    printf("    --loglevel=<level> - logging level (least = %d to most = %d, default = %d)\n", (int)FUSE_LOG_EMERG,
+           (int)FUSE_LOG_DEBUG, BitbucketLogLevel);
 }
 
-static const struct fuse_opt bitbucket_opts[] = {{"--no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
-                                                 {"--storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
-                                                 {"--timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
-                                                 {"--callstat=%s", offsetof(bitbucket_userdata_t, CallStatFile), 0},
-                                                 {"--disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
-                                                 {"--fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 0},
-                                                 {"--enable_xattr", offsetof(bitbucket_userdata_t, NoXattr), 0},
-                                                 {"--bgforget", offsetof(bitbucket_userdata_t, BackgroundForget), 1},
-                                                 {"--flush", offsetof(bitbucket_userdata_t, FlushEnable), 1},
-                                                 {"--verifydirectories", offsetof(bitbucket_userdata_t, VerifyDirectories), 1},
-                                                 FUSE_OPT_END};
+static const struct fuse_opt bitbucket_opts[] = {
+    {"--no_writeback", offsetof(bitbucket_userdata_t, Writeback), 0},
+    {"--storagedir=%s", offsetof(bitbucket_userdata_t, StorageDir), 0},
+    {"--timeout=%lf", offsetof(bitbucket_userdata_t, AttrTimeout), 0},
+    {"--callstat=%s", offsetof(bitbucket_userdata_t, CallStatFile), 0},
+    {"--disable_cache", offsetof(bitbucket_userdata_t, CachePolicy), 0},
+    {"--fsync", offsetof(bitbucket_userdata_t, FsyncDisable), 0},
+    {"--enable_xattr", offsetof(bitbucket_userdata_t, NoXattr), 0},
+    {"--bgforget", offsetof(bitbucket_userdata_t, BackgroundForget), 1},
+    {"--flush", offsetof(bitbucket_userdata_t, FlushEnable), 1},
+    {"--verifydirectories", offsetof(bitbucket_userdata_t, VerifyDirectories), 1},
+    {"--logfile=%s", offsetof(bitbucket_userdata_t, LogFile), 0},
+    {"--loglevel=%d", offsetof(bitbucket_userdata_t, LogLevel), BITBUCKET_DEFAULT_LOG_LEVEL},
+    FUSE_OPT_END};
 
 int main(int argc, char *argv[])
 {
@@ -148,6 +225,10 @@ int main(int argc, char *argv[])
     if (fuse_opt_parse(&args, &BBud, bitbucket_opts, NULL)) {
         ret = 1;
         goto err_out1;
+    }
+
+    if (NULL != BBud.LogFile) {
+        BitbucketSetupLogging(&BBud);
     }
 
     if (NULL != BBud.StorageDir) {
