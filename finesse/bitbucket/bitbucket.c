@@ -71,6 +71,9 @@ static void BitbucketSetupLogging(bitbucket_userdata_t *BBud)
         if (NULL == logFile) {
             fuse_log(FUSE_LOG_ERR, "Unable to open file %s for writing\n", BBud->LogFile);
         }
+
+        // Disable buffering; this is comparable to stderr
+        setbuf(logFile, NULL);
     }
 
     if (NULL == logFile) {
