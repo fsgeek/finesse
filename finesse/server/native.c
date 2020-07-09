@@ -7,7 +7,7 @@ static const char *finesse_request_type_to_string(FINESSE_NATIVE_REQ_TYPE Type)
 {
     const char *str = "Unknown Native Request Type";
 
-    switch(Type) {
+    switch (Type) {
         case FINESSE_NATIVE_REQ_TEST:
             str = "Native Request Test";
             break;
@@ -27,30 +27,30 @@ static const char *finesse_request_type_to_string(FINESSE_NATIVE_REQ_TYPE Type)
             str = "Native Request Dirmap Release";
             break;
         default:
-            break; // use default string
+            break;  // use default string
     }
     return str;
 }
 
 int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, fincomm_message Message)
 {
-    finesse_msg *fmsg = NULL;
-    int status = EINVAL;
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
+    finesse_msg *           fmsg   = NULL;
+    int                     status = EINVAL;
+    finesse_server_handle_t fsh    = (finesse_server_handle_t)se->server_handle;
 
     if (NULL == fsh) {
         return ENOTCONN;
     }
 
-    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
+    assert(FINESSE_REQUEST == Message->MessageType);  // nothing else makes sense here
     assert(NULL != Message);
     fmsg = (finesse_msg *)Message->Data;
     assert(NULL != fmsg);
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
-    
-    fuse_log(FUSE_LOG_DEBUG, "FINESSE %s: native request (0x%p) type %d (%s)\n", 
-            __func__, fmsg, fmsg->Message.Native.Request.NativeRequestType,
-            finesse_request_type_to_string(fmsg->Message.Native.Request.NativeRequestType));
+
+    fuse_log(FUSE_LOG_DEBUG, "FINESSE %s: native request (0x%p) type %d (%s)\n", __func__, fmsg,
+             fmsg->Message.Native.Request.NativeRequestType,
+             finesse_request_type_to_string(fmsg->Message.Native.Request.NativeRequestType));
 
     FinesseCountNativeRequest(fmsg->Message.Native.Request.NativeRequestType);
 
@@ -61,32 +61,29 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
             assert(0 == status);
             break;
 
-        }
-        break;
+        } break;
 
         case FINESSE_NATIVE_REQ_SERVER_STAT: {
             status = FinesseServerNativeServerStatRequest(fsh, Client, Message);
             assert(0 == status);
             break;
         }
-        
+
         case FINESSE_NATIVE_REQ_MAP: {
             status = FinesseServerNativeMapRequest(se, Client, Message);
-            assert(0 == status); // either that, or pass it back... 
-        }
-        break;
-        
+            assert(0 == status);  // either that, or pass it back...
+        } break;
+
         case FINESSE_NATIVE_REQ_MAP_RELEASE: {
             status = FinesseServerNativeMapReleaseRequest(fsh, Client, Message);
             assert(0 == status);
-        }
-        break;
+        } break;
 
         default:
-            fmsg->Message.Native.Response.NativeResponseType = FINESSE_FUSE_RSP_ERR;
-            fmsg->Result = ENOTSUP;
+            fmsg->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_ERR;
+            fmsg->Result                                     = ENOTSUP;
             FinesseSendResponse(fsh, Client, Message);
-            FinesseCountNativeResponse(FINESSE_FUSE_RSP_ERR);
+            FinesseCountNativeResponse(FINESSE_NATIVE_RSP_ERR);
             break;
     }
 

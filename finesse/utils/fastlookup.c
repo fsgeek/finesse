@@ -269,7 +269,7 @@ static uint64_t LockBucket(lookup_entry_table_bucket_t *Bucket, int Exclusive)
 
 static void UnlockBucket(lookup_entry_table_bucket_t *Bucket)
 {
-    int      exclusive;
+    int      exclusive = 0;
     int      status;
     uint64_t currentHashValue = 0;
 
@@ -303,6 +303,8 @@ static void UnlockBucket(lookup_entry_table_bucket_t *Bucket)
         case EAGAIN:
             // the lock is acquired shared by someone (e.g., this thread)
             break;
+        default:
+            assert(0);  // no idea what this is
     }
 
     if (exclusive) {

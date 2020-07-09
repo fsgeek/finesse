@@ -3,7 +3,6 @@
 */
 #include "fs-internal.h"
 
-
 static void list_init_req(struct fuse_req *req)
 {
     req->next = req;
@@ -14,8 +13,8 @@ static void list_del_req(struct fuse_req *req)
 {
     struct fuse_req *prev = req->prev;
     struct fuse_req *next = req->next;
-    prev->next = next;
-    next->prev = prev;
+    prev->next            = next;
+    next->prev            = prev;
 }
 
 // I'm concerned about leaking these
@@ -29,13 +28,11 @@ struct fuse_req *FinesseAllocFuseRequest(struct fuse_session *se)
     assert(NULL != se);
 
     freq = (struct finesse_req *)calloc(1, sizeof(struct finesse_req));
-    if (freq == NULL)
-    {
+    if (freq == NULL) {
         fprintf(stderr, "finesse (fuse): failed to allocate request\n");
     }
-    else
-    {
-        freq->fuse_request.se = se;
+    else {
+        freq->fuse_request.se  = se;
         freq->fuse_request.ctr = 1;
         list_init_req(&freq->fuse_request);
         pthread_mutex_init(&freq->fuse_request.lock, NULL);
@@ -55,7 +52,8 @@ void FinesseDestroyFuseRequest(fuse_req_t req)
     assert(0 == req->ctr);
     // Clean up captured iovec data
     if (NULL != freq->iov) {
-        for (unsigned index = 0; index < freq->iov_count; index++) {
+        assert(freq->iov_count > 0);
+        for (unsigned index = 0; index < (unsigned)freq->iov_count; index++) {
             if (NULL != freq->iov[index].iov_base) {
                 free(freq->iov[index].iov_base);
                 freq->iov[index].iov_base = NULL;
@@ -74,7 +72,7 @@ void FinesseDestroyFuseRequest(fuse_req_t req)
 
 void FinesseFreeFuseRequest(fuse_req_t req)
 {
-    int ctr;
+    int                  ctr;
     struct fuse_session *se = req->se;
 
     assert(NULL != se);
@@ -91,4 +89,3 @@ void FinesseFreeFuseRequest(fuse_req_t req)
         FinesseDestroyFuseRequest(req);
     }
 }
-

@@ -1,42 +1,40 @@
 /*
  * (C) Copyright 2020 Tony Mason
  * All Rights Reserved
-*/
+ */
 
-#include "fcinternal.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <dirent.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include "fcinternal.h"
 
 #if !defined(make_mask64)
-#define make_mask64(index) (((u_int64_t)1)<<index)
+#define make_mask64(index) (((u_int64_t)1) << index)
 #endif
 
-
 typedef struct server_internal_connection_state {
-    int                         server_connection;
-    int                         shutdown;
-    pthread_t                   listener_thread;
-    uuid_t                      server_uuid;
-    unsigned char               align0[32];
-    pthread_mutex_t             monitor_mutex;
-    uint64_t                    waiting_client_request_bitmap;
-    unsigned char               align1[64-(sizeof(pthread_mutex_t)+sizeof(uint64_t))];
-    pthread_cond_t              monitor_cond; // threads monitor for refresh needed
-    unsigned char               align2[64-(sizeof(pthread_cond_t))];
-    pthread_cond_t              server_cond; // server thread monitors for refresh
-    unsigned char               align3[64-(sizeof(pthread_cond_t))];
-    char                        server_connection_name[MAX_SHM_PATH_NAME];
-    server_connection_state_t * client_server_connection_state_table[SHM_MESSAGE_COUNT];
+    int                        server_connection;
+    int                        shutdown;
+    pthread_t                  listener_thread;
+    uuid_t                     server_uuid;
+    unsigned char              align0[32];
+    pthread_mutex_t            monitor_mutex;
+    uint64_t                   waiting_client_request_bitmap;
+    unsigned char              align1[64 - (sizeof(pthread_mutex_t) + sizeof(uint64_t))];
+    pthread_cond_t             monitor_cond;  // threads monitor for refresh needed
+    unsigned char              align2[64 - (sizeof(pthread_cond_t))];
+    pthread_cond_t             server_cond;  // server thread monitors for refresh
+    unsigned char              align3[64 - (sizeof(pthread_cond_t))];
+    char                       server_connection_name[MAX_SHM_PATH_NAME];
+    server_connection_state_t *client_server_connection_state_table[SHM_MESSAGE_COUNT];
 } server_internal_connection_state_t;
 
 _Static_assert(0 == (offsetof(server_internal_connection_state_t, monitor_mutex) % 64), "Misaligned");
 _Static_assert(0 == (offsetof(server_internal_connection_state_t, monitor_cond) % 64), "Misaligned");
 _Static_assert(0 == (offsetof(server_internal_connection_state_t, server_connection_name) % 64), "Misaligned");
-
 
 static void create_aux_shm(server_connection_state_t *ccs, unsigned Index)
 {
@@ -52,30 +50,31 @@ static void create_aux_shm(server_connection_state_t *ccs, unsigned Index)
 
     // generate a name
     uuid_generate(ccs->aux_shm_table[Index].AuxShmKey);
-    status = GenerateClientSharedMemoryName(ccs->aux_shm_table[Index].AuxShmName, MAX_SHM_PATH_NAME, ccs->aux_shm_table[Index].AuxShmKey);
+    status = GenerateClientSharedMemoryName(ccs->aux_shm_table[Index].AuxShmName, MAX_SHM_PATH_NAME,
+                                            ccs->aux_shm_table[Index].AuxShmKey);
     assert(0 == status);
 
     // create shared memory
     ccs->aux_shm_table[Index].AuxShmFd = shm_open(ccs->aux_shm_table[Index].AuxShmName, O_RDWR | O_CREAT | O_EXCL, 0600);
     assert(ccs->aux_shm_table[Index].AuxShmFd >= 0);
 
-    ccs->aux_shm_table[Index].AuxShmSize = 1024 * 1024; // hard code for now
-    status = ftruncate(ccs->aux_shm_table[Index].AuxShmFd, ccs->aux_shm_table[Index].AuxShmSize);
+    ccs->aux_shm_table[Index].AuxShmSize = 1024 * 1024;  // hard code for now
+    status                               = ftruncate(ccs->aux_shm_table[Index].AuxShmFd, ccs->aux_shm_table[Index].AuxShmSize);
     assert(0 == status);
 
-    ccs->aux_shm_table[Index].AuxShmMap = mmap(NULL, ccs->aux_shm_table[Index].AuxShmSize, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->aux_shm_table[Index].AuxShmSize, 0);
+    ccs->aux_shm_table[Index].AuxShmMap = mmap(NULL, ccs->aux_shm_table[Index].AuxShmSize, PROT_READ | PROT_WRITE, MAP_SHARED,
+                                               ccs->aux_shm_table[Index].AuxShmSize, 0);
     assert(MAP_FAILED != ccs->aux_shm_table[Index].AuxShmMap);
-
 }
 
 static void init_aux_shm(server_connection_state_t *ccs)
 {
-    for(unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
+    for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
         ccs->aux_shm_table[index].AuxShmFd = -1;
         memset(&ccs->aux_shm_table[index].AuxShmKey, 0, sizeof(uuid_t));
-        ccs->aux_shm_table[index].AuxShmMap = MAP_FAILED;
+        ccs->aux_shm_table[index].AuxShmMap  = MAP_FAILED;
         ccs->aux_shm_table[index].AuxShmSize = 0;
-        ccs->aux_shm_table[index].AuxInUse = 0;
+        ccs->aux_shm_table[index].AuxInUse   = 0;
     }
 }
 
@@ -88,7 +87,7 @@ static void destroy_aux_shm(server_connection_state_t *ccs, unsigned Index)
     assert(0 == status);
 
     ccs->aux_shm_table[Index].AuxShmSize = 0;
-    ccs->aux_shm_table[Index].AuxShmMap = MAP_FAILED;
+    ccs->aux_shm_table[Index].AuxShmMap  = MAP_FAILED;
 
     // close map file
     if (ccs->aux_shm_table[Index].AuxShmFd >= 0) {
@@ -100,12 +99,11 @@ static void destroy_aux_shm(server_connection_state_t *ccs, unsigned Index)
     // unlink the shared memory
     status = shm_unlink(ccs->aux_shm_table[Index].AuxShmName);
     assert(0 == status);
-
 }
 
 static void shutdown_aux_shm(server_connection_state_t *ccs)
 {
-    for(unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
+    for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (-1 != ccs->aux_shm_table[index].AuxShmFd) {
             destroy_aux_shm(ccs, index);
         }
@@ -121,7 +119,7 @@ static void teardown_client_connection(server_connection_state_t *ccs)
     if (ccs->monitor_thread_active) {
         status = pthread_cancel(ccs->monitor_thread);
         assert(0 == status);
-        (void) pthread_join(ccs->monitor_thread, NULL);
+        (void)pthread_join(ccs->monitor_thread, NULL);
         assert(0 == status);
         // assert(ECANCELED == status);
         ccs->monitor_thread_active = 0;
@@ -139,7 +137,7 @@ static void teardown_client_connection(server_connection_state_t *ccs)
         // blocking objects within that memory region.
         status = munmap(ccs->client_shm, ccs->client_shm_size);
         assert(0 == status);
-        ccs->client_shm = (void *)0;
+        ccs->client_shm      = (void *)0;
         ccs->client_shm_size = 0;
     }
 
@@ -162,24 +160,24 @@ static void listener_cleanup(void *arg)
 }
 
 typedef struct _inbound_request_worker_info {
-    unsigned index;
+    unsigned                            index;
     server_internal_connection_state_t *Scs;
 } inbound_request_worker_info;
 
 // This worker thread monitors inbound requests from the client
 static void *inbound_request_worker(void *context)
 {
-    inbound_request_worker_info *irwi = (inbound_request_worker_info *)context;
+    inbound_request_worker_info *       irwi = (inbound_request_worker_info *)context;
     server_internal_connection_state_t *scs;
-    server_connection_state_t *ccs;
-    uint64_t pending_bit = make_mask64(irwi->index);
-    int status;
-    unsigned locked_count = 0;
+    server_connection_state_t *         ccs;
+    uint64_t                            pending_bit = make_mask64(irwi->index);
+    int                                 status;
+    unsigned                            locked_count = 0;
 
     assert(NULL != context);
     scs = irwi->Scs;
     assert(NULL != scs);
-    assert(0 == (scs->waiting_client_request_bitmap & pending_bit)); // can't be set yet!
+    assert(0 == (scs->waiting_client_request_bitmap & pending_bit));  // can't be set yet!
     ccs = scs->client_server_connection_state_table[irwi->index];
     if (NULL == ccs) {
         // Race: this can happen when shutdown gets called before we've finished init.
@@ -206,12 +204,12 @@ static void *inbound_request_worker(void *context)
             // shutdown;
             break;
         }
-        locked_count++; // debug
+        locked_count++;  // debug
         pthread_mutex_lock(&scs->monitor_mutex);
-        scs->waiting_client_request_bitmap |= pending_bit; // turn on bit - something waiting
-        pthread_cond_signal(&scs->server_cond); // notify server we've turned on a bit
-        pthread_cond_wait(&scs->monitor_cond, &scs->monitor_mutex); // wait for server to tell us to look again
-        scs->waiting_client_request_bitmap &= ~pending_bit; // turn off bit (we need to check again)
+        scs->waiting_client_request_bitmap |= pending_bit;           // turn on bit - something waiting
+        pthread_cond_signal(&scs->server_cond);                      // notify server we've turned on a bit
+        pthread_cond_wait(&scs->monitor_cond, &scs->monitor_mutex);  // wait for server to tell us to look again
+        scs->waiting_client_request_bitmap &= ~pending_bit;          // turn off bit (we need to check again)
         pthread_mutex_unlock(&scs->monitor_mutex);
     }
     ccs->monitor_thread_active = 0;
@@ -225,20 +223,20 @@ static void *inbound_request_worker(void *context)
 
 static void *listener(void *context)
 {
-    server_internal_connection_state_t *scs = (server_internal_connection_state_t *) context;
-    int status = 0;
-    char buffer[SHM_PAGE_SIZE]; // use for messages
-    fincomm_registration_confirmation conf;
-    unsigned index;
+    server_internal_connection_state_t *scs    = (server_internal_connection_state_t *)context;
+    int                                 status = 0;
+    char                                buffer[SHM_PAGE_SIZE];  // use for messages
+    fincomm_registration_confirmation   conf;
+    unsigned                            index;
 
     assert(NULL != context);
     assert(scs->server_connection >= 0);
 
     while (scs->server_connection >= 0) {
         server_connection_state_t *new_client = NULL;
-        fincomm_registration_info *reg_info = (fincomm_registration_info *)buffer;
-        struct stat stat;
-        int new_client_fd = -1;
+        fincomm_registration_info *reg_info   = (fincomm_registration_info *)buffer;
+        struct stat                stat;
+        int                        new_client_fd = -1;
 
         new_client_fd = accept(scs->server_connection, 0, 0);
 
@@ -248,7 +246,7 @@ static void *listener(void *context)
 
         assert(NULL != new_client);
         memset(new_client, 0, sizeof(server_connection_state_t));
-        new_client->client_shm_fd = -1;
+        new_client->client_shm_fd     = -1;
         new_client->client_connection = new_client_fd;
 
         if (scs->shutdown) {
@@ -261,7 +259,7 @@ static void *listener(void *context)
         }
         assert(new_client->client_connection >= 0);
         status = read(new_client->client_connection, buffer, sizeof(buffer));
-        assert(status >= sizeof(fincomm_registration_info));
+        assert((size_t)status >= sizeof(fincomm_registration_info));
 
         // Now we have the registration information
         new_client->reg_info = *reg_info;
@@ -278,7 +276,8 @@ static void *listener(void *context)
         assert(stat.st_size >= SHM_PAGE_SIZE);
         new_client->client_shm_size = stat.st_size;
 
-        new_client->client_shm = mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
+        new_client->client_shm =
+            mmap(NULL, new_client->client_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, new_client->client_shm_fd, 0);
         assert(MAP_FAILED != new_client->client_shm);
 
         // initialize the shared memory region
@@ -295,14 +294,13 @@ static void *listener(void *context)
         uuid_copy(conf.ServerId, scs->server_uuid);
         conf.ClientSharedMemSize = new_client->client_shm_size;
 
-
         // Insert into the table
         for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
             if (NULL == scs->client_server_connection_state_table[index]) {
                 inbound_request_worker_info *irwi = (inbound_request_worker_info *)malloc(sizeof(inbound_request_worker_info));
                 assert(NULL != irwi);
-                irwi->index = index;
-                irwi->Scs = scs;
+                irwi->index                                      = index;
+                irwi->Scs                                        = scs;
                 scs->client_server_connection_state_table[index] = new_client;
                 status = pthread_create(&new_client->monitor_thread, NULL, inbound_request_worker, irwi);
                 assert(0 == status);
@@ -310,7 +308,7 @@ static void *listener(void *context)
                 break;
             }
         }
-        assert(index < SHM_MESSAGE_COUNT); // otherwise we ran out of space in our table and need to fix this.
+        assert(index < SHM_MESSAGE_COUNT);  // otherwise we ran out of space in our table and need to fix this.
 
         if (SHM_MESSAGE_COUNT <= index) {
             conf.Result = ENOMEM;
@@ -335,9 +333,9 @@ static void *listener(void *context)
 
 static int CheckForLiveServer(server_internal_connection_state_t *scs)
 {
-    int status = 0;
-    struct stat scs_stat;
-    int client_sock = -1;
+    int                status = 0;
+    struct stat        scs_stat;
+    int                client_sock = -1;
     struct sockaddr_un server_addr;
 
     assert(NULL != scs);
@@ -347,7 +345,7 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
         status = stat(scs->server_connection_name, &scs_stat);
 
         if ((status < 0) && (ENOENT == errno)) {
-            status = 0; // 0 = does not exist
+            status = 0;  // 0 = does not exist
             break;
         }
 
@@ -358,16 +356,15 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
         assert(strlen(scs->server_connection_name) < sizeof(server_addr.sun_path));
         strcpy(server_addr.sun_path, scs->server_connection_name);
 
-        status = connect(client_sock, &server_addr, sizeof(server_addr));
+        status = connect(client_sock, (const struct sockaddr *)&server_addr, sizeof(server_addr));
         if (status < 0) {
             (void)unlink(scs->server_connection_name);
             status = 0;
-            break; // 0 = does not exist
+            break;  // 0 = does not exist
         }
 
         // Done
         break;
-
     }
 
     if (client_sock >= 0) {
@@ -379,14 +376,12 @@ static int CheckForLiveServer(server_internal_connection_state_t *scs)
 
 int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t *FinesseServerHandle)
 {
-    int status = 0;
-    DIR *dir = NULL;
-    server_internal_connection_state_t *scs = NULL;
-    struct sockaddr_un server_saddr;
-
+    int                                 status = 0;
+    DIR *                               dir    = NULL;
+    server_internal_connection_state_t *scs    = NULL;
+    struct sockaddr_un                  server_saddr;
 
     while (NULL == dir) {
-
         scs = malloc(sizeof(server_internal_connection_state_t));
         if (NULL == scs) {
             status = ENOMEM;
@@ -398,7 +393,7 @@ int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t
         dir = opendir(FINESSE_SERVICE_PREFIX);
 
         if ((NULL == dir) && (ENOENT == errno)) {
-            status = mkdir(FINESSE_SERVICE_PREFIX, 0700); // only accessible for this user!
+            status = mkdir(FINESSE_SERVICE_PREFIX, 0700);  // only accessible for this user!
             assert(0 == status);
             dir = opendir(FINESSE_SERVICE_PREFIX);
         }
@@ -423,14 +418,14 @@ int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t
         server_saddr.sun_family = AF_UNIX;
         assert(strlen(scs->server_connection_name) < sizeof(server_saddr.sun_path));
         strncpy(server_saddr.sun_path, scs->server_connection_name, sizeof(server_saddr.sun_path));
-        status = bind(scs->server_connection, (struct sockaddr *) &server_saddr, sizeof(server_saddr));
+        status = bind(scs->server_connection, (struct sockaddr *)&server_saddr, sizeof(server_saddr));
         if (status < 0) {
             status = errno;
             break;
         }
 
         status = listen(scs->server_connection, SHM_MESSAGE_COUNT);
-        assert(status >= 0); // listen shouldn't fail
+        assert(status >= 0);  // listen shouldn't fail
 
         status = pthread_create(&scs->listener_thread, NULL, listener, scs);
         assert(0 == status);
@@ -450,9 +445,9 @@ int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t
 
 int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 {
-    server_internal_connection_state_t *scs = (server_internal_connection_state_t *) FinesseServerHandle;
-    int status = 0;
-    void *result = NULL;
+    server_internal_connection_state_t *scs    = (server_internal_connection_state_t *)FinesseServerHandle;
+    int                                 status = 0;
+    void *                              result = NULL;
 
     assert(NULL != FinesseServerHandle);
 
@@ -475,7 +470,6 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     assert(PTHREAD_CANCELED == result);
     assert(0 == status);
 
-
     for (unsigned index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (NULL != scs->client_server_connection_state_table[index]) {
             teardown_client_connection(scs->client_server_connection_state_table[index]);
@@ -493,10 +487,10 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
 
 int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Client, void *Response)
 {
-    int status = 0;
-    server_internal_connection_state_t *sics = (server_internal_connection_state_t *)FinesseServerHandle;
-    unsigned index = (unsigned)(uintptr_t)Client; //
-    server_connection_state_t *scs = NULL;
+    int                                 status = 0;
+    server_internal_connection_state_t *sics   = (server_internal_connection_state_t *)FinesseServerHandle;
+    unsigned                            index  = (unsigned)(uintptr_t)Client;  //
+    server_connection_state_t *         scs    = NULL;
 
     assert(NULL != sics);
     assert(NULL != Response);
@@ -525,7 +519,8 @@ int FinesseSendResponse(finesse_server_handle_t FinesseServerHandle, void *Clien
 //
 // Yes, this is an ugly subroutine.
 //
-static int scan_for_request(unsigned start, unsigned end, server_internal_connection_state_t *scs, uint64_t *bitmap, fincomm_message *message, unsigned *index)
+static int scan_for_request(unsigned start, unsigned end, server_internal_connection_state_t *scs, uint64_t *bitmap,
+                            fincomm_message *message, unsigned *index)
 {
     int status = ENOENT;
 
@@ -533,11 +528,10 @@ static int scan_for_request(unsigned start, unsigned end, server_internal_connec
 
     // We need to scan across the connected clients to find a message
     for (unsigned i = start; i < end; i++) {
-
         // ignore empty table entries
         if (NULL == scs->client_server_connection_state_table[i]) {
-            assert(0 == ((*bitmap) & make_mask64(i))); // shouldn't be set!
-            continue; // no client
+            assert(0 == ((*bitmap) & make_mask64(i)));  // shouldn't be set!
+            continue;                                   // no client
         }
 
         // if the bit is set, let's see if we can get a message
@@ -552,13 +546,13 @@ static int scan_for_request(unsigned start, unsigned end, server_internal_connec
                 // This client has disconnected
                 teardown_client_connection(scs->client_server_connection_state_table[i]);
                 scs->client_server_connection_state_table[i] = NULL;
-                status = ENOENT;
-                continue; // try the next client
+                status                                       = ENOENT;
+                continue;  // try the next client
             }
-            assert(ENOENT == status); // otherwise, this logic is broken
+            assert(ENOENT == status);  // otherwise, this logic is broken
             // We clear the bit
             (*bitmap) &= ~make_mask64(i);
-            continue; // try the next client
+            continue;  // try the next client
         }
     }
     return status;
@@ -571,21 +565,21 @@ static int scan_for_request(unsigned start, unsigned end, server_internal_connec
 //  It handles requests for all inbound clients to this server (subject to the limit we've coded into
 //  this prototype.)
 //
-int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client,  fincomm_message *Request)
+int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client, fincomm_message *Request)
 {
-    int status = 0;
-    server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
-    client_connection_state_t *ccs = NULL;
-    fincomm_message message = NULL;
-    long int rnd = random() % SHM_MESSAGE_COUNT;
-    unsigned index = SHM_MESSAGE_COUNT;
-    u_int64_t captured_bitmap = 0;
+    int                                 status          = 0;
+    server_internal_connection_state_t *scs             = (server_internal_connection_state_t *)FinesseServerHandle;
+    client_connection_state_t *         ccs             = NULL;
+    fincomm_message                     message         = NULL;
+    long int                            rnd             = random() % SHM_MESSAGE_COUNT;
+    unsigned                            index           = SHM_MESSAGE_COUNT;
+    u_int64_t                           captured_bitmap = 0;
 
     assert(NULL != FinesseServerHandle);
     assert(NULL != Request);
 
     // this operation blocks until it finds a request to return to the caller.
-    for(;;) {
+    for (;;) {
         int found = 0;
 
         pthread_mutex_lock(&scs->monitor_mutex);
@@ -612,17 +606,16 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
                 // other mechanism and for now, this is sufficient.
                 // TODO: review if there's not a better way to monitor for state
                 // changes without multiple threads.
-                pthread_cond_broadcast(&scs->monitor_cond); // wake up the monitor threads
+                pthread_cond_broadcast(&scs->monitor_cond);  // wake up the monitor threads
             }
 
             // wait for state change.  Note that this means we need to signal this condition
             // when: (1) a new client connects (found state changes) or (2) someone notices
             // there are messages waiting to be processed.
-            pthread_cond_wait(&scs->server_cond, &scs->monitor_mutex); // wait for a monitor thread wake this thread up
+            pthread_cond_wait(&scs->server_cond, &scs->monitor_mutex);  // wait for a monitor thread wake this thread up
 
             // the world has changed, so we start back up at the top.
             captured_bitmap = scs->waiting_client_request_bitmap;
-
         }
         pthread_mutex_unlock(&scs->monitor_mutex);
 
@@ -658,16 +651,15 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
         assert(ENOENT == status);
 
         // At this point we will try again, as perhaps the state of the world has changed for us.
-
     }
 
     if (scs->shutdown) {
-        *Client = NULL;
+        *Client  = NULL;
         *Request = NULL;
         return ESHUTDOWN;
     }
 
-    *Client = ccs;
+    *Client  = ccs;
     *Request = message;
     if (NULL == Request) {
         *Client = (void *)SHM_MESSAGE_COUNT;
@@ -690,7 +682,7 @@ fincomm_shared_memory_region *FcGetSharedMemoryRegion(finesse_server_handle_t Se
 const char *fincomm_get_aux_shm_name(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex)
 {
     server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
-    server_connection_state_t *scs = NULL;
+    server_connection_state_t *         scs  = NULL;
 
     assert(NULL != sics);
     scs = sics->client_server_connection_state_table[ClientIndex];
@@ -707,11 +699,10 @@ const char *fincomm_get_aux_shm_name(finesse_server_handle_t ServerHandle, unsig
     return scs->aux_shm_table[MessageIndex].AuxShmName;
 }
 
-
 void *fincomm_get_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex, size_t *Size)
 {
     server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
-    server_connection_state_t *scs = NULL;
+    server_connection_state_t *         scs  = NULL;
 
     assert(NULL != sics);
     scs = sics->client_server_connection_state_table[ClientIndex];
@@ -726,7 +717,7 @@ void *fincomm_get_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientI
     }
 
     scs->aux_shm_table[MessageIndex].AuxInUse = 1;
-    assert(*Size <= scs->aux_shm_table[MessageIndex].AuxShmSize); // otherwise, it's not big enough
+    assert(*Size <= scs->aux_shm_table[MessageIndex].AuxShmSize);  // otherwise, it's not big enough
     *Size = scs->aux_shm_table[MessageIndex].AuxShmSize;
 
     return scs->aux_shm_table[MessageIndex].AuxShmMap;
@@ -735,7 +726,7 @@ void *fincomm_get_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientI
 void fincomm_release_aux_shm(finesse_server_handle_t ServerHandle, unsigned ClientIndex, unsigned MessageIndex)
 {
     server_internal_connection_state_t *sics = (server_internal_connection_state_t *)ServerHandle;
-    server_connection_state_t *scs = NULL;
+    server_connection_state_t *         scs  = NULL;
 
     assert(NULL != sics);
     scs = sics->client_server_connection_state_table[ClientIndex];
@@ -747,16 +738,12 @@ void fincomm_release_aux_shm(finesse_server_handle_t ServerHandle, unsigned Clie
     scs->aux_shm_table[MessageIndex].AuxInUse = 0;
 }
 
-int FinesseGetMessageAuxBuffer(
-    finesse_server_handle_t FinesseServerHandle,
-    void *Client,
-    void *Message,
-    void **Buffer,
-    size_t *BufferSize)
+int FinesseGetMessageAuxBuffer(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message, void **Buffer,
+                               size_t *BufferSize)
 {
-    unsigned index;
+    unsigned                            index;
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
-    unsigned messageIndex;
+    unsigned                            messageIndex;
 
     for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (scs->client_server_connection_state_table[index] == Client) {
@@ -768,20 +755,19 @@ int FinesseGetMessageAuxBuffer(
 
     // TODO: we could use the memory inside the message itself, if there is space
 
-    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm)/SHM_PAGE_SIZE)-1);
-    *Buffer = fincomm_get_aux_shm(FinesseServerHandle, index, messageIndex, BufferSize);
+    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm) /
+                               SHM_PAGE_SIZE) -
+                              1);
+    *Buffer      = fincomm_get_aux_shm(FinesseServerHandle, index, messageIndex, BufferSize);
 
     return 0;
 }
 
-const char *FinesseGetMessageAuxBufferName(
-    finesse_server_handle_t FinesseServerHandle,
-    void *Client,
-    void *Message)
+const char *FinesseGetMessageAuxBufferName(finesse_server_handle_t FinesseServerHandle, void *Client, void *Message)
 {
-    unsigned index;
+    unsigned                            index;
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
-    unsigned messageIndex;
+    unsigned                            messageIndex;
 
     for (index = 0; index < SHM_MESSAGE_COUNT; index++) {
         if (scs->client_server_connection_state_table[index] == Client) {
@@ -791,15 +777,17 @@ const char *FinesseGetMessageAuxBufferName(
 
     assert(index < SHM_MESSAGE_COUNT);
 
-    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm)/SHM_PAGE_SIZE)-1);
+    messageIndex = (unsigned)((((uintptr_t)Message - (uintptr_t)scs->client_server_connection_state_table[index]->client_shm) /
+                               SHM_PAGE_SIZE) -
+                              1);
 
     return scs->client_server_connection_state_table[index]->aux_shm_table[messageIndex].AuxShmName;
 }
 
 uint64_t FinesseGetActiveClientCount(finesse_server_handle_t FinesseServerHandle)
 {
-    uint64_t count = 0;
-    unsigned index;
+    uint64_t                            count = 0;
+    unsigned                            index;
     server_internal_connection_state_t *scs = (server_internal_connection_state_t *)FinesseServerHandle;
 
     assert(NULL != FinesseServerHandle);
@@ -812,9 +800,7 @@ uint64_t FinesseGetActiveClientCount(finesse_server_handle_t FinesseServerHandle
     }
 
     return count;
-
 }
-
 
 #if 0
 //
@@ -873,4 +859,4 @@ int finesse_statfs(const char *path, struct statvfs *buf);
 int finesse_fstatfs(fuse_ino_t nodeid, struct statvfs *buf);
 //int finesse_mkdir(const char *path, mode_t mode);
 //int finesse_mkdirat(int fd, const char *path, mode_t mode);
-#endif // 0
+#endif  // 0

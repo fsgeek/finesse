@@ -3,27 +3,27 @@
 // All Rights Reserved
 //
 #define _GNU_SOURCE
+#include <aio.h>
+#include <assert.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <finesse.h>
+#include <mqueue.h>
+#include <openssl/sha.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <assert.h>
-#include <errno.h>
-#include <unistd.h>
 #include <string.h>
-#include <aio.h>
-#include <mqueue.h>
-#include <stddef.h>
-#include <pthread.h>
-#include <finesse.h>
+#include <unistd.h>
 #include "fcinternal.h"
-#include <openssl/sha.h>
 
 #define FINESSE_SERVICE_NAME "Finesse-1.0"
 
-const char FinesseSharedMemoryRegionSignature[8] = {'F','i','n','e','s','s','e'};
+const char FinesseSharedMemoryRegionSignature[8] = {'F', 'i', 'n', 'e', 's', 's', 'e'};
 
 //
 // This is the common code for the finesse communications package, shared
@@ -33,11 +33,10 @@ const char FinesseSharedMemoryRegionSignature[8] = {'F','i','n','e','s','s','e'}
 static void sha256(const char *Data, size_t DataLength, unsigned char *Hash)
 {
     SHA256_CTX sha256;
-    
+
     SHA256_Init(&sha256);
     SHA256_Update(&sha256, Data, DataLength);
     SHA256_Final(Hash, &sha256);
-
 }
 
 //
@@ -48,49 +47,48 @@ static void sha256(const char *Data, size_t DataLength, unsigned char *Hash)
 //   The primary communications is done via a shared memory region, which is indicated to
 //   the server as part of the start-up message.
 //
-//   
+//
 
 int GenerateServerName(const char *MountPath, char *ServerName, size_t ServerNameLength)
 {
-    int status;
-    unsigned long long hash[SHA256_DIGEST_LENGTH/sizeof(unsigned long long)];
-    char hash_string[1 + (2 * SHA256_DIGEST_LENGTH)];
+    int                status;
+    unsigned long long hash[SHA256_DIGEST_LENGTH / sizeof(unsigned long long)];
+    char               hash_string[1 + (2 * SHA256_DIGEST_LENGTH)];
 
-    status = snprintf(ServerName, ServerNameLength, "%s/%s-%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME, MountPath);   
-    if (status >= ServerNameLength) {
+    status = snprintf(ServerName, ServerNameLength, "%s/%s-%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME, MountPath);
+    if ((size_t)status >= ServerNameLength) {
         return EOVERFLOW;
     }
 
     sha256(ServerName, strlen(ServerName), (unsigned char *)hash);
 
     _Static_assert((sizeof(hash) % sizeof(unsigned long long)) == 0, "invalid hash size");
-    for (unsigned index = 0; index < sizeof(hash)/ sizeof(unsigned long long); index++) {
+    for (unsigned index = 0; index < sizeof(hash) / sizeof(unsigned long long); index++) {
         snprintf(&hash_string[index * sizeof(unsigned long long)], 2 * sizeof(unsigned long long), "%llx", hash[index]);
     }
-    hash_string[sizeof(hash_string)-1] = '\0';
+    hash_string[sizeof(hash_string) - 1] = '\0';
 
     status = snprintf(ServerName, ServerNameLength, "%s/%s-%s", FINESSE_SERVICE_PREFIX, FINESSE_SERVICE_NAME, hash_string);
-    if (status >= ServerNameLength) {
+    if ((size_t)status >= ServerNameLength) {
         return EOVERFLOW;
     }
 
-    return 0; // 0 == success
+    return 0;  // 0 == success
 }
 
 int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId)
 {
-    int status;
+    int  status;
     char uuid_string[40];
 
     uuid_unparse(ClientId, uuid_string);
     status = snprintf(SharedMemoryName, SharedMemoryNameLength, "%s-%lu", uuid_string, (unsigned long)time(NULL));
 
-    if (status >= SharedMemoryNameLength) {
+    if ((size_t)status >= SharedMemoryNameLength) {
         return EOVERFLOW;
     }
-    return 0; // 0 == success;
+    return 0;  // 0 == success;
 }
-
 
 static u_int64_t get_request_number(u_int64_t *RequestNumber)
 {
@@ -106,7 +104,7 @@ static u_int64_t get_request_number(u_int64_t *RequestNumber)
 
 fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion)
 {
-    unsigned index;
+    unsigned  index;
     u_int64_t mask = 1;
     u_int64_t bitmap;
     u_int64_t new_bitmap;
@@ -114,14 +112,14 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     CHECK_SHM_SIGNATURE(RequestRegion);
     assert(NULL != RequestRegion);
     new_bitmap = bitmap = RequestRegion->AllocationBitmap;
-    index = (RequestRegion->LastBufferAllocated + 1) % SHM_MESSAGE_COUNT;
+    index               = (RequestRegion->LastBufferAllocated + 1) % SHM_MESSAGE_COUNT;
     _Static_assert(64 == SHM_MESSAGE_COUNT, "Check bit mask length");
     new_bitmap |= make_mask64(index);
 
     if (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
         // This is the slow path, where we didn't get lucky, so we brute force scan
         for (index = 0; index < SHM_MESSAGE_COUNT; index++, mask = mask << 1) {
-            bitmap = RequestRegion->AllocationBitmap;
+            bitmap     = RequestRegion->AllocationBitmap;
             new_bitmap = bitmap | mask;
             if (__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
                 // found our index
@@ -145,18 +143,17 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
 u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
 {
     // So the message index can be computed
-    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
+    unsigned  index      = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion) / SHM_PAGE_SIZE) - 1);
     u_int64_t request_id = 0;
 
     CHECK_SHM_SIGNATURE(RequestRegion);
     assert(&RequestRegion->Messages[index] == Message);
 
-
     if (0 != (RequestRegion->AllocationBitmap & make_mask64(index))) {
         request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
 
         pthread_mutex_lock(&RequestRegion->RequestMutex);
-        assert(0 == (RequestRegion->RequestBitmap & make_mask64(index))); // this should NOT be set
+        assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));  // this should NOT be set
         RequestRegion->RequestBitmap |= make_mask64(index);
         pthread_cond_signal(&RequestRegion->RequestPending);
         pthread_mutex_unlock(&RequestRegion->RequestMutex);
@@ -167,14 +164,14 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
 
 void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, uint32_t Response)
 {
-    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
+    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion) / SHM_PAGE_SIZE) - 1);
     assert(&RequestRegion->Messages[index] == Message);
-    (void) Response; // not used
+    (void)Response;  // not used
 
     CHECK_SHM_SIGNATURE(RequestRegion);
 
     pthread_mutex_lock(&RequestRegion->ResponseMutex);
-    assert(0 == (RequestRegion->ResponseBitmap & make_mask64(index))); // this should NOT be set
+    assert(0 == (RequestRegion->ResponseBitmap & make_mask64(index)));  // this should NOT be set
     RequestRegion->ResponseBitmap |= make_mask64(index);
     pthread_cond_broadcast(&RequestRegion->ResponsePending);
     pthread_mutex_unlock(&RequestRegion->ResponseMutex);
@@ -182,8 +179,8 @@ void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_m
 
 int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait)
 {
-    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
-    int status = 0;
+    unsigned index  = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion) / SHM_PAGE_SIZE) - 1);
+    int      status = 0;
 
     CHECK_SHM_SIGNATURE(RequestRegion);
 
@@ -195,16 +192,15 @@ int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_mess
     if (!wait) {
         if (0 != (RequestRegion->ResponseBitmap & make_mask64(index))) {
             status = 1;
-            RequestRegion->ResponseBitmap &= ~make_mask64(index); // clear the response pending bit
+            RequestRegion->ResponseBitmap &= ~make_mask64(index);  // clear the response pending bit
         }
-
     }
     else {
         while (0 == (RequestRegion->ResponseBitmap & make_mask64(index))) {
-            pthread_cond_wait(&RequestRegion->ResponsePending, &RequestRegion->ResponseMutex);\
+            pthread_cond_wait(&RequestRegion->ResponsePending, &RequestRegion->ResponseMutex);
         }
         status = 1;
-        RequestRegion->ResponseBitmap &= ~make_mask64(index); // clear the response pending bit
+        RequestRegion->ResponseBitmap &= ~make_mask64(index);  // clear the response pending bit
     }
     pthread_mutex_unlock(&RequestRegion->ResponseMutex);
     return status;
@@ -220,7 +216,7 @@ int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion)
 
     pthread_mutex_lock(&RequestRegion->RequestMutex);
 
-    while ((0 == RequestRegion->RequestBitmap) && (0 == RequestRegion->ShutdownRequested)){
+    while ((0 == RequestRegion->RequestBitmap) && (0 == RequestRegion->ShutdownRequested)) {
         RequestRegion->RequestWaiters++;
         pthread_cond_wait(&RequestRegion->RequestPending, &RequestRegion->RequestMutex);
         RequestRegion->RequestWaiters--;
@@ -238,20 +234,19 @@ int FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion)
 // DOES NOT BLOCK.
 int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_message *message)
 {
-    unsigned int index = SHM_MESSAGE_COUNT; // invalid value
-    u_int64_t mask = 1;
-    long int rnd = random() % SHM_MESSAGE_COUNT;
-    unsigned i;
-    u_int64_t original_bitmap;
-    int status = EINVAL;
+    unsigned int index = SHM_MESSAGE_COUNT;  // invalid value
+    u_int64_t    mask  = 1;
+    long int     rnd   = random() % SHM_MESSAGE_COUNT;
+    unsigned     i;
+    u_int64_t    original_bitmap;
+    int          status = EINVAL;
 
     assert(rnd < SHM_MESSAGE_COUNT);
     pthread_mutex_lock(&RequestRegion->RequestMutex);
     while (SHM_MESSAGE_COUNT == index) {
-
         // if shutdown requested, we're done
         if (RequestRegion->ShutdownRequested) {
-            index = SHM_MESSAGE_COUNT; // no allocation in the shutdown path
+            index  = SHM_MESSAGE_COUNT;  // no allocation in the shutdown path
             status = ENOTCONN;
             break;
         }
@@ -262,21 +257,21 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
         }
 
         // start from the random value and start looking
-        mask = make_mask64(rnd);
+        mask            = make_mask64(rnd);
         original_bitmap = RequestRegion->RequestBitmap;
         for (i = rnd; i < SHM_MESSAGE_COUNT; i++) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
-                RequestRegion->RequestBitmap &= ~mask; // clear the bit
-                index = i; // note which one we found
+                RequestRegion->RequestBitmap &= ~mask;  // clear the bit
+                index = i;                              // note which one we found
                 break;
             }
             mask = mask << 1;
         }
         if (i < SHM_MESSAGE_COUNT) {
-            index = i;
+            index  = i;
             status = 0;
-            break; // we already found one
+            break;  // we already found one
         }
 
         // now check from 0 to the random value
@@ -284,8 +279,8 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
         for (i = 0; i < rnd; i++) {
             if (RequestRegion->RequestBitmap & mask) {
                 // found one!
-                RequestRegion->RequestBitmap &= ~mask; // clear the bit
-                index = i; // note which one we found
+                RequestRegion->RequestBitmap &= ~mask;  // clear the bit
+                index = i;                              // note which one we found
                 break;
             }
             mask = mask << 1;
@@ -293,7 +288,7 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
 
         // If we found one, note which one and break out
         if (i < rnd) {
-            index = i;
+            index  = i;
             status = 0;
             break;
         }
@@ -305,9 +300,9 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
         assert(original_bitmap & make_mask64(index));
     }
     pthread_mutex_unlock(&RequestRegion->RequestMutex);
-    
+
     if (0 == status) {
-        assert (index < SHM_MESSAGE_COUNT);        
+        assert(index < SHM_MESSAGE_COUNT);
         assert(0 != RequestRegion->Messages[index].RequestId);
         *message = &RequestRegion->Messages[index];
     }
@@ -321,22 +316,22 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
 int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
 {
     pthread_mutexattr_t mattr;
-    pthread_condattr_t cattr;
-    int status;
+    pthread_condattr_t  cattr;
+    int                 status;
 
     assert(NULL != Fsmr);
     assert(sizeof(Fsmr->Signature) == sizeof(FinesseSharedMemoryRegionSignature));
     memcpy(Fsmr->Signature, FinesseSharedMemoryRegionSignature, sizeof(FinesseSharedMemoryRegionSignature));
     uuid_generate(Fsmr->ClientId);
     uuid_generate(Fsmr->ServerId);
-    Fsmr->RequestBitmap = 0;
+    Fsmr->RequestBitmap  = 0;
     Fsmr->ResponseBitmap = 0;
     Fsmr->RequestWaiters = 0;
     memset(Fsmr->UnusedRegion, 0, sizeof(Fsmr->UnusedRegion));
-    Fsmr->AllocationBitmap = 0;
-    Fsmr->RequestId = (u_int64_t)(-10);
-    Fsmr->ShutdownRequested = 0;
-    Fsmr->LastBufferAllocated = SHM_MESSAGE_COUNT - 1; // so we start at 0
+    Fsmr->AllocationBitmap    = 0;
+    Fsmr->RequestId           = (u_int64_t)(-10);
+    Fsmr->ShutdownRequested   = 0;
+    Fsmr->LastBufferAllocated = SHM_MESSAGE_COUNT - 1;  // so we start at 0
 
     status = pthread_mutexattr_init(&mattr);
     assert(0 == status);
@@ -367,14 +362,14 @@ int FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr)
 
 int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
 {
-    int status;
+    int      status;
     unsigned retry = 0;
 
     CHECK_SHM_SIGNATURE(Fsmr);
 
     assert(NULL != Fsmr);
-    assert(0 == Fsmr->ShutdownRequested); // don't call twice!
-    assert(0 == Fsmr->AllocationBitmap); // shouldn't have any outstanding buffer allocations!
+    assert(0 == Fsmr->ShutdownRequested);  // don't call twice!
+    assert(0 == Fsmr->AllocationBitmap);   // shouldn't have any outstanding buffer allocations!
 
     Fsmr->ShutdownRequested = 1;
     pthread_mutex_lock(&Fsmr->RequestMutex);
@@ -393,7 +388,6 @@ int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
     }
     pthread_mutex_unlock(&Fsmr->RequestMutex);
 
-
     status = pthread_mutex_destroy(&Fsmr->RequestMutex);
     assert(0 == status);
 
@@ -408,5 +402,3 @@ int FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr)
 
     return status;
 }
-
-
