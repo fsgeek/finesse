@@ -24,9 +24,11 @@
 static enum fuse_log_level BitbucketLogLevel = BITBUCKET_DEFAULT_LOG_LEVEL;
 static FILE *              logFile;
 
-static void bitbucket_log_func(__attribute__((unused)) enum fuse_log_level level, const char *fmt, va_list ap)
+static void bitbucket_log_func(enum fuse_log_level level, const char *fmt, va_list ap)
 {
-    vfprintf(logFile, fmt, ap);
+    if (level <= BitbucketLogLevel) {
+        vfprintf(logFile, fmt, ap);
+    }
 }
 
 static const char *LogLevelToString(enum fuse_log_level LogLevel)
