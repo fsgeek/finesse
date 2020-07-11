@@ -13,7 +13,7 @@ int closedir(DIR *dir);
 void rewinddir(DIR *dir);
 
 void todo_opendir(void);
-void todo_opendir(void) 
+void todo_opendir(void)
 {
 
 }

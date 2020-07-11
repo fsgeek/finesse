@@ -100,7 +100,7 @@ int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t
     size_t                 entry_length = offsetof(bitbucket_dir_entry_t, Name);
     size_t                 name_length  = 0;
     void *                 tobj         = NULL;
-    int                    status;
+    int                    status       = 0;
 
     assert(NULL != DirInode);
     assert(NULL != Inode);

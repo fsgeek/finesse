@@ -22,8 +22,8 @@
 #include <sys/ioctl.h>
 
 enum {
-	FIOC_GET_SIZE	= _IOR('E', 0, size_t),
-	FIOC_SET_SIZE	= _IOW('E', 1, size_t),
+	FIOC_GET_SIZE	= (int) _IOR('E', 0, size_t), // cast avoids pedantic warning
+	FIOC_SET_SIZE	= (int) _IOW('E', 1, size_t),
 
 	/*
 	 * The following two ioctls don't follow usual encoding rules

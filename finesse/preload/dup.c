@@ -17,7 +17,7 @@ int dup2(int oldfd, int newfd);
 int dup3(int oldfd, int newfd, int flags);
 
 void todo_dup(void);
-void todo_dup(void) 
+void todo_dup(void)
 {
 
 }

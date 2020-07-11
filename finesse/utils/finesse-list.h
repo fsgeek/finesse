@@ -58,7 +58,7 @@ FORCEDINLINE void initialize_list_entry(list_entry_t *entry)
 
 #define initialize_list(l) initialize_list_entry(l)
 
-FORCEDINLINE void verify_list_entry(list_entry_t *entry) 
+FORCEDINLINE void verify_list_entry(list_entry_t *entry)
 {
     assert(entry->next->prev == entry);
     assert(entry->prev->next == entry);
@@ -72,7 +72,7 @@ FORCEDINLINE int remove_list_entry(list_entry_t *entry)
 
     next = entry->next;
     prev = entry->prev;
-    
+
     next->prev = prev;
     prev->next = next;
 
@@ -122,7 +122,7 @@ FORCEDINLINE void insert_list_head(list_entry_t *list, list_entry_t *entry)
     list->next = entry;
     verify_list_entry(list);
     verify_list_entry(entry);
-   
+
 }
 
 #endif // __TM_LIST_H__

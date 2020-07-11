@@ -26,7 +26,7 @@ int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     fmsg->MessageClass = FINESSE_FUSE_MESSAGE;
     fmsg->Result = ENOSYS;
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_UNLINK;
-    memcpy(&fmsg->Message.Fuse.Request.Parameters.Unlink.Parent, Parent, sizeof(uuid_t)); // at least for now, we only support 
+    memcpy(&fmsg->Message.Fuse.Request.Parameters.Unlink.Parent, Parent, sizeof(uuid_t)); // at least for now, we only support
     assert(NULL != NameToUnlink);
     nameLength = strlen(NameToUnlink);
     bufSize = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Unlink.Name);
@@ -53,7 +53,7 @@ int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void 
     assert (index < SHM_MESSAGE_COUNT);
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
-    
+
     Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
     ffm = (finesse_msg *)Message->Data;

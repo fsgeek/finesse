@@ -131,7 +131,9 @@ void BitbucketFormatCallDataEntry(bitbucket_call_statistics_t *CallDataEntry, in
         CallDataEntry->ElapsedTime.tv_sec * (unsigned long)1000000000 + (unsigned long)CallDataEntry->ElapsedTime.tv_nsec;
     double average;
 #pragma GCC diagnostic push
+#if !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif // __clang__
     // It fusses about the fact that this might truncate the value of... something.  Don't care, this is
     // diagnostic code!
     static const char *FormatString =

@@ -16,7 +16,7 @@ int linkat(int olddirfd, const char *oldpath,
             int newdirfd, const char *newpath, int flags);
 
 void todo_link(void);
-void todo_link(void) 
+void todo_link(void)
 {
 
 }

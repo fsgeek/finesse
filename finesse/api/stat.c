@@ -162,7 +162,7 @@ static int fin_fstatat(int dirfd, const char *pathname, struct stat *statbuf, in
         }
     }
 
-    return orig_fstatat(dirfd, pathname, statbuf, flags); 
+    return orig_fstatat(dirfd, pathname, statbuf, flags);
 }
 
 
@@ -190,5 +190,5 @@ int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int f
     FinesseFreeStatResponse(finesse_client_handle, message);
 
     return result;
-  
+
 }

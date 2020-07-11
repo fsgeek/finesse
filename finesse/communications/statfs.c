@@ -54,7 +54,7 @@ int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, void 
     assert (index < SHM_MESSAGE_COUNT);
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
-    
+
     Message->Result = Result;
     Message->MessageType = FINESSE_RESPONSE;
 
@@ -153,4 +153,3 @@ void FinesseFreeFstatfsResponse(finesse_client_handle_t FinesseClientHandle, fin
 {
     FinesseFreeClientResponse(FinesseClientHandle, Response);
 }
- 

@@ -102,18 +102,21 @@ static void __start_test(const char *fmt, ...)
 	__start_test(msg);		\
 }
 
-#define start_test_args(msg, args...) { \
+#define start_test_args(msg, ...) { \
 	if ((select_test && testnum != select_test) || \
 	    (testnum == skip_test)) { \
 		testnum++; \
 		return 0; \
 	} \
-	__start_test(msg, ##args);		\
+	__start_test(msg, __VA_ARGS__);		\
 }
 
 #define PERROR(msg) test_perror(__func__, msg)
 #define ERROR(msg) test_error(__func__, msg)
-#define ERROR_ARGS(msg, args...) test_error(__func__, msg, ##args)
+// #define ERROR_ARGS(msg, args...) test_error(__func__, msg, ##args)
+#define ERROR_ARGS(msg, ...) test_error(__func__, msg, __VA_ARGS__)
+
+
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -1665,7 +1668,7 @@ fail:
 
 	rmdir(PATH("a/d/e"));
 	rmdir(PATH("a/d"));
- 
+
  	rmdir(PATH("a/b/c"));
 	rmdir(PATH("a/b"));
 	rmdir(PATH("a"));
@@ -1900,7 +1903,7 @@ int main(int argc, char *argv[])
 	err += test_symlink();
 	err += test_link();
 	err += test_link2();
-#ifndef __FreeBSD__	
+#ifndef __FreeBSD__
 	err += test_mknod();
 	err += test_mkfifo();
 #endif
