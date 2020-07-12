@@ -5,21 +5,17 @@
 
 #define _GNU_SOURCE
 
-#include "test_utils.h"
-#include "../utils/crc32c.h"
-#include "../utils/murmurhash3.h"
 #include <finesse-fuse.h>
 #include <stdlib.h>
 #include <uuid/uuid.h>
+#include "../include/crc32c.h"
+#include "../include/murmurhash3.h"
+#include "test_utils.h"
 
 #define __packed __attribute__((packed))
 #define __notused __attribute__((unused))
 
-static
-MunitResult
-test_table_basics(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_table_basics(const MunitParameter params[] __notused, void *prv __notused)
 {
     finesse_object_table_t *table = NULL;
 
@@ -47,11 +43,11 @@ test_table_basics(
 }
 
 typedef struct _test_object {
-    fuse_ino_t          inode;
-    uuid_t              uuid;
-    unsigned            lookups;
-    unsigned            releases;
-    pthread_rwlock_t    Lock;
+    fuse_ino_t       inode;
+    uuid_t           uuid;
+    unsigned         lookups;
+    unsigned         releases;
+    pthread_rwlock_t Lock;
 } test_object_t;
 
 static void lock_test_object(test_object_t *Object, int Exclusive)
@@ -62,17 +58,17 @@ static void lock_test_object(test_object_t *Object, int Exclusive)
     else {
         pthread_rwlock_rdlock(&Object->Lock);
     }
-
 }
 
-static void unlock_test_object(test_object_t *Object) {
+static void unlock_test_object(test_object_t *Object)
+{
     pthread_rwlock_unlock(&Object->Lock);
 }
 
 static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uint32_t ObjectCount)
 {
-    test_object_t *objects = NULL;
-    finesse_object_t *fobj = NULL;
+    test_object_t *   objects = NULL;
+    finesse_object_t *fobj    = NULL;
 
     munit_assert(NULL != Table);
     munit_assert(ObjectCount < (1024 * 1024 * 1024));
@@ -82,14 +78,14 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
 
     for (uint32_t index = 0; index < ObjectCount; index++) {
         do {
-            objects[index].inode = (fuse_ino_t) random();
+            objects[index].inode = (fuse_ino_t)random();
             pthread_rwlock_init(&objects[index].Lock, NULL);
-        } while(0 == objects[index].inode);
+        } while (0 == objects[index].inode);
 
         uuid_generate(objects[index].uuid);
-        objects[index].lookups = 1;
+        objects[index].lookups  = 1;
         objects[index].releases = 0;
-        fobj = FinesseObjectCreate(Table, objects[index].inode, &objects[index].uuid);
+        fobj                    = FinesseObjectCreate(Table, objects[index].inode, &objects[index].uuid);
         munit_assert(NULL != fobj);
         munit_assert(fobj->inode == objects[index].inode);
         munit_assert(0 == uuid_compare(fobj->uuid, objects[index].uuid));
@@ -98,13 +94,14 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
     return objects;
 }
 
-static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count, unsigned Iterations)
+static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count,
+                                               unsigned Iterations)
 {
-    unsigned iterations = 0;
-    unsigned index = 0;
+    unsigned          iterations = 0;
+    unsigned          index      = 0;
     finesse_object_t *fo;
-    int inode_lookup = 0;
-    unsigned count = 0;
+    int               inode_lookup = 0;
+    unsigned          count        = 0;
 
     while (iterations++ < Iterations) {
         count = 0;
@@ -128,21 +125,20 @@ static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, te
                 count++;
             }
 
-            munit_assert((NULL != fo) ||  (Objects[index].lookups == Objects[index].releases));
+            munit_assert((NULL != fo) || (Objects[index].lookups == Objects[index].releases));
             unlock_test_object(&Objects[index]);
         }
-
     }
-
 }
 
-static void lookup_multiple_objects_random(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count, unsigned Iterations)
+static void lookup_multiple_objects_random(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count,
+                                           unsigned Iterations)
 {
-    unsigned iterations = 0;
-    unsigned index = 0;
+    unsigned          iterations = 0;
+    unsigned          index      = 0;
     finesse_object_t *fo;
-    int inode_lookup = 0;
-    unsigned count = 0;
+    int               inode_lookup = 0;
+    unsigned          count        = 0;
 
     while (iterations++ < Iterations) {
         count = 0;
@@ -167,22 +163,18 @@ static void lookup_multiple_objects_random(finesse_object_table_t *Table, test_o
                 count++;
             }
 
-            munit_assert((NULL != fo) ||  (Objects[index].lookups == Objects[index].releases));
+            munit_assert((NULL != fo) || (Objects[index].lookups == Objects[index].releases));
             unlock_test_object(&Objects[index]);
         }
-
     }
-
 }
 
 static void release_multiple_objects(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count)
 {
-
     finesse_object_t *fobj = NULL;
-    finesse_object_t tobj;
+    finesse_object_t  tobj;
 
     for (unsigned index = 0; index < Count; index++) {
-
         munit_assert(Objects[index].lookups >= Objects[index].releases);
 
         while (Objects[index].lookups > Objects[index].releases) {
@@ -198,26 +190,20 @@ static void release_multiple_objects(finesse_object_table_t *Table, test_object_
         munit_assert(NULL == fobj);
 
         pthread_rwlock_destroy(&Objects[index].Lock);
-
     }
 
     free(Objects);
 }
 
-
-static
-MunitResult
-test_table_insert(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_table_insert(const MunitParameter params[] __notused, void *prv __notused)
 {
-    finesse_object_table_t *table = NULL;
-    test_object_t *objects = NULL;
-    test_object_t *tobj = NULL;
-    finesse_object_t fobj;
-    finesse_object_t *tfobj;
-    uuid_t scratch_uuid;
-    const unsigned count = 1024;
+    finesse_object_table_t *table   = NULL;
+    test_object_t *         objects = NULL;
+    test_object_t *         tobj    = NULL;
+    finesse_object_t        fobj;
+    finesse_object_t *      tfobj;
+    uuid_t                  scratch_uuid;
+    const unsigned          count = 1024;
 
     // First, a simple test
     table = FinesseCreateTable(0);
@@ -232,7 +218,7 @@ test_table_insert(
     tobj = NULL;
 
     // Now, let's create an object and make sure we can look it up
-    
+
     objects = insert_multiple_objects(table, 1);
 
     tfobj = FinesseObjectLookupByIno(table, objects[0].inode);
@@ -297,18 +283,12 @@ test_table_insert(
     lookup_multiple_objects_random(table, objects, count, count * 10);
 
     return MUNIT_OK;
-
 }
 
-
-static
-MunitResult
-test_hash(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_hash(const MunitParameter params[] __notused, void *prv __notused)
 {
-    const uint32_t check_crc32c = 0xe3069283;
-    const char *check_crc32c_str = "123456789";
+    const uint32_t check_crc32c     = 0xe3069283;
+    const char *   check_crc32c_str = "123456789";
 
     munit_assert(check_crc32c == crc32c(0, check_crc32c_str, strlen(check_crc32c_str)));
 
@@ -318,17 +298,17 @@ test_hash(
 }
 
 typedef struct {
-    finesse_object_table_t  *Table;
-    test_object_t           *Objects;
-    unsigned                 ObjectCount;
-    unsigned                 Iterations;
+    finesse_object_table_t *Table;
+    test_object_t *         Objects;
+    unsigned                ObjectCount;
+    unsigned                Iterations;
 } fl_params_t;
 
 static void *deleter(void *arg)
 {
-    fl_params_t *parameters = (arg);
-    unsigned iterations = 0;
-    unsigned index = 0;
+    fl_params_t *    parameters = (arg);
+    unsigned         iterations = 0;
+    unsigned         index      = 0;
     finesse_object_t fo;
 
     munit_assert(NULL != parameters);
@@ -337,9 +317,7 @@ static void *deleter(void *arg)
         index = random() % parameters->ObjectCount;
 
         lock_test_object(&parameters->Objects[index], 1);
-        if (parameters->Objects[index].lookups >
-            parameters->Objects[index].releases) {
-            
+        if (parameters->Objects[index].lookups > parameters->Objects[index].releases) {
             fo.inode = parameters->Objects[index].inode;
             uuid_copy(fo.uuid, parameters->Objects[index].uuid);
             FinesseObjectRelease(parameters->Table, &fo);
@@ -354,9 +332,9 @@ static void *deleter(void *arg)
 
 static void *ino_reader(void *arg)
 {
-    fl_params_t *parameters = (arg);
-    unsigned iterations = 0;
-    unsigned index = 0;
+    fl_params_t *     parameters = (arg);
+    unsigned          iterations = 0;
+    unsigned          index      = 0;
     finesse_object_t *fo;
 
     munit_assert(NULL != parameters);
@@ -367,9 +345,7 @@ static void *ino_reader(void *arg)
         lock_test_object(&parameters->Objects[index], 0);
         fo = FinesseObjectLookupByIno(parameters->Table, parameters->Objects[index].inode);
 
-        munit_assert((NULL != fo) ||
-                     (parameters->Objects[index].lookups ==
-                      parameters->Objects[index].releases));
+        munit_assert((NULL != fo) || (parameters->Objects[index].lookups == parameters->Objects[index].releases));
         if (NULL != fo) {
             // This is a lookup
             parameters->Objects[index].lookups++;
@@ -383,9 +359,9 @@ static void *ino_reader(void *arg)
 
 static void *uuid_reader(void *arg)
 {
-    fl_params_t *parameters = (arg);
-    unsigned iterations = 0;
-    unsigned index = 0;
+    fl_params_t *     parameters = (arg);
+    unsigned          iterations = 0;
+    unsigned          index      = 0;
     finesse_object_t *fo;
 
     munit_assert(NULL != parameters);
@@ -396,9 +372,7 @@ static void *uuid_reader(void *arg)
         lock_test_object(&parameters->Objects[index], 0);
         fo = FinesseObjectLookupByUuid(parameters->Table, &parameters->Objects[index].uuid);
 
-        munit_assert((NULL != fo) ||
-                     (parameters->Objects[index].lookups ==
-                      parameters->Objects[index].releases));
+        munit_assert((NULL != fo) || (parameters->Objects[index].lookups == parameters->Objects[index].releases));
         if (NULL != fo) {
             // This is a lookup
             parameters->Objects[index].lookups++;
@@ -410,21 +384,17 @@ static void *uuid_reader(void *arg)
     pthread_exit(arg);
 }
 
-static
-MunitResult
-test_mt(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_mt(const MunitParameter params[] __notused, void *prv __notused)
 {
-    fl_params_t p;
-    finesse_object_table_t *table = NULL;
-    test_object_t *objects = NULL;
-    const unsigned count = 3;
-    pthread_t del_thread;
-    pthread_t ino_thread;
-    pthread_t uuid_thread;
-    int status;
-    void *thread_return = NULL;
+    fl_params_t             p;
+    finesse_object_table_t *table   = NULL;
+    test_object_t *         objects = NULL;
+    const unsigned          count   = 3;
+    pthread_t               del_thread;
+    pthread_t               ino_thread;
+    pthread_t               uuid_thread;
+    int                     status;
+    void *                  thread_return = NULL;
 
     // First, a simple test
     table = FinesseCreateTable(0);
@@ -433,10 +403,10 @@ test_mt(
     objects = insert_multiple_objects(table, count);
     munit_assert(NULL != objects);
 
-    p.Table = table;
-    p.Iterations = 102400;
+    p.Table       = table;
+    p.Iterations  = 102400;
     p.ObjectCount = count;
-    p.Objects = objects;
+    p.Objects     = objects;
 
     status = pthread_create(&ino_thread, NULL, ino_reader, &p);
     assert(0 == status);
@@ -464,24 +434,17 @@ test_mt(
     FinesseDestroyTable(table);
 
     return MUNIT_OK;
-
-} 
+}
 
 static MunitTest tests[] = {
-    TEST("/null", test_null, NULL),
-    TEST("/hash", test_hash, NULL),
-    TEST("/basics", test_table_basics, NULL),
-    TEST("/insert", test_table_insert, NULL),
-    TEST("/mt", test_mt, NULL),
-    TEST(NULL, NULL, NULL),
+    TEST("/null", test_null, NULL),           TEST("/hash", test_hash, NULL), TEST("/basics", test_table_basics, NULL),
+    TEST("/insert", test_table_insert, NULL), TEST("/mt", test_mt, NULL),     TEST(NULL, NULL, NULL),
 };
-
 
 const MunitSuite fastlookup_suite = {
-    .prefix = (char *)(uintptr_t)"/fastlookup",
-    .tests = tests,
-    .suites = NULL,
+    .prefix     = (char *)(uintptr_t) "/fastlookup",
+    .tests      = tests,
+    .suites     = NULL,
     .iterations = 1,
-    .options = MUNIT_SUITE_OPTION_NONE,
+    .options    = MUNIT_SUITE_OPTION_NONE,
 };
-

@@ -52,6 +52,7 @@ bitbucket_sources = [
 
 executable ('bitbucket',
             bitbucket_sources,
+			c_args: [ '-DFUSE_USE_VERSION=39'],
             link_with: [libfuse, finesse_utils],
             dependencies: [libfuse_dep],
             install: false

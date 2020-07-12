@@ -26,7 +26,7 @@ static MunitResult test_insert(const MunitParameter params[] __notused, void *pr
     const char *             testattrname = "testattr";
     char                     testdata[]   = "This is some test data\0And some more";
 
-    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS, 0);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);
@@ -73,7 +73,7 @@ static MunitResult test_lookup(const MunitParameter params[] __notused, void *pr
     size_t                   dataLength;
     const void *             data;
 
-    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS, 0);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);
@@ -107,7 +107,7 @@ static MunitResult test_remove(const MunitParameter params[] __notused, void *pr
     const char *             testattrname = "testattr";
     char                     testdata[]   = "This is some test data\0And some more";
 
-    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS, 0);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);

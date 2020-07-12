@@ -6,39 +6,35 @@
 #include "config.h"
 #endif
 
-#include "test_bitbucket.h"
-#include "bitbucket.h"
 #include <stdlib.h>
+#include "bitbucket.h"
+#include "test_bitbucket.h"
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
-#endif //
+#endif  //
 
-static
-MunitResult
-test_create(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_create(const MunitParameter params[] __notused, void *prv __notused)
 {
-    bitbucket_inode_t *rootdir = NULL;
-    const unsigned file_count = 4096;
+    bitbucket_inode_t *rootdir    = NULL;
+    const unsigned     file_count = 4096;
     struct _file_data {
         bitbucket_inode_t *inode;
         uuid_t             Uuid;
         char               UuidString[40];
-    } *file_data;
-    int status = 0;
-    uint64_t refcount;
-    uint64_t predictedRefCount = 0;
-    bitbucket_inode_table_t *Table = NULL;
+    } * file_data;
+    int                      status = 0;
+    uint64_t                 refcount;
+    uint64_t                 predictedRefCount = 0;
+    bitbucket_inode_table_t *Table             = NULL;
 
-    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS, 0);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
     refcount = BitbucketGetInodeReferenceCount(rootdir);
-    munit_assert(4 == refcount); // lookup + 2 dir entries + parent ref
+    munit_assert(4 == refcount);  // lookup + 2 dir entries + parent ref
     predictedRefCount = refcount;
 
     file_data = (struct _file_data *)malloc(sizeof(struct _file_data) * file_count);
@@ -51,18 +47,18 @@ test_create(
         munit_assert(NULL != file_data[index].inode);
         munit_assert(file_data[index].inode->Attributes.st_nlink > 0);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
-        munit_assert(predictedRefCount == refcount); // shouldn't change
+        munit_assert(predictedRefCount == refcount);  // shouldn't change
     }
 
     for (unsigned index = 0; index < file_count; index++) {
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
-        munit_assert(2 == refcount); // lookup + 1 dir
+        munit_assert(2 == refcount);  // lookup + 1 dir
 
         status = BitbucketRemoveFileFromDirectory(rootdir, file_data[index].UuidString);
         munit_assert(0 == status);
 
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
-        munit_assert(1 == refcount); // lookup
+        munit_assert(1 == refcount);  // lookup
 
         BitbucketDereferenceInode(file_data[index].inode, INODE_LOOKUP_REFERENCE, 1);
         file_data[index].inode = NULL;
@@ -77,7 +73,7 @@ test_create(
     munit_assert(1 == refcount);
     BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
-    
+
     BitbucketDestroyInodeTable(Table);
 
     if (NULL != file_data) {
@@ -87,30 +83,26 @@ test_create(
     return MUNIT_OK;
 }
 
-static
-MunitResult
-test_forget(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_forget(const MunitParameter params[] __notused, void *prv __notused)
 {
-    bitbucket_inode_t *rootdir = NULL;
-    const unsigned file_count = 4096;
+    bitbucket_inode_t *rootdir    = NULL;
+    const unsigned     file_count = 4096;
     struct _file_data {
         bitbucket_inode_t *inode;
         uuid_t             Uuid;
         char               UuidString[40];
-    } *file_data;
-    int status = 0;
-    uint64_t refcount;
-    uint64_t predictedRefCount = 0;
-    bitbucket_inode_table_t *Table = NULL;
+    } * file_data;
+    int                      status = 0;
+    uint64_t                 refcount;
+    uint64_t                 predictedRefCount = 0;
+    bitbucket_inode_table_t *Table             = NULL;
 
-    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    Table = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS, 0);
     munit_assert(NULL != Table);
 
     rootdir = BitbucketCreateRootDirectory(Table);
     munit_assert(NULL != rootdir);
-    refcount = BitbucketGetInodeReferenceCount(rootdir);
+    refcount          = BitbucketGetInodeReferenceCount(rootdir);
     predictedRefCount = refcount;
 
     file_data = (struct _file_data *)malloc(sizeof(struct _file_data) * file_count);
@@ -122,14 +114,14 @@ test_forget(
         file_data[index].inode = BitbucketCreateFile(rootdir, file_data[index].UuidString, NULL);
         munit_assert(NULL != file_data[index].inode);
         refcount = BitbucketGetInodeReferenceCount(rootdir);
-        munit_assert(predictedRefCount == refcount); // shouldn't change
+        munit_assert(predictedRefCount == refcount);  // shouldn't change
     }
 
     for (unsigned index = 0; index < file_count; index++) {
         ino_t ino;
 
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
-        munit_assert(2 == refcount); // lookup + 1 dir
+        munit_assert(2 == refcount);  // lookup + 1 dir
 
         status = BitbucketRemoveFileFromDirectory(rootdir, file_data[index].UuidString);
         munit_assert(0 == status);
@@ -139,7 +131,7 @@ test_forget(
         munit_assert(ENOENT == status);
 
         refcount = BitbucketGetInodeReferenceCount(file_data[index].inode);
-        munit_assert(1 == refcount); // lookup
+        munit_assert(1 == refcount);  // lookup
 
         // Let's create a FUSE style "lookup" reference
         BitbucketReferenceInode(file_data[index].inode, INODE_FUSE_LOOKUP_REFERENCE);
@@ -166,7 +158,7 @@ test_forget(
     munit_assert(1 == refcount);
     BitbucketDereferenceInode(rootdir, INODE_LOOKUP_REFERENCE, 1);
     rootdir = NULL;
-    
+
     BitbucketDestroyInodeTable(Table);
 
     if (NULL != file_data) {
@@ -177,18 +169,16 @@ test_forget(
 }
 
 static const MunitTest file_tests[] = {
-        TEST("/null", test_null, NULL),
-        TEST("/create", test_create, NULL),
-        TEST("/forget", test_forget, NULL),
-    	TEST(NULL, NULL, NULL),
-    };
-
-const MunitSuite file_suite = {
-    .prefix = (char *)(uintptr_t)"/file",
-    .tests = (MunitTest *)(uintptr_t)file_tests,
-    .suites = NULL,
-    .iterations = 1,
-    .options = MUNIT_SUITE_OPTION_NONE,
+    TEST("/null", test_null, NULL),
+    TEST("/create", test_create, NULL),
+    TEST("/forget", test_forget, NULL),
+    TEST(NULL, NULL, NULL),
 };
 
-
+const MunitSuite file_suite = {
+    .prefix     = (char *)(uintptr_t) "/file",
+    .tests      = (MunitTest *)(uintptr_t)file_tests,
+    .suites     = NULL,
+    .iterations = 1,
+    .options    = MUNIT_SUITE_OPTION_NONE,
+};

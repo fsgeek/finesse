@@ -5,9 +5,8 @@
 // All Rights Reserved
 //
 
-#define FUSE_USE_VERSION 39
-
 #include "bitbucket.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 #include "bitbucketcalls.h"
 
 #define BITBUCKET_DEFAULT_LOG_LEVEL FUSE_LOG_ERR
@@ -143,6 +143,8 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
     .lseek           = bitbucket_lseek,
 };
 
+#define BITBUCKET_DEFAULT_INODE_TABLE_SIZE (8192)
+
 static bitbucket_userdata_t BBud = {
     .Magic             = BITBUCKET_USER_DATA_MAGIC,
     .Debug             = 0,
@@ -157,23 +159,38 @@ static bitbucket_userdata_t BBud = {
     .BackgroundForget  = 0,
     .FlushEnable       = 0,
     .VerifyDirectories = 0,
+    .InodeTableSize    = BITBUCKET_DEFAULT_INODE_TABLE_SIZE,
 };
 
 static void bitbucket_help(void)
 {
     printf("    --no_writeback - disable writeback caching\n");
-    printf("    --storagedir=<path> - location to use for temporary storage (default /tmp/bitbucket)\n");
-    printf("    --callstat=<path> - location to write call statistics on dismount\n");
+    printf(
+        "    --storagedir=<path> - location to use for temporary storage"
+        " (default /tmp/bitbucket)\n");
+    printf(
+        "    --callstat=<path> - location to write call statistics on "
+        "dismount\n");
     printf("    --timeout=<seconds> - attribute timeout (default=3600)\n");
     printf("    --disable_cache - disables all caching (default=enabled)\n");
     printf("    --fsync - enables fsync (default=disabled)\n");
     printf("    --enable_xattr - enable xattr support (default=disabled)\n");
-    printf("    --bgforget - enable background forget handling (default=disabled)\n");
+    printf(
+        "    --bgforget - enable background forget handling "
+        "(default=disabled)\n");
     printf("    --flush - enable flush handling (default=disabled)\n");
-    printf("    --verifydirectories - enable directory consistency checks (default=disabled)\n");
+    printf(
+        "    --verifydirectories - enable directory consistency checks "
+        "(default=disabled)\n");
     printf("    --logfile=<path> - location to write log output (default stderr)\n");
-    printf("    --loglevel=<level> - logging level (least = %d to most = %d, default = %d)\n", (int)FUSE_LOG_EMERG,
-           (int)FUSE_LOG_DEBUG, BitbucketLogLevel);
+    printf(
+        "    --loglevel=<level> - logging level (least = %d to most = %d, "
+        "default = %d)\n",
+        (int)FUSE_LOG_EMERG, (int)FUSE_LOG_DEBUG, BitbucketLogLevel);
+    printf(
+        "    --inodetablesize=<numeric> - adjust the inode table size (default = "
+        "%zu)\n",
+        (size_t)BITBUCKET_DEFAULT_INODE_TABLE_SIZE);
 }
 
 static const struct fuse_opt bitbucket_opts[] = {
@@ -189,6 +206,7 @@ static const struct fuse_opt bitbucket_opts[] = {
     {"--verifydirectories", offsetof(bitbucket_userdata_t, VerifyDirectories), 1},
     {"--logfile=%s", offsetof(bitbucket_userdata_t, LogFile), 0},
     {"--loglevel=%d", offsetof(bitbucket_userdata_t, LogLevel), BITBUCKET_DEFAULT_LOG_LEVEL},
+    {"--inodetablesize=%d", offsetof(bitbucket_userdata_t, InodeTableSize), BITBUCKET_DEFAULT_INODE_TABLE_SIZE},
     FUSE_OPT_END};
 
 int main(int argc, char *argv[])

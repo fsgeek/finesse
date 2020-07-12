@@ -3,6 +3,8 @@
 // Tony Mason
 // All Rights Reserved
 
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <unistd.h>
 
@@ -62,7 +64,7 @@ static int bitbucket_internal_init(void *userdata, struct fuse_conn_info *conn)
 
     BBud->Magic = BITBUCKET_USER_DATA_MAGIC;
     CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
-    BBud->InodeTable = BitbucketCreateInodeTable(BITBUCKET_INODE_TABLE_BUCKETS);
+    BBud->InodeTable = BitbucketCreateInodeTable(BBud->InodeTableSize, 0);
     assert(NULL != BBud->InodeTable);
     BBud->RootDirectory = BitbucketCreateRootDirectory(BBud->InodeTable);
     assert(NULL != BBud->RootDirectory);
@@ -109,11 +111,12 @@ void bitbucket_destroy(void *userdata)
 
 int bitbucket_internal_destroy(void *userdata)
 {
-    bitbucket_userdata_t *BBud            = (bitbucket_userdata_t *)userdata;
-    unsigned              index           = 0;
-    const char *          calldata_string = BitbucketFormatCallData(NULL, 0);  //
-    int                   fd              = -1;
-    ssize_t               written         = 0;
+    bitbucket_userdata_t *BBud             = (bitbucket_userdata_t *)userdata;
+    unsigned              index            = 0;
+    const char *          calldata_string  = BitbucketFormatCallData(NULL, 0);
+    int                   fd               = -1;
+    ssize_t               written          = 0;
+    const char *          tabledata_string = BitbucketFormattedInodeTableStatistics(BBud->InodeTable, 0);
 
     if (NULL != calldata_string) {
         if (NULL != BBud->CallStatFile) {
@@ -133,11 +136,17 @@ int bitbucket_internal_destroy(void *userdata)
         }
 
         if (0 >= written) {
-            fuse_log(FUSE_LOG_INFO, "Bitbucket Final Call Data:\n%s\n", calldata_string);
+            fuse_log(FUSE_LOG_CRIT, "Bitbucket Final Call Data:\n%s\n", calldata_string);
         }
 
         BitbucketFreeFormattedCallData(calldata_string);
         calldata_string = NULL;
+    }
+
+    if (NULL != tabledata_string) {
+        fuse_log(FUSE_LOG_CRIT, "Bitbucket Inode Table Data:\n%s\n", tabledata_string);
+        BitbucketFreeFormattedInodeTableStatistics(tabledata_string);
+        tabledata_string = NULL;
     }
 
     // Let's undo the work that we did in init.

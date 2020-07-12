@@ -94,7 +94,7 @@ typedef struct _lookup_entry {
 #define CHECK_FAST_LOOKUP_ENTRY_MAGIC(fle) \
     verify_magic("lookup_entry_t", __FILE__, __func__, __LINE__, FAST_LOOKUP_TABLE_MAGIC, (fle)->Magic)
 
-uint64_t (*HashFunction)(void *Data, size_t DataLength);
+// uint64_t (*HashFunction)(void *Data, size_t DataLength);
 
 static uint64_t truncate_hash(uint64_t UntruncatedHash, uint8_t Shift)
 {

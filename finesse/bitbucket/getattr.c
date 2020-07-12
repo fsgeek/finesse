@@ -2,6 +2,7 @@
 // (C) Copyright 2020
 // Tony Mason
 // All Rights Reserved
+#define _GNU_SOURCE
 
 #include <errno.h>
 #include "bitbucket.h"
@@ -10,7 +11,8 @@
 static int bitbucket_internal_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 
 // FUSE getattr handler
-void bitbucket_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+void bitbucket_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
     struct timespec start, stop, elapsed;
     int             status, tstatus;
 
@@ -23,7 +25,8 @@ void bitbucket_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     BitbucketCountCall(BITBUCKET_CALL_GETATTR, status ? 0 : 1, &elapsed);
 }
 
-static int bitbucket_internal_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+static int bitbucket_internal_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+{
     void *                userdata = fuse_req_userdata(req);
     bitbucket_userdata_t *BBud     = (bitbucket_userdata_t *)userdata;
     bitbucket_inode_t *   inode    = NULL;
@@ -40,7 +43,8 @@ static int bitbucket_internal_getattr(fuse_req_t req, fuse_ino_t ino, struct fus
     if (FUSE_ROOT_ID == ino) {
         inode = BBud->RootDirectory;
         BitbucketReferenceInode(inode, INODE_LOOKUP_REFERENCE);
-    } else {
+    }
+    else {
         inode = BitbucketLookupInodeInTable(BBud->InodeTable, ino);
     }
 

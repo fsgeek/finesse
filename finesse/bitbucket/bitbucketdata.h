@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <uuid/uuid.h>
+
 #include "finesse-list.h"
 #include "trie.h"
 
@@ -38,9 +39,10 @@ typedef struct _bitbucket_inode    bitbucket_inode_t;
 typedef struct _bitbucket_userdata bitbucket_userdata_t;
 
 typedef struct _bitbucket_file {
-    uint64_t     Magic;  // magic number
-    char *       MapName;
-    void *       Map;  // non-zero if we have a mapped file we're using for storage; length is in st_size
+    uint64_t Magic;  // magic number
+    char *   MapName;
+    void *   Map;  // non-zero if we have a mapped file we're using for storage;
+                   // length is in st_size
     uint64_t     Readers;
     uint64_t     Writers;
     uint64_t     WaitingReaders;
@@ -96,6 +98,7 @@ struct _bitbucket_userdata {
     int                 FlushEnable;
     int                 FsyncEnable;
     int                 VerifyDirectories;
+    size_t              InodeTableSize;
     const char *        LogFile;
     enum fuse_log_level LogLevel;
     // These are some magic directories I'm going to create
@@ -129,9 +132,11 @@ struct _bitbucket_userdata {
 int                BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode);
 void               BitbucketRemoveInodeFromTable(bitbucket_inode_t *Inode);
 bitbucket_inode_t *BitbucketLookupInodeInTable(void *Table, ino_t Inode);
-void *             BitbucketCreateInodeTable(uint16_t BucketCount);
+void *             BitbucketCreateInodeTable(uint32_t BucketCount, uint64_t HashSeed);
 void               BitbucketDestroyInodeTable(void *Table);
 uint64_t           BitbucketGetInodeTableCount(void *Table);
+const char *       BitbucketFormattedInodeTableStatistics(void *Table, int CsvFormat);
+void               BitbucketFreeFormattedInodeTableStatistics(const char *InodeTableStatistics);
 
 #define BITBUCKET_DIR_TYPE (0x10)
 #define BITBUCKET_FILE_TYPE (0x11)
@@ -141,13 +146,17 @@ uint64_t           BitbucketGetInodeTableCount(void *Table);
 
 //
 // This allows coordination with the specialization component
-//   * Initialize - this is called with the specialized portion of the object for initialization
-//   * Deallocate - this is called when the reference count drops to zero.  Note that it is called with the lock held.
-//                  The lock is assumed to be released (and likely destroyed) upon return.
-//   * Lock - this is called whenever the reference count is changing; shared or exclusive.
+//   * Initialize - this is called with the specialized portion of the object
+//   for initialization
+//   * Deallocate - this is called when the reference count drops to zero.  Note
+//   that it is called with the lock held.
+//                  The lock is assumed to be released (and likely destroyed)
+//                  upon return.
+//   * Lock - this is called whenever the reference count is changing; shared or
+//   exclusive.
 //   * Unlock - this is called whenever the reference count change is complete
-// The lock/unlock operation(s) are optional.  If they are not provided, the object package will
-// use an internal default lock
+// The lock/unlock operation(s) are optional.  If they are not provided, the
+// object package will use an internal default lock
 //
 #define BITBUCKET_MAX_REFERENCE_REASONS (12)
 #define BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH (32)
@@ -156,7 +165,8 @@ typedef struct _bitbucket_object_attributes {
     uint8_t  ReasonCount;
     char     ReferenceReasonsNames[BITBUCKET_MAX_REFERENCE_REASONS][BITBUCKET_MAX_REFERENCE_REASON_NAME_LENGTH + 1];
     void (*Initialize)(void *Object, size_t Length);  //
-    void (*Deallocate)(void *Object, size_t Length);  // Call this when the reference count drops to zero
+    void (*Deallocate)(void * Object,
+                       size_t Length);  // Call this when the reference count drops to zero
     void (*Lock)(void *Object, int Exclusive);
     int (*Trylock)(void *Object, int Exclusive);
     void (*Unlock)(void *Object);
@@ -254,8 +264,8 @@ void BitbucketCleanupDirectoryEnumerationContext(bitbucket_dir_enum_context_t *E
 const bitbucket_dir_entry_t *BitbucketEnumerateDirectory(bitbucket_dir_enum_context_t *EnumerationContext);
 int                          BitbucketSeekDirectory(bitbucket_dir_enum_context_t *EnumerationContext, uint64_t Offset);
 
-// Create a reference counted object;  On return the region returned will be at least
-// ObjectSize bytes long and may be used as the caller sees fit.
+// Create a reference counted object;  On return the region returned will be at
+// least ObjectSize bytes long and may be used as the caller sees fit.
 //
 // Note: the callbacks registered are invoked as needed:
 //   * initialize (set up this object)
@@ -310,7 +320,8 @@ void BitbucketDestroyExtendedAttributes(bitbucket_inode_t *Inode);
 // Given an inode, insert it into the directory with the specified name.
 int BitbucketInsertDirectoryEntry(bitbucket_inode_t *DirInode, bitbucket_inode_t *Inode, const char *Name);
 
-// Given a directory, search for the name; if found, return a (referenced) pointer to the inode
+// Given a directory, search for the name; if found, return a (referenced)
+// pointer to the inode
 void BitbucketLookupObjectInDirectory(bitbucket_inode_t *Inode, const char *Name, bitbucket_inode_t **Object);
 
 // Given an inode, remove it from the specified entry.
