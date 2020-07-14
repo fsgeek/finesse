@@ -145,13 +145,14 @@ static const struct fuse_lowlevel_ops bitbucket_ll_oper = {
 
 #define BITBUCKET_DEFAULT_INODE_TABLE_SIZE (8192)
 
+static const char *DefaultStorageDir = "/tmp/bitbucket";
+
 static bitbucket_userdata_t BBud = {
     .Magic             = BITBUCKET_USER_DATA_MAGIC,
     .Debug             = 0,
     .RootDirectory     = NULL,
     .InodeTable        = NULL,
     .AttrTimeout       = 3600.0,  // pretty arbitrary value
-    .StorageDir        = "/tmp/bitbucket",
     .Writeback         = 1,
     .CachePolicy       = 1,
     .FsyncDisable      = 1,
@@ -252,6 +253,10 @@ int main(int argc, char *argv[])
 
     if (NULL != BBud.LogFile) {
         BitbucketSetupLogging(&BBud);
+    }
+
+    if (NULL == BBud.StorageDir) {
+        BBud.StorageDir = DefaultStorageDir;
     }
 
     if (NULL != BBud.StorageDir) {
