@@ -300,6 +300,10 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
         }
         insert_list_head(&table->Buckets[bucketId].ListEntry, &ite->ListEntry);
         table->Buckets[bucketId].Count++;
+
+        if (table->Buckets[bucketId].Count > table->Buckets[bucketId].MaxCount) {
+            table->Buckets[bucketId].MaxCount = table->Buckets[bucketId].Count;
+        }
         CHECK_BITBUCKET_INODE_TABLE_ENTRY_MAGIC(ite);
 
         ite = NULL;
@@ -320,6 +324,8 @@ int BitbucketInsertInodeInTable(void *Table, bitbucket_inode_t *Inode)
         fuse_log(FUSE_LOG_ALERT, "Inode bucket capacity (0x%x) exceeds threshold\n", bucketId);
         reported = 1;
     }
+
+    //
 
     // bump the table occupancy count
     count = __atomic_fetch_add(&table->InodeCount, 1, __ATOMIC_RELAXED);
@@ -542,6 +548,7 @@ const char *BitbucketFormattedInodeTableStatistics(void *Table, int CsvFormat)
     size_t                              required_space = 0;
     char *                              formatted_data = NULL;
     static const char *                 csvHeader      = "MaxEntries, CacheHits, Lookups,Failed";
+    static const char *                 header         = "Max        Cache Hit  Lookup    Failure";
 
     assert(NULL != table);
     assert(NULL != data);
@@ -549,6 +556,9 @@ const char *BitbucketFormattedInodeTableStatistics(void *Table, int CsvFormat)
     if (CsvFormat) {
         // string + 1 for null + 7 (and mask) for round-up
         required_space = (sizeof(csvHeader) + 8) & (~7);
+    }
+    else {
+        required_space = (sizeof(header) + 8) & (~7);
     }
 
     for (unsigned index = 0; index < table->BucketCount; index++) {
@@ -564,6 +574,17 @@ const char *BitbucketFormattedInodeTableStatistics(void *Table, int CsvFormat)
     if (NULL != formatted_data) {
         size_t space_used = 0;
 
+        // Add useful header
+        if (CsvFormat) {
+            space_used = strlen(csvHeader);
+            memcpy(formatted_data, csvHeader, space_used);
+        }
+        else {
+            space_used = strlen(header);
+            memcpy(formatted_data, header, space_used);
+        }
+
+        // Now for the data
         for (unsigned index = 0; index < table->BucketCount; index++) {
             size_t space_for_entry = required_space - space_used;
             size_t entry_space     = space_for_entry;
