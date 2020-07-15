@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include "bitbucket.h"
 #include "bitbucketcalls.h"
 
@@ -102,12 +103,28 @@ static int bitbucket_internal_write_buf(fuse_req_t req, fuse_ino_t ino, struct f
         assert(NULL != bufv);
         offset = off;
         for (unsigned index = 0; index < bufv->count; index++) {
+            off_t foff = offset;
+
             if (bufv->idx >= index) {
                 char *ptr = (char *)((uintptr_t)inode->Instance.File.Map);
-                assert(0 == bufv->buf[index].flags);  // we aren't using any flags...
-                assert((uintptr_t)(offset + bufv->buf[index].size) <= (uintptr_t)inode->Attributes.st_size);
-                memcpy(ptr + offset, bufv->buf[index].mem, bufv->buf[index].size);
-                offset += bufv->buf[index].size;
+
+                if (0 != (FUSE_BUF_FD_SEEK & bufv->buf[index].flags)) {
+                    // While the _name_ suggests its only used with the FD,
+                    // the commentary in the header file doesn't indicate this.
+                    foff = bufv->buf[index].pos;
+                }
+
+                if (0 != (FUSE_BUF_IS_FD & bufv->buf[index].flags)) {
+                    ssize_t bytesread = 0;
+
+                    bytesread = pread(bufv->buf[index].fd, ptr + offset, bufv->buf[index].size, foff);
+                    offset += bytesread;
+                }
+                else {
+                    assert((uintptr_t)(offset + bufv->buf[index].size) <= (uintptr_t)inode->Attributes.st_size);
+                    memcpy(ptr + foff, bufv->buf[index].mem, bufv->buf[index].size);
+                    offset += bufv->buf[index].size;
+                }
             }
         }
         BitbucketUnlockInode(inode);
