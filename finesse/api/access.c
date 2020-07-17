@@ -3,7 +3,6 @@
  * All Rights Reserved
  */
 
-
 #include "api-internal.h"
 
 static int fin_access(const char *pathname, int mode)
@@ -23,16 +22,14 @@ static int fin_access(const char *pathname, int mode)
     }
 
     return orig_access(pathname, mode);
-
 }
-
 
 int finesse_access(const char *pathname, int mode)
 {
-    int status;
-    fincomm_message message;
+    int                     status;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
+    int                     result;
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
@@ -43,7 +40,7 @@ int finesse_access(const char *pathname, int mode)
 
     status = FinesseSendAccessRequest(finesse_client_handle, NULL, pathname, mode, &message);
     assert(0 == status);
-    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);    
+    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);
     assert(0 == status);
     FinesseFreeAccessResponse(finesse_client_handle, message);
 
@@ -68,16 +65,15 @@ static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
     }
 
     return orig_faccessat(dirfd, pathname, mode, flags);
-
 }
 
 int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
-    int status;
-    finesse_file_state_t *file_state = NULL;
-    fincomm_message message;
+    int                     status;
+    finesse_file_state_t *  file_state = NULL;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
+    int                     result;
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
@@ -100,7 +96,7 @@ int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
 
     status = FinesseSendAccessRequest(finesse_client_handle, &file_state->key, pathname, mode, &message);
     assert(0 == status);
-    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);    
+    status = FinesseGetAccessResponse(finesse_client_handle, message, &result);
     assert(0 == status);
     FinesseFreeAccessResponse(finesse_client_handle, message);
 

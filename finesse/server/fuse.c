@@ -3,12 +3,11 @@
 //
 #include "fs-internal.h"
 
-
 static const char *finesse_request_type_to_string(FINESSE_FUSE_REQ_TYPE Type)
 {
     const char *str = "UNKNOWN REQUEST TYPE";
 
-    switch(Type) {
+    switch (Type) {
         case FINESSE_FUSE_REQ_STATFS:
             str = "statfs";
             break;
@@ -139,7 +138,7 @@ static const char *finesse_request_type_to_string(FINESSE_FUSE_REQ_TYPE Type)
             str = "lseek";
             break;
         default:
-            break; // just use the default string type
+            break;  // just use the default string type
     }
 
     return str;
@@ -147,22 +146,21 @@ static const char *finesse_request_type_to_string(FINESSE_FUSE_REQ_TYPE Type)
 
 int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincomm_message Message)
 {
-    finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
-    finesse_msg *fmsg = NULL;
+    finesse_server_handle_t fsh  = (finesse_server_handle_t)se->server_handle;
+    finesse_msg *           fmsg = NULL;
 
     if (NULL == fsh) {
         return ENOTCONN;
     }
 
-    assert(FINESSE_REQUEST == Message->MessageType); // nothing else makes sense here
+    assert(FINESSE_REQUEST == Message->MessageType);  // nothing else makes sense here
     assert(NULL != Message);
     fmsg = (finesse_msg *)Message->Data;
     assert(NULL != fmsg);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
 
-    fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) type %d (%s)\n", 
-        __func__, fmsg, fmsg->Message.Fuse.Request.Type,
-        finesse_request_type_to_string(fmsg->Message.Fuse.Request.Type));
+    fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) type %d (%s)\n", __func__, fmsg, fmsg->Message.Fuse.Request.Type,
+             finesse_request_type_to_string(fmsg->Message.Fuse.Request.Type));
 
     FinesseCountFuseRequest(fmsg->Message.Fuse.Request.Type);
 
@@ -180,6 +178,10 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
             FinesseServerFuseAccess(se, Client, Message);
             break;
 
+        case FINESSE_FUSE_REQ_UNLINK:
+            FinesseServerFuseUnlink(se, Client, Message);
+            break;
+
         case FINESSE_FUSE_REQ_LOOKUP:
         case FINESSE_FUSE_REQ_FORGET:
         case FINESSE_FUSE_REQ_GETATTR:
@@ -187,7 +189,6 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         case FINESSE_FUSE_REQ_READLINK:
         case FINESSE_FUSE_REQ_MKNOD:
         case FINESSE_FUSE_REQ_MKDIR:
-        case FINESSE_FUSE_REQ_UNLINK:
         case FINESSE_FUSE_REQ_RMDIR:
         case FINESSE_FUSE_REQ_SYMLINK:
         case FINESSE_FUSE_REQ_RENAME:
@@ -223,7 +224,7 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
         default:
             fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) returning ENOTSUP\n", __func__, fmsg);
             fmsg->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;
-            fmsg->Result = ENOTSUP;
+            fmsg->Result                     = ENOTSUP;
             FinesseSendResponse(fsh, Client, Message);
             break;
     }

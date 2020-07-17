@@ -35,8 +35,6 @@ static int bitbucket_internal_lookup(fuse_req_t req, fuse_ino_t parent, const ch
 
     CHECK_BITBUCKET_USER_DATA_MAGIC(BBud);
 
-    assert(0 == finesse_get_provider(req));
-
     if (FUSE_ROOT_ID == parent) {
         parentInode = BBud->RootDirectory;
         BitbucketReferenceInode(parentInode, INODE_LOOKUP_REFERENCE);

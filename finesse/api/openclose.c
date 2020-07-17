@@ -5,24 +5,24 @@
 
 #include "api-internal.h"
 
-
-/* 
- * REF: https://rafalcieslak.wordpress.com/2013/04/02/dynamic-linker-tricks-using-ld_preload-to-cheat-inject-features-and-investigate-programs/
+/*
+ * REF:
+ * https://rafalcieslak.wordpress.com/2013/04/02/dynamic-linker-tricks-using-ld_preload-to-cheat-inject-features-and-investigate-programs/
  *      https://github.com/poliva/ldpreloadhook/blob/master/hook.c
  */
 
 struct map_name_args {
     const char *mapfile_name;
-    uuid_t *uuid;
-    int *status;  
+    uuid_t *    uuid;
+    int *       status;
 };
 
 static int fin_open(const char *pathname, int flags, ...)
 {
-    typedef int (*orig_open_t)(const char *pathname, int flags, ...); 
+    typedef int (*orig_open_t)(const char *pathname, int flags, ...);
     static orig_open_t orig_open = NULL;
-    va_list args;
-    mode_t mode;
+    va_list            args;
+    mode_t             mode;
 
     if (NULL == orig_open) {
 #pragma GCC diagnostic push
@@ -37,24 +37,24 @@ static int fin_open(const char *pathname, int flags, ...)
         }
     }
 
-	va_start (args, flags);
-	mode = va_arg (args, int);
-	va_end (args);
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
 
-    return orig_open(pathname,flags, mode);
+    return orig_open(pathname, flags, mode);
 }
 
 static int fin_openat(int dirfd, const char *pathname, int flags, ...)
 {
     typedef int (*orig_openat_t)(int dirfd, const char *pathname, int flags, ...);
     static orig_openat_t orig_openat = NULL;
-    va_list args;
-    mode_t mode;
+    va_list              args;
+    mode_t               mode;
 
     if (NULL == orig_openat) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-        orig_openat = (orig_openat_t) dlsym(RTLD_NEXT, "openat");
+        orig_openat = (orig_openat_t)dlsym(RTLD_NEXT, "openat");
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_openat);
@@ -79,7 +79,7 @@ static int fin_close(int fd)
     if (NULL == orig_close) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-        orig_close = (orig_close_t) dlsym(RTLD_NEXT, "close");
+        orig_close = (orig_close_t)dlsym(RTLD_NEXT, "close");
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_close);
@@ -96,14 +96,14 @@ static int fin_close(int fd)
 
 int finesse_open(const char *pathname, int flags, ...)
 {
-    int fd;
-    va_list args;
-    mode_t mode;
-    int status;
-    uuid_t uuid;
-    fincomm_message message = NULL;
+    int                     fd;
+    va_list                 args;
+    mode_t                  mode;
+    int                     status;
+    uuid_t                  uuid;
+    fincomm_message         message       = NULL;
     finesse_client_handle_t client_handle = NULL;
-    finesse_file_state_t *ffs = NULL;
+    finesse_file_state_t *  ffs           = NULL;
 
     va_start(args, flags);
     mode = va_arg(args, int);
@@ -124,7 +124,7 @@ int finesse_open(const char *pathname, int flags, ...)
     memset(&uuid, 0, sizeof(uuid));
     status = FinesseSendNameMapRequest(client_handle, &uuid, (char *)(uintptr_t)pathname, &message);
 
-    if (0 != status ) {
+    if (0 != status) {
         // fallback
         return fin_open(pathname, flags, mode);
     }
@@ -148,7 +148,6 @@ int finesse_open(const char *pathname, int flags, ...)
             return fd;
         }
         FinesseFreeNameMapResponse(client_handle, message);
-
     }
 
     // the open succeeded
@@ -156,33 +155,32 @@ int finesse_open(const char *pathname, int flags, ...)
         // lookup failed
         return fd;
     }
-    
+
     // open succeeded AND lookup succeeded - insert into the lookup table
     // Note that if this failed (file_state is null) we don't care - that
     // just turns this into a fallback case.
     ffs = finesse_create_file_state(fd, client_handle, &uuid, pathname);
-    assert(NULL != ffs); // if it failed, we'd need to release the name map
+    assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return finesse_fd_to_nfd(fd);
 }
 
-
-int finesse_creat(const char *pathname, mode_t mode) 
+int finesse_creat(const char *pathname, mode_t mode)
 {
-    int fd = finesse_open(pathname, O_CREAT|O_WRONLY|O_TRUNC, mode);
+    int fd = finesse_open(pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
 
     return finesse_fd_to_nfd(fd);
 }
 
 int finesse_openat(int dirfd, const char *pathname, int flags, ...)
 {
-    int fd;
-    va_list args;
-    mode_t mode;
-    int status;
-    uuid_t uuid;
-    fincomm_message message = NULL;
-    finesse_file_state_t *ffs = NULL;
+    int                   fd;
+    va_list               args;
+    mode_t                mode;
+    int                   status;
+    uuid_t                uuid;
+    fincomm_message       message = NULL;
+    finesse_file_state_t *ffs     = NULL;
 
     va_start(args, flags);
     mode = va_arg(args, int);
@@ -193,7 +191,8 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
     //
     if (AT_FDCWD == dirfd) {
         // special case
-        assert(0); // TODO
+        // assert(0); // TODO
+        return fin_openat(dirfd, pathname, flags, mode);
     }
 
     // Let's see if we know about this file descriptor
@@ -234,12 +233,12 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
         // name map failed
         return fd;
     }
-    
+
     // open succeeded AND lookup succeeded - insert into the lookup table
     // Note that if this failed (file_state is null) we don't care - that
     // just turns this into a fallback case.
     ffs = finesse_create_file_state(fd, ffs->client, &uuid, pathname);
-    assert(NULL != ffs); // if it failed, we'd need to release the name map
+    assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return finesse_fd_to_nfd(fd);
 }
@@ -247,7 +246,7 @@ int finesse_openat(int dirfd, const char *pathname, int flags, ...)
 int finesse_close(int fd)
 {
     finesse_file_state_t *file_state = NULL;
-    int status = 0;
+    int                   status     = 0;
 
     status = fin_close(finesse_nfd_to_fd(fd));
 
@@ -267,13 +266,13 @@ int finesse_close(int fd)
 
 static FILE *fin_fopen(const char *pathname, const char *mode)
 {
-    typedef FILE * (*orig_fopen_t)(const char *pathname, const char *mode);
+    typedef FILE *(*orig_fopen_t)(const char *pathname, const char *mode);
     static orig_fopen_t orig_fopen = NULL;
 
     if (NULL == orig_fopen) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-        orig_fopen = (orig_fopen_t) dlsym(RTLD_NEXT, "fopen");
+        orig_fopen = (orig_fopen_t)dlsym(RTLD_NEXT, "fopen");
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_fopen);
@@ -284,18 +283,17 @@ static FILE *fin_fopen(const char *pathname, const char *mode)
     }
 
     return orig_fopen(pathname, mode);
-
 }
 
 static FILE *fin_fdopen(int fd, const char *mode)
 {
-    typedef FILE * (*orig_fdopen_t)(int fd, const char *mode);
+    typedef FILE *(*orig_fdopen_t)(int fd, const char *mode);
     static orig_fdopen_t orig_fdopen = NULL;
 
     if (NULL == orig_fdopen) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-        orig_fdopen = (orig_fdopen_t) dlsym(RTLD_NEXT, "fdopen");
+        orig_fdopen = (orig_fdopen_t)dlsym(RTLD_NEXT, "fdopen");
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_fdopen);
@@ -306,18 +304,17 @@ static FILE *fin_fdopen(int fd, const char *mode)
     }
 
     return orig_fdopen(fd, mode);
-
 }
 
 static FILE *fin_freopen(const char *pathname, const char *mode, FILE *stream)
 {
-    typedef FILE * (*orig_freopen_t)(const char *pathname, const char *mode, FILE *stream);
+    typedef FILE *(*orig_freopen_t)(const char *pathname, const char *mode, FILE *stream);
     static orig_freopen_t orig_freopen = NULL;
 
     if (NULL == orig_freopen) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-        orig_freopen = (orig_freopen_t) dlsym(RTLD_NEXT, "freopen");
+        orig_freopen = (orig_freopen_t)dlsym(RTLD_NEXT, "freopen");
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_freopen);
@@ -341,17 +338,16 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
     // Something to consider: glibc supports options for these files to be _memory mapped_
     // Not sure if we need to handle that differently, or not
     //
-    FILE *file;
-    int status;
-    uuid_t uuid;
-    fincomm_message message = NULL;
+    FILE *                  file;
+    int                     status;
+    uuid_t                  uuid;
+    fincomm_message         message               = NULL;
     finesse_client_handle_t finesse_client_handle = NULL;
-    finesse_file_state_t *ffs = NULL;
+    finesse_file_state_t *  ffs                   = NULL;
 
     finesse_client_handle = finesse_check_prefix(pathname);
-    
-    if (NULL == finesse_client_handle) 
-    {
+
+    if (NULL == finesse_client_handle) {
         // not of interest
         return fin_fopen(pathname, mode);
     }
@@ -383,7 +379,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
         // otherwise, the fopen failed, but the remote map succeeded
         // release the name map
         status = FinesseSendNameMapReleaseRequest(finesse_client_handle, &uuid, &message);
-        (void) FinesseFreeNameMapResponse(finesse_client_handle, message);
+        (void)FinesseFreeNameMapResponse(finesse_client_handle, message);
 
         if (0 != status) {
             // Note that something went wrong with the server, maybe it
@@ -400,7 +396,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
     // Open + lookup both worked, so we need to track the file descriptor
     // to uuid mapping.
     ffs = finesse_create_file_state(fileno(file), finesse_client_handle, &uuid, pathname);
-    assert(NULL != ffs); // if it failed, we'd need to release the name map
+    assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return fin_fopen(pathname, mode);
 }
@@ -426,13 +422,13 @@ FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream)
     //   old non-finesse name -> new non-finesse name
     //
     // We care about all but the last of those cases
-    FILE *file = NULL;
-    int status = 0;
-    uuid_t uuid;
-    fincomm_message message = NULL;
-    finesse_file_state_t *ffs = NULL;
+    FILE *                  file   = NULL;
+    int                     status = 0;
+    uuid_t                  uuid;
+    fincomm_message         message       = NULL;
+    finesse_file_state_t *  ffs           = NULL;
     finesse_client_handle_t client_handle = NULL;
-    int fd = -1;
+    int                     fd            = -1;
 
     // Need the fd, since this is an implicit close of the underlying file.
     fd = fileno(stream);
@@ -462,24 +458,23 @@ FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream)
     file = fin_freopen(pathname, mode, stream);
 
     if ((NULL == client_handle) || (0 != status)) {
-        return file; // not of interest to us
+        return file;  // not of interest to us
     }
 
     // Name map request returned, so get the response.
     status = FinesseGetNameMapResponse(client_handle, message, &uuid);
-    (void) FinesseFreeNameMapResponse(client_handle, message);
+    (void)FinesseFreeNameMapResponse(client_handle, message);
 
     if (0 != status) {
         // Name map failed
         return file;
     }
 
-    assert(NULL != file); // in this case we need to do the name map release
+    assert(NULL != file);  // in this case we need to do the name map release
 
     // create state for this file
     ffs = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname);
-    assert(NULL != ffs); // if it failed, we'd need to release the name map
+    assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return fin_freopen(pathname, mode, stream);
-
 }

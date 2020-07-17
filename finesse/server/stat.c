@@ -21,6 +21,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
     double                   timeout;
     char                     uuid_buffer[40];
     const char *             Name = uuid_buffer;
+    struct statx             statbuf;
 
     assert(NULL != se);
     assert(NULL != Client);
@@ -65,10 +66,12 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
             // This must be name based, so let's go get the inode; we're skipping inserting it into
             // the inode tracking list.
             Name   = &fmsg->Message.Fuse.Request.Parameters.Stat.Name[0];
-            status = FinsesseServerInternalNameLookup(se, parentino, Name, &ino);
+            status = FinesseServerInternalNameLookup(se, parentino, Name, &statbuf);
             if (0 != status) {
+                FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, status);
                 break;
             }
+            ino = statbuf.stx_ino;
         }
         else {
             // This is UUID based; note that we shouldn't get both a parent AND file Inode - that's a logic error

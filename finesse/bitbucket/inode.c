@@ -489,8 +489,8 @@ static void FormatInodeTableData(const bitbucket_inode_table_bucket_data_t *Buck
     size_t             retval          = 0;
 
     if (CsvFormat) {
-        retval = snprintf(Buffer, *BufferSize, CsvFormatString, CsvFormatString, BucketData->MaxEntries, BucketData->CacheHits,
-                          BucketData->Lookups, BucketData->Failed);
+        retval = snprintf(Buffer, *BufferSize, CsvFormatString, BucketData->MaxEntries, BucketData->CacheHits, BucketData->Lookups,
+                          BucketData->Failed);
     }
     else {
         retval = snprintf(Buffer, *BufferSize, FormatString, BucketData->MaxEntries, BucketData->CacheHits, BucketData->Lookups,

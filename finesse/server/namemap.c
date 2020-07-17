@@ -8,7 +8,8 @@
 // just maps the name to the corresponding fuse_ino_t.  The caller may just use it
 // or could keep it.  Note that the caller must release it at some point!
 //
-int FinsesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, fuse_ino_t *InodeNumber) {
+int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, struct statx *attr)
+{
     struct fuse_req *        fuse_request    = NULL;
     struct finesse_req *     finesse_request = NULL;
     int                      status          = 0;
@@ -16,7 +17,8 @@ int FinsesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent,
     struct fuse_out_header * out             = NULL;
     struct fuse_entry_param *arg             = NULL;
 
-    *InodeNumber = 0;
+    assert(NULL != attr);
+    memset(attr, 0, sizeof(struct statx));
 
     // We need to do a lookup here - allocate a request structure
     fuse_request    = FinesseAllocFuseRequest(se);
@@ -46,9 +48,26 @@ int FinsesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent,
             break;
         }
 
-        arg          = finesse_request->iov[1].iov_base;
-        *InodeNumber = arg->ino;
-        status       = 0;
+        arg                       = finesse_request->iov[1].iov_base;
+        attr->stx_mask            = 0;
+        attr->stx_blksize         = arg->attr.st_blksize;
+        attr->stx_attributes      = 0;
+        attr->stx_nlink           = arg->attr.st_nlink;
+        attr->stx_uid             = arg->attr.st_uid;
+        attr->stx_gid             = arg->attr.st_gid;
+        attr->stx_mode            = arg->attr.st_mode;
+        attr->stx_ino             = arg->attr.st_ino;
+        attr->stx_size            = arg->attr.st_size;
+        attr->stx_blocks          = arg->attr.st_blocks;
+        attr->stx_attributes_mask = STATX_BASIC_STATS;  // everything except "btime"
+        attr->stx_atime.tv_sec    = arg->attr.st_atim.tv_sec;
+        attr->stx_atime.tv_nsec   = arg->attr.st_atim.tv_nsec;
+        // TODO: would be great to get the creation time back
+        attr->stx_ctime.tv_sec  = arg->attr.st_ctim.tv_sec;
+        attr->stx_ctime.tv_nsec = arg->attr.st_ctim.tv_nsec;
+        attr->stx_mtime.tv_sec  = arg->attr.st_mtim.tv_sec;
+        attr->stx_mtime.tv_nsec = arg->attr.st_mtim.tv_nsec;
+        status                  = 0;
         break;
     }
 
@@ -65,7 +84,8 @@ int FinsesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent,
 // We have to do this name lookup trick in multiple places, so I'm extracting the code
 // here.  This asks the FUSE file system for the inode number.
 //
-int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent, const char *Name, finesse_object_t **Finobj) {
+int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent, const char *Name, finesse_object_t **Finobj)
+{
     struct fuse_req *fuse_request;
     int              status         = 0;
     size_t           mp_length      = strlen(se->mountpoint);
@@ -73,6 +93,7 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent,
     uuid_t           uuid;
     ino_t            parent_ino = FUSE_ROOT_ID;
     fuse_ino_t       ino        = 0;
+    struct statx     statxbuf;
 
     if ((NULL != Parent) && !uuid_is_null(*Parent)) {
         finesse_object_t *parent_fin_obj = NULL;
@@ -106,18 +127,21 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent,
 
     while (NULL != fuse_request) {
         *Finobj = NULL;
-        status  = FinsesseServerInternalNameLookup(se, parent_ino, Name, &ino);
+        status  = FinesseServerInternalNameLookup(se, parent_ino, Name, &statxbuf);
 
         if (0 != status) {
             break;
         }
+        ino = statxbuf.stx_ino;
+        assert(0 != ino);  // invalid inode
 
         uuid_generate_time_safe(uuid);
         *Finobj = finesse_object_create(ino, &uuid);
         assert(NULL != *Finobj);
         if (0 == uuid_compare(uuid, (*Finobj)->uuid)) {
             created_finobj = 1;
-        } else {
+        }
+        else {
             created_finobj = 0;
         }
 
@@ -141,7 +165,8 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent,
     return status;
 }
 
-int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm_message Message) {
+int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm_message Message)
+{
     finesse_server_handle_t fsh    = NULL;
     finesse_msg *           fmsg   = (finesse_msg *)Message->Data;
     int                     status = 0;
@@ -161,7 +186,8 @@ int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm
         assert(NULL != finobj);  // that wouldn't make sense
         status = FinesseSendNameMapResponse(fsh, Client, Message, &finobj->uuid, 0);
         finobj = NULL;
-    } else {
+    }
+    else {
         assert(NULL == finobj);
         status = FinesseSendNameMapResponse(fsh, Client, Message, NULL, ENOENT);
     }
@@ -174,7 +200,8 @@ int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm
     return 0;
 }
 
-int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message) {
+int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message)
+{
     finesse_object_t *object = NULL;
     finesse_msg *     fmsg   = (finesse_msg *)Message->Data;
     int               status = 0;

@@ -14,10 +14,12 @@ finesse_server_sources = [
    'fuse.c',
    'namemap.c',
    'native.c',
+   'pathname.c',
    'serverstat.c',
    'stat.c',
    'statfs.c',
    'test.c',
+   'unlink.c',
    'util.c',
    ]
 

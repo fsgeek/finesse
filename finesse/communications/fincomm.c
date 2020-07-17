@@ -2,7 +2,6 @@
 // (C) Copyright 2020 Tony Mason
 // All Rights Reserved
 //
-#define _GNU_SOURCE
 #include <aio.h>
 #include <assert.h>
 #include <dlfcn.h>
@@ -149,15 +148,17 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
     CHECK_SHM_SIGNATURE(RequestRegion);
     assert(&RequestRegion->Messages[index] == Message);
 
-    if (0 != (RequestRegion->AllocationBitmap & make_mask64(index))) {
-        request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
+    assert(0 != (RequestRegion->AllocationBitmap & make_mask64(index)));
 
-        pthread_mutex_lock(&RequestRegion->RequestMutex);
-        assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));  // this should NOT be set
-        RequestRegion->RequestBitmap |= make_mask64(index);
-        pthread_cond_signal(&RequestRegion->RequestPending);
-        pthread_mutex_unlock(&RequestRegion->RequestMutex);
-    }
+    // if (0 != (RequestRegion->AllocationBitmap & make_mask64(index))) {
+    request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
+
+    pthread_mutex_lock(&RequestRegion->RequestMutex);
+    assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));  // this should NOT be set
+    RequestRegion->RequestBitmap |= make_mask64(index);
+    pthread_cond_signal(&RequestRegion->RequestPending);
+    pthread_mutex_unlock(&RequestRegion->RequestMutex);
+    // }
 
     return request_id;
 }
@@ -310,6 +311,7 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
         assert(SHM_MESSAGE_COUNT == index);
         *message = NULL;
     }
+
     return status;
 }
 

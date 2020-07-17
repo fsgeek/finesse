@@ -3,7 +3,6 @@
  * All Rights Reserved
  */
 
-
 #include "api-internal.h"
 
 // int stat(const char *file_name, struct stat *buf);
@@ -17,6 +16,9 @@ static int fin_stat(const char *file_name, struct stat *buf)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
         orig_stat = (orig_stat_t)dlsym(RTLD_NEXT, "stat");
+        if (NULL == orig_stat) {
+            orig_stat = (orig_stat_t)dlsym(RTLD_NEXT, "__xstat");  // ubuntu 20.04 uses glibc 2.31, which uses statx
+        }
 #pragma GCC diagnostic pop
 
         assert(NULL != orig_stat);
@@ -30,11 +32,11 @@ static int fin_stat(const char *file_name, struct stat *buf)
 
 int finesse_stat(const char *file_name, struct stat *buf)
 {
-    int status;
-    fincomm_message message;
+    int                     status;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
-    double timeout = 0;
+    int                     result;
+    double                  timeout = 0;
 
     finesse_client_handle = finesse_check_prefix(file_name);
 
@@ -70,19 +72,18 @@ static int fin_fstat(int filedes, struct stat *buf)
     }
 
     return orig_fstat(filedes, buf);
-
 }
 
 int finesse_fstat(int filedes, struct stat *buf)
 {
-    int status;
-    fincomm_message message;
+    int                     status;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
-    double timeout = 0;
-    finesse_file_state_t *ffs = NULL;
+    int                     result;
+    double                  timeout = 0;
+    finesse_file_state_t *  ffs     = NULL;
 
-        // Let's see if we know about this file descriptor
+    // Let's see if we know about this file descriptor
     ffs = finesse_lookup_file_state(filedes);
     if (NULL == ffs) {
         // We aren't tracking this, so we do pass-through
@@ -97,7 +98,6 @@ int finesse_fstat(int filedes, struct stat *buf)
     FinesseFreeStatResponse(finesse_client_handle, message);
 
     return result;
-
 }
 
 static int fin_lstat(const char *file_name, struct stat *buf)
@@ -120,14 +120,13 @@ static int fin_lstat(const char *file_name, struct stat *buf)
     return orig_lstat(file_name, buf);
 }
 
-
 int finesse_lstat(const char *pathname, struct stat *statbuf)
 {
-    int status;
-    fincomm_message message;
+    int                     status;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
-    double timeout = 0;
+    int                     result;
+    double                  timeout = 0;
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
@@ -165,17 +164,16 @@ static int fin_fstatat(int dirfd, const char *pathname, struct stat *statbuf, in
     return orig_fstatat(dirfd, pathname, statbuf, flags);
 }
 
-
 int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
 {
-    int status;
-    fincomm_message message;
+    int                     status;
+    fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
-    int result;
-    double timeout = 0;
-    finesse_file_state_t *ffs = NULL;
+    int                     result;
+    double                  timeout = 0;
+    finesse_file_state_t *  ffs     = NULL;
 
-        // Let's see if we know about this file descriptor
+    // Let's see if we know about this file descriptor
     ffs = finesse_lookup_file_state(dirfd);
     if (NULL == ffs) {
         // We aren't tracking this, so we do pass-through
@@ -190,5 +188,31 @@ int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int f
     FinesseFreeStatResponse(finesse_client_handle, message);
 
     return result;
+}
 
+static int fin_statx(int dfd, const char *filename, unsigned atflag, unsigned mask, struct statx *buffer)
+{
+    typedef int (*orig_statx_t)(int dfd, const char *file_name, unsigned atflag, unsigned mask, struct statx *buf);
+    static orig_statx_t orig_statx = NULL;
+
+    if (NULL == orig_statx) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+        orig_statx = (orig_statx_t)dlsym(RTLD_NEXT, "statx");
+#pragma GCC diagnostic pop
+
+        assert(NULL != orig_statx);
+        if (NULL == orig_statx) {
+            return ENOSYS;
+        }
+    }
+
+    return orig_statx(dfd, filename, atflag, mask, buffer);
+}
+
+int finesse_statx(int dfd, const char *filename, unsigned atflag, unsigned mask, struct statx *buffer)
+{
+    // TODO: implement this.
+
+    return fin_statx(dfd, filename, atflag, mask, buffer);
 }

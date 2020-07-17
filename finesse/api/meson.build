@@ -25,7 +25,7 @@ libfinesse_api = static_library('finesse_api', libfinesse_api_sources,
                                  include_directories: [include_dirs, finesse_inc_dirs],
                                  dependencies: [deps, libpthread, librt, libuuid],
                                  install: true,
-                                 c_args: [ '-DFUSE_USE_VERSION=39'],
+                                 c_args: [ '-DFUSE_USE_VERSION=39', '-D_GNU_SOURCE', ],
                                  link_with: finesscommunications
 )
 
