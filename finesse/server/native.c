@@ -60,7 +60,6 @@ int FinesseServerHandleNativeRequest(struct fuse_session *se, void *Client, finc
             status = FinesseServerNativeTestRequest(fsh, Client, Message);
             assert(0 == status);
             break;
-
         } break;
 
         case FINESSE_NATIVE_REQ_SERVER_STAT: {

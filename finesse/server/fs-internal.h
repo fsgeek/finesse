@@ -47,12 +47,15 @@ typedef struct finesse_lookup_info {
 
 typedef struct _FinesseServerPathResolutionParameters FinesseServerPathResolutionParameters_t;
 
-int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent, const char *Name, finesse_object_t **Finobj);
+int FinesseServerInternalMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid, const char *Name, int Flags,
+                                    finesse_object_t **Finobj);
 int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, struct statx *attr);
 int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResolutionParameters_t *Parameters);
 FinesseServerPathResolutionParameters_t *FinesseAllocateServerPathResolutionParameters(fuse_ino_t ParentInode, const char *PathName,
                                                                                        int Flags);
 void FinesseFreeServerPathResolutionParameters(FinesseServerPathResolutionParameters_t *Parameters);
+int  FinesseGetResolvedStatx(FinesseServerPathResolutionParameters_t *Parameters, struct statx *StatxData);
+int  FinesseGetResolvedInode(FinesseServerPathResolutionParameters_t *Parameters, ino_t *InodeNumber);
 
 extern FinesseServerStat *FinesseServerStats;
 

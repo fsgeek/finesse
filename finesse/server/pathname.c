@@ -4,16 +4,16 @@
 #include "fs-internal.h"
 
 typedef struct _FinesseServerPathResolutionParameters {
-    uint8_t     Size;                  // Number of bytes in this structure; allows growing it
-    int         FollowSymlinks : 1;    // If set, this indicates we should follow symlinks.  False, we stop with the symlink.
-    int         CheckSecurity : 1;     // This should perform a security check at each
-    int         GetFinalParent : 1;    // This should return the final parent as the target inode (even if child doesn't exist)
-    fuse_ino_t  Parent;                // In parameter; 0 = PathName is absolute and must contain mountpoint name
-    const char *PathName;              // In parameters
-    const char *Cursor;                // Location in the PathName being parsed.
-    const char *FinalName;             // out parameter MBZ on entry
-    fuse_ino_t  TargetInode;           // out parameter MBZ on entry
-    size_t      PathNameBufferLength;  // Maximum buffer length (internal use)
+    size_t       Size;                  // Number of bytes in this structure; allows growing it
+    int          FollowSymlinks : 1;    // If set, this indicates we should follow symlinks.  False, we stop with the symlink.
+    int          CheckSecurity : 1;     // This should perform a security check at each
+    int          GetFinalParent : 1;    // This should return the final parent as the target inode (even if child doesn't exist)
+    fuse_ino_t   Parent;                // In parameter; 0 = PathName is absolute and must contain mountpoint name
+    const char * PathName;              // In parameters
+    const char * Cursor;                // Location in the PathName being parsed.
+    const char * FinalName;             // out parameter MBZ on entry
+    struct statx StatxBuffer;           // out parameter; object status information (including inode number)
+    size_t       PathNameBufferLength;  // Maximum buffer length (internal use)
 } FinesseServerPathResolutionParameters_t;
 
 #define FINESSE_SERVER_PATH_RESOLUTION_FOLLOW_SYMLINKS (0x1)
@@ -91,6 +91,8 @@ FinesseServerPathResolutionParameters_t *FinesseAllocateServerPathResolutionPara
         parameters->PathName = buffer;
 
         parameters->Parent = ParentInode;
+
+        memset(&parameters->StatxBuffer, 0, sizeof(parameters->StatxBuffer));
         // Done
         break;
     }
@@ -130,16 +132,15 @@ FinesseServerPathResolutionParameters_t *FinesseAllocateServerPathResolutionPara
 //
 int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResolutionParameters_t *Parameters)
 {
-    char *       workpath       = NULL;
-    char *       finalsep       = NULL;
-    char *       workcurrent    = NULL;
-    char *       workend        = NULL;
-    size_t       workpathlength = 0;
-    ino_t        ino            = 0;
-    ino_t        parentino      = 0;
-    int          status         = EINVAL;
-    struct statx statxbuf;
-    unsigned     idx;
+    char *   workpath       = NULL;
+    char *   finalsep       = NULL;
+    char *   workcurrent    = NULL;
+    char *   workend        = NULL;
+    size_t   workpathlength = 0;
+    ino_t    ino            = 0;
+    ino_t    parentino      = 0;
+    int      status         = EINVAL;
+    unsigned idx;
 
     assert(NULL != se);
     assert(NULL != Parameters);
@@ -166,7 +167,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
 
         if (finalsep == Parameters->PathName) {
             // "/foo" - just look it up relative to the parent; skips the leading slash
-            status = FinesseServerInternalNameLookup(se, parentino, &Parameters->PathName[1], &statxbuf);
+            status = FinesseServerInternalNameLookup(se, parentino, &Parameters->PathName[1], &Parameters->StatxBuffer);
 
             if (0 != status) {
                 assert(ENOENT == status);
@@ -176,7 +177,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
                 Parameters->Parent = ino;                       // This is the parent we found.
                 break;
             }
-            ino = statxbuf.stx_ino;
+            ino = Parameters->StatxBuffer.stx_ino;
             assert(0 != ino);
             break;
         }
@@ -213,7 +214,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             }
 
             // Look up the entry
-            status = FinesseServerInternalNameLookup(se, parentino, workcurrent, &statxbuf);
+            status = FinesseServerInternalNameLookup(se, parentino, workcurrent, &Parameters->StatxBuffer);
             if (0 != status) {
                 assert(ENOENT == status);  // don't handle other errors at this point
 
@@ -223,7 +224,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
                 break;
             }
 
-            if (S_ISLNK(statxbuf.stx_mode)) {
+            if (S_ISLNK(Parameters->StatxBuffer.stx_mode)) {
                 //
                 // This is a symlink.  To handle this properly, we need to read the link contents
                 // and then reconstruct the name.  For Finesse this gets _more_ complicated because
@@ -231,7 +232,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
                 //
                 assert(0);  // TODO
             }
-            ino = statxbuf.stx_ino;
+            ino = Parameters->StatxBuffer.stx_ino;
             assert(0 != ino);
             // TODO: this is where I'd do a check for a symlink, in which case I have to rebuild the name and try again
             // TODO: this is where I'd add a security check
@@ -244,7 +245,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
         Parameters->FinalName = Parameters->Cursor + 1;
         Parameters->Parent    = ino;
 
-        status = FinesseServerInternalNameLookup(se, parentino, workend, &statxbuf);
+        status = FinesseServerInternalNameLookup(se, parentino, workend, &Parameters->StatxBuffer);
         if (0 != status) {
             assert(ENOENT == status);
 
@@ -256,7 +257,6 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
         }
 
         // We've found it all.
-        Parameters->TargetInode = statxbuf.stx_ino;
         break;
     }
 
@@ -266,4 +266,37 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
     }
 
     return ino;
+}
+
+int FinesseGetResolvedStatx(FinesseServerPathResolutionParameters_t *Parameters, struct statx *StatxData)
+{
+    assert(NULL != Parameters);
+    assert(NULL != StatxData);
+
+    if (0 == Parameters->StatxBuffer.stx_ino) {
+        memset(StatxData, 0, sizeof(struct statx));
+        return EINVAL;
+    }
+
+    memcpy(StatxData, &Parameters->StatxBuffer, sizeof(struct statx));
+
+    return 0;
+}
+
+int FinesseGetResolvedInode(FinesseServerPathResolutionParameters_t *Parameters, ino_t *InodeNumber)
+{
+    int          status = 0;
+    struct statx statxbuf;
+
+    assert(NULL != Parameters);
+    assert(NULL != InodeNumber);
+
+    status = FinesseGetResolvedStatx(Parameters, &statxbuf);
+    if (0 == status) {
+        *InodeNumber = statxbuf.stx_ino;
+    }
+    else {
+        *InodeNumber = 0;
+    }
+    return status;
 }

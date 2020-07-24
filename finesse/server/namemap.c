@@ -81,10 +81,85 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
 }
 
 //
+// This is a path map walk request
+static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid, const char *Name,
+                                                int Flags, finesse_object_t **Finobj)
+{
+    finesse_object_t *                       parent_fin_obj = NULL;
+    int                                      status         = EBADF;
+    FinesseServerPathResolutionParameters_t *parameters     = NULL;
+    ino_t                                    ino            = 0;
+
+    assert(0 == Flags);  // none supported at the moment
+
+    // We can't specify both of these!
+    assert((0 == ParentInode) || uuid_is_null(*ParentUuid));
+
+    while (1) {
+        if (!uuid_is_null(*ParentUuid)) {
+            // Need to get the inode number
+
+            parent_fin_obj = finesse_object_lookup_by_uuid(ParentUuid);
+            if (NULL == parent_fin_obj) {
+                status = EBADF;
+                break;
+            }
+            ParentInode = parent_fin_obj->inode;
+
+            // Done with this
+            finesse_object_release(parent_fin_obj);
+            parent_fin_obj = NULL;
+        }
+        else {
+            if (0 == ParentInode) {
+                ParentInode = FUSE_ROOT_ID;
+            }
+        }
+
+        assert(0 != ParentInode);  // sanity - shouldn't be able to get here.
+
+        parameters = FinesseAllocateServerPathResolutionParameters(ParentInode, Name, Flags);
+        assert(NULL != parameters);
+
+        status = FinesseServerResolvePathName(se, parameters);
+
+        if (0 != status) {
+            break;
+        }
+
+        status = FinesseGetResolvedInode(parameters, &ino);
+
+        if (0 != status) {
+            break;
+        }
+
+        assert(0 != ino);
+
+        *Finobj = finesse_object_lookup_by_ino(ino);
+    }
+
+    // cleanup: parent_fin_obj
+    if (NULL != parent_fin_obj) {
+        finesse_object_release(parent_fin_obj);
+    }
+
+    if (NULL != parameters) {
+        FinesseFreeServerPathResolutionParameters(parameters);
+        parameters = NULL;
+    }
+
+    return status;
+}
+
+// static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid,
+//                                                       const char *Name, int Flags, finesse_object_t **Finobj)
+
+//
 // We have to do this name lookup trick in multiple places, so I'm extracting the code
 // here.  This asks the FUSE file system for the inode number.
 //
-int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent, const char *Name, finesse_object_t **Finobj)
+static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid, const char *Name,
+                                               int Flags, finesse_object_t **Finobj)
 {
     struct fuse_req *fuse_request;
     int              status         = 0;
@@ -95,11 +170,13 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent,
     fuse_ino_t       ino        = 0;
     struct statx     statxbuf;
 
-    if ((NULL != Parent) && !uuid_is_null(*Parent)) {
+    assert(0 == Flags);  // don't handle these yet
+
+    if ((0 != ParentInode) && !uuid_is_null(*ParentUuid)) {
         finesse_object_t *parent_fin_obj = NULL;
 
         // look it up
-        parent_fin_obj = finesse_object_lookup_by_uuid(Parent);
+        parent_fin_obj = finesse_object_lookup_by_uuid(ParentUuid);
         if (NULL == parent_fin_obj) {
             fuse_log(FUSE_LOG_ERR, "Finesse: %s returning EBADF due to bad parent\n", __func__);
             return EBADF;
@@ -165,6 +242,17 @@ int FinesseServerInternalNameMapRequest(struct fuse_session *se, uuid_t *Parent,
     return status;
 }
 
+int FinesseServerInternalMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid, const char *Name, int Flags,
+                                    finesse_object_t **Finobj)
+{
+    if (NULL != index(Name, '/')) {
+        // contains a path name
+        return FinsesseServerInternalPathMapRequest(se, ParentInode, ParentUuid, Name, Flags, Finobj);
+    }
+
+    return FinesseServerInternalNameMapRequest(se, ParentInode, ParentUuid, Name, Flags, Finobj);
+}
+
 int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm_message Message)
 {
     finesse_server_handle_t fsh    = NULL;
@@ -178,9 +266,14 @@ int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm
         return ENOTCONN;
     }
 
+    if (NULL == index(fmsg->Message.Native.Request.Parameters.Map.Name, '/')) {
+        // This is a path lookup
+        assert(0);  // not implemented
+    }
+
     // We need to do a lookup here
-    status = FinesseServerInternalNameMapRequest(se, &fmsg->Message.Native.Request.Parameters.Map.Parent,
-                                                 fmsg->Message.Native.Request.Parameters.Map.Name, &finobj);
+    status = FinesseServerInternalMapRequest(se, 0, &fmsg->Message.Native.Request.Parameters.Map.Parent,
+                                             fmsg->Message.Native.Request.Parameters.Map.Name, 0, &finobj);
 
     if (0 == status) {
         assert(NULL != finobj);  // that wouldn't make sense
