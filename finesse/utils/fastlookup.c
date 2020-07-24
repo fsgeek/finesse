@@ -533,7 +533,7 @@ void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Objec
 // this routine takes both; presently this is the only state that is stored here.  It could be extended
 // if useful.
 //
-// Note: the returned object has two references.
+// Note: the returned object has one reference.
 //
 static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t InodeNumber, uuid_t *Uuid)
 {
@@ -541,6 +541,8 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     lookup_entry_table_bucket_t *inode_bucket = NULL;
     lookup_entry_table_bucket_t *uuid_bucket  = NULL;
     lookup_entry_t *             entry        = NULL;
+    lookup_entry_t *             old_entry    = NULL;
+    static uuid_t                null_uuid;
 
     assert(NULL != Table);
     assert(0 != InodeNumber);
@@ -559,7 +561,7 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     entry = malloc(sizeof(lookup_entry_t));
     assert(NULL != entry);
     entry->Magic          = FAST_LOOKUP_ENTRY_MAGIC;
-    entry->ReferenceCount = 2;
+    entry->ReferenceCount = 1;
     initialize_list_entry(&entry->InodeListEntry);
     initialize_list_entry(&entry->UuidListEntry);
     entry->Object.inode = InodeNumber;
@@ -570,15 +572,30 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
         LockBucket(&Table->Buckets[second], 1);
     }
 
-    // Haven't coded anything else
-    assert(LookupEntryTypeLinkedLists == inode_bucket->LookupEntryType);
-    assert(LookupEntryTypeLinkedLists == uuid_bucket->LookupEntryType);
+    while (1) {
+        // Haven't coded anything else
+        assert(LookupEntryTypeLinkedLists == inode_bucket->LookupEntryType);
+        assert(LookupEntryTypeLinkedLists == uuid_bucket->LookupEntryType);
 
-    insert_list_tail(&inode_bucket->LookupEntryInstance.LinkedLists.InodeTableEntry, &entry->InodeListEntry);
-    insert_list_tail(&uuid_bucket->LookupEntryInstance.LinkedLists.UuidTableEntry, &entry->UuidListEntry);
+        old_entry = lookup_entry(inode_bucket, InodeNumber, &null_uuid);
+        if (NULL != old_entry) {
+            // we use the existing entry
+            free(entry);
+            entry = old_entry;
+            break;
+        }
 
-    __atomic_fetch_add(&inode_bucket->EntryCount, 1, __ATOMIC_RELAXED);
-    __atomic_fetch_add(&uuid_bucket->EntryCount, 1, __ATOMIC_RELAXED);
+        old_entry = lookup_entry(inode_bucket, 0, Uuid);
+        assert(NULL == old_entry);  // This is really not expected!
+
+        // Insert the new entry into the table
+        insert_list_tail(&inode_bucket->LookupEntryInstance.LinkedLists.InodeTableEntry, &entry->InodeListEntry);
+        insert_list_tail(&uuid_bucket->LookupEntryInstance.LinkedLists.UuidTableEntry, &entry->UuidListEntry);
+
+        __atomic_fetch_add(&inode_bucket->EntryCount, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&uuid_bucket->EntryCount, 1, __ATOMIC_RELAXED);
+        break;
+    }
 
     if (first != second) {
         UnlockBucket(&Table->Buckets[second]);

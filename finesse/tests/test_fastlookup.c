@@ -94,6 +94,44 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
     return objects;
 }
 
+static finesse_object_t *lookup_by_inode(finesse_object_table_t *Table, test_object_t *Objects, unsigned Index)
+{
+    finesse_object_t *fo = FinesseObjectLookupByIno(Table, Objects[Index].inode);
+
+    if (NULL != fo) {
+        Objects[Index].lookups++;
+    }
+
+    return fo;
+}
+
+static finesse_object_t *lookup_by_uuid(finesse_object_table_t *Table, test_object_t *Objects, unsigned Index)
+{
+    finesse_object_t *fo = FinesseObjectLookupByUuid(Table, &Objects[Index].uuid);
+
+    if (NULL != fo) {
+        Objects[Index].lookups++;
+    }
+
+    return fo;
+}
+
+static void release(finesse_object_table_t *Table, test_object_t *Objects, unsigned Index)
+{
+    finesse_object_t fo;
+
+    fo.inode = Objects[Index].inode;
+    uuid_copy(fo.uuid, Objects[Index].uuid);
+
+    if (Objects[Index].releases >= Objects[Index].lookups) {
+        fprintf(stderr, "Invalid release");
+    }
+
+    munit_assert(Objects[Index].releases < Objects[Index].lookups);
+    FinesseObjectRelease(Table, &fo);
+    Objects[Index].releases++;
+}
+
 static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, test_object_t *Objects, unsigned Count,
                                                unsigned Iterations)
 {
@@ -110,10 +148,10 @@ static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, te
             lock_test_object(&Objects[index], 0);
 
             if (inode_lookup) {
-                fo = FinesseObjectLookupByIno(Table, Objects[index].inode);
+                fo = lookup_by_inode(Table, Objects, index);
             }
             else {
-                fo = FinesseObjectLookupByUuid(Table, &Objects[index].uuid);
+                fo = lookup_by_uuid(Table, Objects, index);
             }
 
             if (NULL != fo) {
@@ -121,7 +159,6 @@ static void lookup_multiple_objects_sequential(finesse_object_table_t *Table, te
                 inode_lookup = !inode_lookup;
 
                 // This is a successful lookup
-                Objects[index].lookups++;
                 count++;
             }
 
@@ -148,10 +185,10 @@ static void lookup_multiple_objects_random(finesse_object_table_t *Table, test_o
 
             lock_test_object(&Objects[index], 0);
             if (inode_lookup) {
-                fo = FinesseObjectLookupByIno(Table, Objects[index].inode);
+                fo = lookup_by_inode(Table, Objects, index);
             }
             else {
-                fo = FinesseObjectLookupByUuid(Table, &Objects[index].uuid);
+                fo = lookup_by_uuid(Table, Objects, index);
             }
 
             if (NULL != fo) {
@@ -159,7 +196,6 @@ static void lookup_multiple_objects_random(finesse_object_table_t *Table, test_o
                 inode_lookup = !inode_lookup;
 
                 // This is a successful lookup
-                Objects[index].lookups++;
                 count++;
             }
 
@@ -173,6 +209,7 @@ static void release_multiple_objects(finesse_object_table_t *Table, test_object_
 {
     finesse_object_t *fobj = NULL;
     finesse_object_t  tobj;
+    unsigned          off = 0;
 
     for (unsigned index = 0; index < Count; index++) {
         munit_assert(Objects[index].lookups >= Objects[index].releases);
@@ -180,13 +217,24 @@ static void release_multiple_objects(finesse_object_table_t *Table, test_object_
         while (Objects[index].lookups > Objects[index].releases) {
             tobj.inode = Objects[index].inode;
             uuid_copy(tobj.uuid, Objects[index].uuid);
-            FinesseObjectRelease(Table, &tobj);
-            Objects[index].releases++;
+            release(Table, Objects, index);
         }
 
-        fobj = FinesseObjectLookupByIno(Table, Objects[index].inode);
-        munit_assert(NULL == fobj);
-        fobj = FinesseObjectLookupByUuid(Table, &Objects[index].uuid);
+        fobj = lookup_by_inode(Table, Objects, index);
+        if (NULL != fobj) {
+            while (NULL != fobj) {
+                off++;
+                Objects[index].lookups++;
+                release(Table, Objects, index);
+                release(Table, Objects, index);
+                fobj = lookup_by_inode(Table, Objects, index);
+            }
+            fobj = lookup_by_inode(Table, Objects, index);
+        }
+        else {
+            munit_assert(NULL == fobj);
+        }
+        fobj = lookup_by_uuid(Table, Objects, index);
         munit_assert(NULL == fobj);
 
         pthread_rwlock_destroy(&Objects[index].Lock);
@@ -200,9 +248,7 @@ static MunitResult test_table_insert(const MunitParameter params[] __notused, vo
     finesse_object_table_t *table   = NULL;
     test_object_t *         objects = NULL;
     test_object_t *         tobj    = NULL;
-    finesse_object_t        fobj;
     finesse_object_t *      tfobj;
-    uuid_t                  scratch_uuid;
     const unsigned          count = 1024;
 
     // First, a simple test
@@ -210,10 +256,7 @@ static MunitResult test_table_insert(const MunitParameter params[] __notused, vo
     munit_assert(NULL != table);
 
     tobj = insert_multiple_objects(table, 1);
-    uuid_copy(fobj.uuid, tobj->uuid);
-    fobj.inode = tobj->inode;
-    FinesseObjectRelease(table, &fobj);
-
+    release(table, tobj, 0);
     free(tobj);
     tobj = NULL;
 
@@ -221,50 +264,35 @@ static MunitResult test_table_insert(const MunitParameter params[] __notused, vo
 
     objects = insert_multiple_objects(table, 1);
 
-    tfobj = FinesseObjectLookupByIno(table, objects[0].inode);
+    tfobj = lookup_by_inode(table, objects, 0);
     munit_assert(NULL != tfobj);
     munit_assert(tfobj->inode == objects[0].inode);
     munit_assert(0 == uuid_compare(tfobj->uuid, objects[0].uuid));
-    objects[0].lookups++;
+    release(table, objects, 0);
 
-    tfobj = FinesseObjectLookupByIno(table, ~objects[0].inode);
-    munit_assert(NULL == tfobj);
-
-    tfobj = FinesseObjectLookupByUuid(table, &objects[0].uuid);
+    tfobj = lookup_by_uuid(table, objects, 0);
     munit_assert(NULL != tfobj);
     munit_assert(tfobj->inode == objects[0].inode);
     munit_assert(0 == uuid_compare(tfobj->uuid, objects[0].uuid));
-    uuid_generate(scratch_uuid);
-    objects[0].lookups++;
+    release(table, objects, 0);
 
-    fobj.inode = objects[0].inode;
-    uuid_copy(fobj.uuid, objects[0].uuid);
-    FinesseObjectRelease(table, &fobj);
-    objects[0].releases++;
+    // this is the release for the original create
+    release(table, objects, 0);
 
-    tfobj = FinesseObjectLookupByUuid(table, &scratch_uuid);
-    munit_assert(NULL == tfobj);
-
-    fobj.inode = objects[0].inode;
-    uuid_copy(fobj.uuid, objects[0].uuid);
-    FinesseObjectRelease(table, &fobj);
-    objects[0].releases++;
-    munit_assert(objects[0].releases < objects[0].lookups);
-
-    fobj.inode = objects[0].inode;
-    uuid_copy(fobj.uuid, objects[0].uuid);
-    FinesseObjectRelease(table, &fobj);
-    objects[0].releases++;
-
+    // This should be the last release
     munit_assert(objects[0].lookups == objects[0].releases);
+    tfobj = NULL;
 
-    tfobj = FinesseObjectLookupByIno(table, objects[0].inode);
+    // make sure we can't find it by inode
+    tfobj = lookup_by_inode(table, objects, 0);
     munit_assert(NULL == tfobj);
-    tfobj = FinesseObjectLookupByUuid(table, &objects[0].uuid);
+
+    // make sure we can't find it by uuid
+    tfobj = lookup_by_uuid(table, objects, 0);
     munit_assert(NULL == tfobj);
 
     free(objects);
-    tfobj = NULL;
+    objects = NULL;
 
     objects = insert_multiple_objects(table, count);
     munit_assert(NULL != objects);
@@ -297,6 +325,32 @@ static MunitResult test_hash(const MunitParameter params[] __notused, void *prv 
     return MUNIT_OK;
 }
 
+static MunitResult test_collision(const MunitParameter params[] __notused, void *prv __notused)
+{
+    finesse_object_t *      fobj  = NULL;
+    finesse_object_t *      tobj  = NULL;
+    finesse_object_table_t *table = NULL;
+    uuid_t                  test_uuid;
+    uuid_t                  test_uuid2;
+
+    // First, a simple test
+    table = FinesseCreateTable(0);
+    munit_assert(NULL != table);
+
+    uuid_generate(test_uuid);
+    munit_assert(!uuid_is_null(test_uuid));
+
+    fobj = FinesseObjectCreate(table, 2, &test_uuid);
+    munit_assert(NULL != fobj);
+
+    tobj = FinesseObjectCreate(table, 2, &test_uuid2);
+    munit_assert(NULL != tobj);
+
+    munit_assert(0 == uuid_compare(fobj->uuid, tobj->uuid));
+
+    return MUNIT_OK;
+}
+
 typedef struct {
     finesse_object_table_t *Table;
     test_object_t *         Objects;
@@ -320,8 +374,7 @@ static void *deleter(void *arg)
         if (parameters->Objects[index].lookups > parameters->Objects[index].releases) {
             fo.inode = parameters->Objects[index].inode;
             uuid_copy(fo.uuid, parameters->Objects[index].uuid);
-            FinesseObjectRelease(parameters->Table, &fo);
-            parameters->Objects[index].releases++;
+            release(parameters->Table, parameters->Objects, index);
             iterations++;
         }
         unlock_test_object(&parameters->Objects[index]);
@@ -343,12 +396,11 @@ static void *ino_reader(void *arg)
         index = random() % parameters->ObjectCount;
 
         lock_test_object(&parameters->Objects[index], 0);
-        fo = FinesseObjectLookupByIno(parameters->Table, parameters->Objects[index].inode);
+        fo = lookup_by_inode(parameters->Table, parameters->Objects, index);
 
         munit_assert((NULL != fo) || (parameters->Objects[index].lookups == parameters->Objects[index].releases));
         if (NULL != fo) {
             // This is a lookup
-            parameters->Objects[index].lookups++;
             iterations++;
         }
         unlock_test_object(&parameters->Objects[index]);
@@ -370,12 +422,11 @@ static void *uuid_reader(void *arg)
         index = random() % parameters->ObjectCount;
 
         lock_test_object(&parameters->Objects[index], 0);
-        fo = FinesseObjectLookupByUuid(parameters->Table, &parameters->Objects[index].uuid);
+        fo = lookup_by_uuid(parameters->Table, parameters->Objects, index);
 
         munit_assert((NULL != fo) || (parameters->Objects[index].lookups == parameters->Objects[index].releases));
         if (NULL != fo) {
             // This is a lookup
-            parameters->Objects[index].lookups++;
             iterations++;
         }
         unlock_test_object(&parameters->Objects[index]);
@@ -437,8 +488,13 @@ static MunitResult test_mt(const MunitParameter params[] __notused, void *prv __
 }
 
 static MunitTest tests[] = {
-    TEST("/null", test_null, NULL),           TEST("/hash", test_hash, NULL), TEST("/basics", test_table_basics, NULL),
-    TEST("/insert", test_table_insert, NULL), TEST("/mt", test_mt, NULL),     TEST(NULL, NULL, NULL),
+    TEST("/null", test_null, NULL),
+    TEST("/hash", test_hash, NULL),
+    TEST("/basics", test_table_basics, NULL),
+    TEST("/insert", test_table_insert, NULL),
+    TEST("/mt", test_mt, NULL),
+    TEST("/collision", test_collision, NULL),
+    TEST(NULL, NULL, NULL),
 };
 
 const MunitSuite fastlookup_suite = {
