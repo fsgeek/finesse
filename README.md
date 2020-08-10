@@ -33,11 +33,11 @@ tarball, create a (temporary) build directory and run Meson:
     $ meson ..
 
 Normally, the default build options will work fine. If you
-nevertheless want to adjust them, you can do so with the *mesonconf*
-command:
+nevertheless want to adjust them, you can do so with the
+*meson configure* command:
 
-    $ mesonconf # list options
-    $ mesonconf  -D disable-mtab=true # set an option
+    $ meson configure # list options
+    $ meson configure -D disable-mtab=true # set an option
 
 To build, test and install libfuse, you then use Ninja:
 
@@ -100,7 +100,7 @@ attributes.
 Building your own filesystem
 ------------------------------
 
-FUSE comes with several example file systems in the `examples`
+FUSE comes with several example file systems in the `example`
 directory. For example, the *passthrough* examples mirror the contents
 of the root directory under the mountpoint. Start from there and adapt
 the code!
