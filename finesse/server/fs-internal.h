@@ -2,7 +2,9 @@
   Copyright (C) 2020  Tony Mason <fsgeek@cs.ubc.ca>
 */
 
+#if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
+#endif // _GNU_SOURCE
 
 #include "config.h"
 #include "fuse_i.h"

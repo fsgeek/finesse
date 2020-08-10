@@ -3,7 +3,9 @@
 // Tony Mason
 // All Rights Reserved
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include <errno.h>
 #include <fuse_log.h>

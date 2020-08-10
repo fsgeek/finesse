@@ -2,6 +2,10 @@
  * Copyright (c) 2017-2020, Tony Mason. All rights reserved.
  */
 
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -68,11 +72,11 @@ test_client_connect(
     // There is a race condition between start and stop.
     // So for now, I'll just add a sleep
     // TODO: fix the race.
-    sleep(1); 
+    sleep(1);
 
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
 
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
@@ -143,10 +147,10 @@ test_msg_test(
     // Free the buffer
     FinesseFreeTestResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -173,7 +177,7 @@ test_msg_namemap (
     char *name2 = (char *)(uintptr_t)"/bar";
     uuid_t key1, key2;
     uuid_t out_key1, out_key2;
-    
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -226,7 +230,7 @@ test_msg_namemap (
     // client gets the response (for message 2)
     status = FinesseGetNameMapResponse(fch, message2, &out_key2);
     munit_assert(0 == status);
-    munit_assert(0 == uuid_compare(key2, out_key2));  
+    munit_assert(0 == uuid_compare(key2, out_key2));
     FinesseFreeNameMapResponse(fch, message2);
 
     // client gets the response (for message 1)
@@ -235,10 +239,10 @@ test_msg_namemap (
     munit_assert(0 == uuid_compare(key1, out_key1));
     FinesseFreeNameMapResponse(fch, message1);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -296,10 +300,10 @@ test_msg_namemaprelease (
     // Release the message
     FinesseFreeNameMapReleaseResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -397,10 +401,10 @@ test_msg_statfs (
     // Release the message
     FinesseFreeFstatfsResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -469,10 +473,10 @@ test_msg_unlink (
     // Release the message
     FinesseFreeUnlinkResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -608,7 +612,7 @@ test_msg_stat (
     memset(&statbuf2, 0, sizeof(statbuf2));
     timeout = 0.0;
     result = 1;
- 
+
     status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
@@ -647,7 +651,7 @@ test_msg_stat (
     memset(&statbuf2, 0, sizeof(statbuf2));
     timeout = 0.0;
     result = sizeof(statbuf2);
- 
+
     status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
@@ -657,10 +661,10 @@ test_msg_stat (
     // message cleanup
     FinesseFreeStatfsResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -715,7 +719,7 @@ test_msg_create (
     munit_assert(FINESSE_FUSE_MESSAGE == test_message->MessageClass);
     munit_assert(FINESSE_FUSE_REQ_CREATE == test_message->Message.Fuse.Request.Type);
     munit_assert(uuid_is_null(test_message->Message.Fuse.Request.Parameters.Create.Parent));
-    munit_assert(0 == strcmp(fname, test_message->Message.Fuse.Request.Parameters.Create.Name));   
+    munit_assert(0 == strcmp(fname, test_message->Message.Fuse.Request.Parameters.Create.Name));
     munit_assert(0 == memcmp(&test_message->Message.Fuse.Request.Parameters.Create.Attr, &statbuf, sizeof(statbuf)));
     munit_assert(0 == status);
 
@@ -738,10 +742,10 @@ test_msg_create (
     // Release the message
     FinesseFreeCreateResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 
@@ -803,10 +807,10 @@ test_msg_server_stat (
     // Release the message
     FinesseFreeServerStatResponse(fch, message);
 
-    // cleanup    
+    // cleanup
     status = FinesseStopClientConnection(fch);
     munit_assert(0 == status);
-    
+
     status = FinesseStopServerConnection(fsh);
     munit_assert(0 == status);
 

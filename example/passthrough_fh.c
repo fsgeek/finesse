@@ -29,7 +29,9 @@
 #include <config.h>
 #endif
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include <fuse.h>
 
@@ -187,7 +189,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			st.st_mode = d->entry->d_type << 12;
 		}
 		nextoff = telldir(d->dp);
-#ifdef __FreeBSD__		
+#ifdef __FreeBSD__
 		/* Under FreeBSD, telldir() may return 0 the first time
 		   it is called. But for libfuse, an offset of zero
 		   means that offsets are not supported, so we shift

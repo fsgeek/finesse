@@ -10,7 +10,10 @@
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);
 
+#if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
+
 #include <fcntl.h>              /* Obtain O_* constant definitions */
 #include <unistd.h>
 

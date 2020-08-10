@@ -7,7 +7,10 @@
 */
 /* This program does the mounting and unmounting of FUSE filesystems */
 
-#define _GNU_SOURCE /* for clone */
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
+
 #include "config.h"
 #include "mount_util.h"
 

@@ -2,6 +2,10 @@
 // (C) Copyright 2020 Tony Mason
 // All Rights Reserved
 //
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
+
 #include <aio.h>
 #include <assert.h>
 #include <dlfcn.h>

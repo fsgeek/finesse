@@ -1,6 +1,9 @@
 /*
  * Copyright (c) 2020, Tony Mason. All rights reserved.
  */
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -112,7 +115,7 @@ test_dots(
 
     status = TrieDeletion(&trie, "..");
     munit_assert(0 == status);
-    
+
     status = TrieDeletion(&trie, ".");
     munit_assert(0 == status);
 

@@ -34,7 +34,10 @@
  * \include passthrough_ll.c
  */
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
+
 #define FUSE_USE_VERSION 31
 
 #ifdef HAVE_CONFIG_H
@@ -657,7 +660,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 					err = errno;
 					goto error;
 				} else {  // End of stream
-					break; 
+					break;
 				}
 			}
 		}
@@ -689,11 +692,11 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 						    &st, nextoff);
 		}
 		if (entsize > rem) {
-			if (entry_ino != 0) 
+			if (entry_ino != 0)
 				lo_forget_one(req, entry_ino, 1);
 			break;
 		}
-		
+
 		p += entsize;
 		rem -= entsize;
 

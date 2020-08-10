@@ -11,7 +11,9 @@
 
 
 /* For pthread_rwlock_t */
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include "config.h"
 #include "fuse_i.h"
@@ -99,7 +101,7 @@ struct node_table {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #define container_of(ptr, type, member) ({                              \
-			const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+			const __typeof__( ((type *)0)->member ) *__mptr = (ptr); \
 			(type *)( (char *)__mptr - offsetof(type,member) );})
 #pragma GCC diagnostic pop
 
@@ -4437,7 +4439,7 @@ int fuse_clean_cache(struct fuse *f)
 		next = curr->next;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-		lnode = list_entry(curr, struct node_lru, lru);
+		lnode = container_of(curr, struct node_lru, lru);
 #pragma GCC diagnostic pop
 		node = &lnode->node;
 
@@ -4737,7 +4739,7 @@ void fuse_lib_help(struct fuse_args *args)
 			   fuse_lib_opt_proc) == -1
 	    || !conf.modules)
 		return;
-	
+
 	char *module;
 	char *next;
 	struct fuse_module *m;
@@ -4755,7 +4757,7 @@ void fuse_lib_help(struct fuse_args *args)
 	}
 }
 
-				      
+
 
 static int fuse_init_intr_signal(int signum, int *installed)
 {

@@ -3,7 +3,9 @@
  * All rights reserved.
  */
 
+#if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
+#endif // _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"

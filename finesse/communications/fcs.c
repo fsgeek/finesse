@@ -2,6 +2,9 @@
  * (C) Copyright 2020 Tony Mason
  * All Rights Reserved
  */
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif // _GNU_SOURCE
 
 #include <dirent.h>
 #include <sys/mman.h>
@@ -9,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <stdlib.h>
 #include "fcinternal.h"
 
 #if !defined(make_mask64)

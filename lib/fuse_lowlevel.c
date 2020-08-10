@@ -9,7 +9,9 @@
   See the file COPYING.LIB
 */
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include "config.h"
 #include "fuse_i.h"
@@ -46,7 +48,7 @@
 #pragma GCC diagnostic ignored "-Wpedantic"
 #define container_of(ptr, type, member)                    \
     ({                                                     \
-        const typeof(((type *)0)->member) *__mptr = (ptr); \
+        const __typeof__(((type *)0)->member) *__mptr = (ptr); \
         (type *)((char *)__mptr - offsetof(type, member)); \
     })
 #pragma GCC diagnostic pop

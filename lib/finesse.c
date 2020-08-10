@@ -1,10 +1,12 @@
 /*
   FINESSE: Low Energy effcient extension to FUSE
-  Copyright (C) 2017  Tony Mason <fsgeek@cs.ubc.ca>
+  Copyright (C) 2017-2020  Tony Mason <fsgeek@cs.ubc.ca>
 
 */
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include "config.h"
 #include "fuse_i.h"
@@ -97,7 +99,7 @@ static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
 }
 
 
-static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi) 
+static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, setattr);
 
@@ -124,7 +126,7 @@ static void finesse_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
 }
 
 // name is to avoid a collision with the internal implemenation - bleh.
-static void finesse_makedir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode) 
+static void finesse_makedir(fuse_req_t req, fuse_ino_t nodeid, const char *name, mode_t mode)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, mkdir);
 
@@ -142,7 +144,7 @@ static void finesse_fuse_unlink(fuse_req_t req, fuse_ino_t parent, const char *n
 }
 
 
-static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name) 
+static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, rmdir);
 
@@ -151,7 +153,7 @@ static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name)
 }
 
 static void finesse_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
-					const char *name) 
+					const char *name)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, symlink);
 
@@ -196,7 +198,7 @@ static void finesse_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offs
 }
 
 static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
-                          size_t size, off_t off, struct fuse_file_info *fi) 
+                          size_t size, off_t off, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, rmdir);
 
@@ -205,7 +207,7 @@ static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
     finesse_original_ops->write(req, nodeid, buf, size, off, fi);
 }
 
-static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_info *fi) 
+static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, flush);
 
@@ -231,7 +233,7 @@ static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     finesse_original_ops->release(req, ino, fi);
 }
 
-static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struct fuse_file_info *fi) 
+static void finesse_fsync(fuse_req_t req, fuse_ino_t nodeid, int datasync, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, fsync);
 
@@ -277,7 +279,7 @@ static void finesse_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 }
 
 
-static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid) 
+static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, statfs);
 
@@ -297,7 +299,7 @@ static void finesse_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 }
 
 
-static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name, size_t size) 
+static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name, size_t size)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, getxattr);
 
@@ -344,7 +346,7 @@ static void finesse_getlk(fuse_req_t req, fuse_ino_t ino,
     FINESSE_CHECK_ORIGINAL_OP(req, getlk);
 
     finesse_set_provider(req, 0);
-    finesse_original_ops->getlk(req, ino, fi, lock);    
+    finesse_original_ops->getlk(req, ino, fi, lock);
 }
 
 static void finesse_setlk(fuse_req_t req, fuse_ino_t ino,
@@ -550,7 +552,7 @@ void finesse_session_mount(struct fuse_session *se)
 {
     if (NULL != se->server_handle) {
         // already done?
-        return; 
+        return;
     }
 
     if (NULL == se->mountpoint) {
@@ -617,7 +619,7 @@ static void *finesse_process_request_worker(void *arg)
         void *client;
         fincomm_message request;
         finesse_msg *fmsg = NULL;
-  
+
         status = FinesseGetRequest(fsh, &client, &request);
         assert(0 == status);
         assert(NULL != request);
@@ -627,7 +629,7 @@ static void *finesse_process_request_worker(void *arg)
         assert(FINESSE_REQUEST == request->MessageType); // nothing else makes sense here
         fmsg = (finesse_msg *) request->Data;
         assert(NULL != fmsg);
-        fuse_log(FUSE_LOG_DEBUG, "FINESSE: message 0x%p type %s class %s\n", 
+        fuse_log(FUSE_LOG_DEBUG, "FINESSE: message 0x%p type %s class %s\n",
                  fmsg, finesse_get_string_for_message_type(request->MessageType),
                  finesse_get_string_for_message_class(fmsg->MessageClass));
 
@@ -646,7 +648,7 @@ static void *finesse_process_request_worker(void *arg)
                 status = FinesseServerHandleFuseRequest(se, client, request);
             }
             break;
-            
+
             case FINESSE_NATIVE_MESSAGE: {
                 status = FinesseServerHandleNativeRequest(se, client, request);
             }
@@ -711,7 +713,7 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
 
     // Note: we'll probably have to add additional case handling here (right now this is just lookup)
     // TODO: should we be DOING something with error?
-    
+
     if (error <= -1000 || error > 0)
     {
         fprintf(stderr, "fuse: bad error value: %i\n", error);

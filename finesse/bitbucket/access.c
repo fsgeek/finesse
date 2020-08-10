@@ -3,11 +3,13 @@
 // Tony Mason
 // All Rights Reserved
 
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
+
 #include <errno.h>
 #include "bitbucket.h"
 #include "bitbucketcalls.h"
-
-#define _GNU_SOURCE
 
 static int bitbucket_internal_access(fuse_req_t req, fuse_ino_t ino, int mask);
 

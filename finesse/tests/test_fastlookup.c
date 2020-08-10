@@ -3,7 +3,9 @@
  * Copyright (c) 2017-2020, Tony Mason. All rights reserved.
  */
 
-#define _GNU_SOURCE
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#endif // _GNU_SOURCE
 
 #include <finesse-fuse.h>
 #include <stdlib.h>

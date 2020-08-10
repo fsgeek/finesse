@@ -343,6 +343,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
+#if defined(CAP_TO_MASK)
 	if (drop_privileges) {
 		uint64_t required_caps = CAP_TO_MASK(CAP_SETPCAP) |
 				CAP_TO_MASK(CAP_SYS_ADMIN);
@@ -352,6 +353,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
+#endif // CAP_TO_MASK
 
 	if (dev)
 		options = add_option("dev", options);
