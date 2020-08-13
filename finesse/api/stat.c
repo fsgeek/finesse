@@ -4,6 +4,7 @@
  */
 
 #include "api-internal.h"
+#include "callstats.h"
 
 // int stat(const char *file_name, struct stat *buf);
 
@@ -30,20 +31,42 @@ static int fin_stat(const char *file_name, struct stat *buf)
     return orig_stat(file_name, buf);
 }
 
-int finesse_stat(const char *file_name, struct stat *buf)
+static int internal_stat(const char *file_name, struct stat *buf)
 {
-    int                     status;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
     double                  timeout = 0;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     finesse_client_handle = finesse_check_prefix(file_name);
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_STAT, &elapsed);
+
     if (NULL == finesse_client_handle) {
         // not of interest - fallback
-        return fin_stat(file_name, buf);
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
+        status = fin_stat(file_name, buf);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_STAT, &elapsed);
+
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     status = FinesseSendStatRequest(finesse_client_handle, file_name, &message);
     assert(0 == status);
@@ -51,6 +74,19 @@ int finesse_stat(const char *file_name, struct stat *buf)
     assert(0 == status);
     FinesseFreeStatResponse(finesse_client_handle, message);
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_STAT, &elapsed);
+
+    return result;
+}
+
+int finesse_stat(const char *file_name, struct stat *buf)
+{
+    int result = internal_stat(file_name, buf);
+
+    FinesseApiCountCall(FINESSE_API_CALL_STAT, 0 == result);
     return result;
 }
 
@@ -74,21 +110,42 @@ static int fin_fstat(int filedes, struct stat *buf)
     return orig_fstat(filedes, buf);
 }
 
-int finesse_fstat(int filedes, struct stat *buf)
+static int internal_fstat(int filedes, struct stat *buf)
 {
-    int                     status;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
     double                  timeout = 0;
     finesse_file_state_t *  ffs     = NULL;
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
+
     // Let's see if we know about this file descriptor
     ffs = finesse_lookup_file_state(filedes);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_FSTAT, &elapsed);
+
     if (NULL == ffs) {
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
         // We aren't tracking this, so we do pass-through
-        return fin_fstat(filedes, buf);
+        status = fin_fstat(filedes, buf);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_FSTAT, &elapsed);
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     // We ARE tracking the file, so we can use the key to query.
     status = FinesseSendFstatRequest(finesse_client_handle, &ffs->key, &message);
@@ -96,6 +153,20 @@ int finesse_fstat(int filedes, struct stat *buf)
     status = FinesseGetStatResponse(finesse_client_handle, message, buf, &timeout, &result);
     assert(0 == status);
     FinesseFreeStatResponse(finesse_client_handle, message);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_LSTAT, &elapsed);
+
+    return result;
+}
+
+int finesse_fstat(int filedes, struct stat *buf)
+{
+    int result = internal_fstat(filedes, buf);
+
+    FinesseApiCountCall(FINESSE_API_CALL_FSTAT, 0 == result);
 
     return result;
 }
@@ -120,26 +191,61 @@ static int fin_lstat(const char *file_name, struct stat *buf)
     return orig_lstat(file_name, buf);
 }
 
-int finesse_lstat(const char *pathname, struct stat *statbuf)
+static int internal_lstat(const char *pathname, struct stat *statbuf)
 {
-    int                     status;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
     double                  timeout = 0;
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
+
     finesse_client_handle = finesse_check_prefix(pathname);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_LSTAT, &elapsed);
 
     if (NULL == finesse_client_handle) {
         // not of interest - fallback
-        return fin_lstat(pathname, statbuf);
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
+        status = fin_lstat(pathname, statbuf);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_LSTAT, &elapsed);
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     status = FinesseSendLstatRequest(finesse_client_handle, pathname, &message);
     assert(0 == status);
     status = FinesseGetStatResponse(finesse_client_handle, message, statbuf, &timeout, &result);
     assert(0 == status);
     FinesseFreeStatResponse(finesse_client_handle, message);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_LSTAT, &elapsed);
+
+    return result;
+}
+
+int finesse_lstat(const char *pathname, struct stat *statbuf)
+{
+    int result = internal_lstat(pathname, statbuf);
+
+    FinesseApiCountCall(FINESSE_API_CALL_LSTAT, 0 == result);
 
     return result;
 }
@@ -164,21 +270,44 @@ static int fin_fstatat(int dirfd, const char *pathname, struct stat *statbuf, in
     return orig_fstatat(dirfd, pathname, statbuf, flags);
 }
 
-int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
+static int internal_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
 {
-    int                     status;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
     double                  timeout = 0;
     finesse_file_state_t *  ffs     = NULL;
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
+
     // Let's see if we know about this file descriptor
     ffs = finesse_lookup_file_state(dirfd);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_FSTATAT, &elapsed);
+
     if (NULL == ffs) {
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
         // We aren't tracking this, so we do pass-through
-        return fin_fstatat(dirfd, pathname, statbuf, flags);
+        status = fin_fstatat(dirfd, pathname, statbuf, flags);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_FSTAT, &elapsed);
+
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     // We ARE tracking the file, so we can use the key to query.
     status = FinesseSendFstatAtRquest(finesse_client_handle, &ffs->key, pathname, flags, &message);
@@ -186,6 +315,20 @@ int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int f
     status = FinesseGetStatResponse(finesse_client_handle, message, statbuf, &timeout, &result);
     assert(0 == status);
     FinesseFreeStatResponse(finesse_client_handle, message);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_FSTATAT, &elapsed);
+
+    return result;
+}
+
+int finesse_fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
+{
+    int result = internal_fstatat(dirfd, pathname, statbuf, flags);
+
+    FinesseApiCountCall(FINESSE_API_CALL_FSTATAT, 0 == result);
 
     return result;
 }
@@ -210,9 +353,18 @@ static int fin_statx(int dfd, const char *filename, unsigned atflag, unsigned ma
     return orig_statx(dfd, filename, atflag, mask, buffer);
 }
 
-int finesse_statx(int dfd, const char *filename, unsigned atflag, unsigned mask, struct statx *buffer)
+static int internal_statx(int dfd, const char *filename, unsigned atflag, unsigned mask, struct statx *buffer)
 {
     // TODO: implement this.
 
     return fin_statx(dfd, filename, atflag, mask, buffer);
+}
+
+int finesse_statx(int dfd, const char *filename, unsigned atflag, unsigned mask, struct statx *buffer)
+{
+    int result = internal_statx(dfd, filename, atflag, mask, buffer);
+
+    FinesseApiCountCall(FINESSE_API_CALL_STATX, 0 == result);
+
+    return result;
 }

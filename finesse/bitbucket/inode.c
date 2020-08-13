@@ -4,8 +4,8 @@
 // All Rights Reserved
 
 #if !defined(_GNU_SOURCE)
-#define _GNU_SOURCE             /* See feature_test_macros(7) */
-#endif // _GNU_SOURCE
+#define _GNU_SOURCE /* See feature_test_macros(7) */
+#endif              // _GNU_SOURCE
 
 #include <errno.h>
 #include <fuse_log.h>
@@ -486,9 +486,14 @@ typedef struct _bitbucket_inode_table_data {
 static void FormatInodeTableData(const bitbucket_inode_table_bucket_data_t *BucketData, int CsvFormat, char *Buffer,
                                  size_t *BufferSize)
 {
+#pragma GCC diagnostic push
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif  // __clang__
     static const char *FormatString    = "%10lu %10lu %10lu %10lu\n";
     static const char *CsvFormatString = "%lu, %lu, %lu, %lu\n";
-    size_t             retval          = 0;
+#pragma GCC diagnostic pop
+    size_t retval = 0;
 
     if (CsvFormat) {
         retval = snprintf(Buffer, *BufferSize, CsvFormatString, BucketData->MaxEntries, BucketData->CacheHits, BucketData->Lookups,

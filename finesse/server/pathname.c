@@ -5,9 +5,9 @@
 
 typedef struct _FinesseServerPathResolutionParameters {
     size_t       Size;                  // Number of bytes in this structure; allows growing it
-    int          FollowSymlinks : 1;    // If set, this indicates we should follow symlinks.  False, we stop with the symlink.
-    int          CheckSecurity : 1;     // This should perform a security check at each
-    int          GetFinalParent : 1;    // This should return the final parent as the target inode (even if child doesn't exist)
+    unsigned int FollowSymlinks : 1;    // If set, this indicates we should follow symlinks.  False, we stop with the symlink.
+    unsigned int CheckSecurity : 1;     // This should perform a security check at each
+    unsigned int GetFinalParent : 1;    // This should return the final parent as the target inode (even if child doesn't exist)
     fuse_ino_t   Parent;                // In parameter; 0 = PathName is absolute and must contain mountpoint name
     const char * PathName;              // In parameters
     const char * Cursor;                // Location in the PathName being parsed.

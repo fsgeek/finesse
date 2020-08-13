@@ -4,6 +4,7 @@
  */
 
 #include "api-internal.h"
+#include "callstats.h"
 
 static int fin_access(const char *pathname, int mode)
 {
@@ -24,25 +25,61 @@ static int fin_access(const char *pathname, int mode)
     return orig_access(pathname, mode);
 }
 
-int finesse_access(const char *pathname, int mode)
+static int internal_access(const char *pathname, int mode)
 {
-    int                     status;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_ACCESS, &elapsed);
+
     if (NULL == finesse_client_handle) {
         // not of interest - fallback
-        return fin_access(pathname, mode);
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
+        status = fin_access(pathname, mode);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_ACCESS, &elapsed);
+
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     status = FinesseSendAccessRequest(finesse_client_handle, NULL, pathname, mode, &message);
     assert(0 == status);
     status = FinesseGetAccessResponse(finesse_client_handle, message, &result);
     assert(0 == status);
     FinesseFreeAccessResponse(finesse_client_handle, message);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_ACCESS, &elapsed);
+
+    return result;
+}
+
+int finesse_access(const char *pathname, int mode)
+{
+    int result = internal_access(pathname, mode);
+
+    FinesseApiCountCall(FINESSE_API_CALL_ACCESS, 0 == result);
 
     return result;
 }
@@ -67,38 +104,88 @@ static int fin_faccessat(int dirfd, const char *pathname, int mode, int flags)
     return orig_faccessat(dirfd, pathname, mode, flags);
 }
 
-int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
+static int internal_faccessat(int dirfd, const char *pathname, int mode, int flags)
 {
-    int                     status;
     finesse_file_state_t *  file_state = NULL;
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
+    struct timespec         start, stop, elapsed;
+    int                     status, tstatus;
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_ACCESS, &elapsed);
+
     if (NULL == finesse_client_handle) {
         // not of interest - fallback
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
         if (-1 == dirfd) {
-            return fin_access(pathname, mode);
+            status = fin_access(pathname, mode);
         }
         else {
-            return fin_faccessat(dirfd, pathname, mode, flags);
+            status = fin_faccessat(dirfd, pathname, mode, flags);
         }
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_ACCESS, &elapsed);
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     file_state = finesse_lookup_file_state(finesse_nfd_to_fd(dirfd));
 
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_ACCESS, &elapsed);
+
     if (NULL == file_state) {
         // don't know the parent? Not interested...
-        return fin_faccessat(dirfd, pathname, mode, flags);
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+        assert(0 == tstatus);
+
+        status = fin_faccessat(dirfd, pathname, mode, flags);
+
+        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+        assert(0 == tstatus);
+        timespec_diff(&start, &stop, &elapsed);
+        FinesseApiRecordNative(FINESSE_API_CALL_ACCESS, &elapsed);
+        return status;
     }
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+    assert(0 == tstatus);
 
     status = FinesseSendAccessRequest(finesse_client_handle, &file_state->key, pathname, mode, &message);
     assert(0 == status);
     status = FinesseGetAccessResponse(finesse_client_handle, message, &result);
     assert(0 == status);
     FinesseFreeAccessResponse(finesse_client_handle, message);
+
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
+    assert(0 == tstatus);
+    timespec_diff(&start, &stop, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_ACCESS, &elapsed);
+
+    return result;
+}
+
+int finesse_faccessat(int dirfd, const char *pathname, int mode, int flags)
+{
+    int result = internal_faccessat(dirfd, pathname, mode, flags);
+
+    FinesseApiCountCall(FINESSE_API_CALL_FACCESSAT, 0 == result);
 
     return result;
 }

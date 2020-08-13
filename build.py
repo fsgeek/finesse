@@ -28,29 +28,45 @@ See: http://gavinchou.github.io/experience/summary/syntax/gcc-address-sanitizer/
 
 '''
 
+
 class BuildConfigData:
     cc_check = ('gcc', 'clang', 'icc', 'aocc')
     buildtypes = ('debug', 'debugoptimized', 'release')
 
     # https://github.com/mesonbuild/meson/blob/master/docs/markdown/Reference-tables.md#compiler-and-linker-selection-variables
     cc_env = {
-        'gcc' : {'CC' : 'gcc', 'CXX' : 'g++'}, # use default linker
-        'clang' : {'CC' : 'clang', 'CC_LD' : 'lld', 'CXX' : 'g++', 'CXX_LD' : 'lld'},
-        'icc' : {'CC' : 'icc', 'CC_LD' : 'lld', 'CXX' : 'g++', 'CXX_LD' : 'ld'},
-        'aocc' : {'CC' : 'aocc', 'CC_LD' : 'ld', 'CXX' : 'g++', 'CXX_LD' : 'ld'},
+        'gcc': {'CC': 'gcc', 'CXX': 'g++'},  # use default linker
+        'clang': {'CC': 'clang', 'CC_LD': 'lld', 'CXX': 'g++', 'CXX_LD': 'lld'},
+        'icc': {'CC': 'icc', 'CC_LD': 'lld', 'CXX': 'g++', 'CXX_LD': 'ld'},
+        'aocc': {'CC': 'aocc', 'CC_LD': 'ld', 'CXX': 'g++', 'CXX_LD': 'ld'},
     }
 
     c_std = {
-        'c89' : '-Dc_std=c89',
-        'c99' : '-Dc_std=c99',
-        'c11' : '-Dc_std=c11',
-        'c18' : '-Dc_std=c18',
+        'none': '',
+        'gnu89': '-Dc_std=gnu89',
+        'gnu99': '-Dc_std=gnu99',
+        'gnu11': '-Dc_std=gnu11',
+        'gnu18': '-Dc_std=gnu18',
+        'c89': '-Dc_std=c89',
+        'c99': '-Dc_std=c99',
+        'c11': '-Dc_std=c11',
+        'c18': '-Dc_std=c18',
     }
 
     c_args = [
         '-D_GNU_SOURCE',
         '-DFINESSE',
+        '-ggdb'
     ]
+
+    sanitizers = {
+        'none': '',
+        'address': '--bsanitizer=address',
+        'thread': '--bsanitizer=thread',
+        'undefined': '--bsanitizer=undefined',
+        'memory': '--bsanitizer=memory',
+        'address,undefined': '--bsanitizer=address,undefined',
+    }
 
 
 class BuildConfig:
@@ -67,29 +83,35 @@ class BuildConfig:
         self.buildtype = buildtype
         self.base = base
         self.debug = False
-        self.c_std = BuildConfigData.c_std['c18'] # default
-        self.c_args = BuildConfigData.c_args # TODO: allow more selectivity here
-        assert os.path.isdir(self.base), 'The base {} must be a valid directory'.format(base)
+        self.log = open(os.devnull, 'w')
+        sanitizers = [x for x in BuildConfigData.sanitizers]
+        self.sanitizer = sanitizers[-1]  # default
+        self.c_std = BuildConfigData.c_std['c18']  # default
+        self.c_args = BuildConfigData.c_args  # TODO: allow more selectivity here
+        assert os.path.isdir(
+            self.base), 'The base {} must be a valid directory'.format(base)
         self.dir = self.base + '/' + compiler + '/' + buildtype
-        if not os.path.exists(self.dir): os.makedirs(self.dir)
-        else: assert os.path.isdir(self.dir), 'The path specified {} is not a valid directory'
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+        else:
+            assert os.path.isdir(
+                self.dir), 'The path specified {} is not a valid directory'
+
+    def get_name(self):
+        return 'Configuration: compiler = {}, build type = {}, sanitizer = {}'.format(self.compiler, self.buildtype, self.sanitizer)
 
     def debug(self, debug=True):
-        self.debug=debug
+        self.debug = debug
 
     def getoptions(self):
         '''
         Generate the meson options here - this is where we should add more customization for compilers,
         such as the profiler guided optimizations (gcc) or static analysis (clang).
         '''
-        if self.buildtype == 'debug':
-            options = ['-B_sanitize=address']
-        elif self.buildtype == 'debugoptimized':
-            options = ['-B_sanitize=address', '-Dc_args=-Og']
-        else:
-            options = ['-Dc_args=-ggdb']
+        options = [x for x in self.c_args]
+        options.append(self.c_std)
+        options.append(self.sanitizer)
         return options
-
 
     def fixpath(self, filter):
         '''Given a string, remove any path entry with that string within it.  Primary use case is to strip out intel
@@ -99,13 +121,13 @@ class BuildConfig:
         cleanpath = [p for p in path if filter not in p]
         return os.pathsep.join(cleanpath)
 
-
     def getenv(self):
         '''
         Some meson settings are guided by environment variables, so this routine handles
         setting up the environment. for now, just tack on compiler options to the end.
         '''
-        assert self.compiler in BuildConfigData.cc_env, 'Unsupported compiler'
+        assert self.compiler in BuildConfigData.cc_env, 'Unsupported compiler {}'.format(
+            self.compiler)
         env = {}
         for field in os.environ:
             if self.compiler == 'icc':
@@ -115,7 +137,7 @@ class BuildConfig:
                 env[field] = self.fixpath('intel')
                 continue
             if 'intel' in os.environ[field]:
-                continue # not icc, so we skip this value
+                continue  # not icc, so we skip this value
             # default is to use the environment variable value
             env[field] = os.environ[field]
         for field in BuildConfigData.cc_env[self.compiler]:
@@ -128,32 +150,36 @@ class BuildConfig:
 
     def run(self, args, env=None):
         '''Given a list of arguments and an environment to use, run a program'''
-        if env is None: env=self.getenv()
-        assert os.path.isdir(self.dir), 'Target dir ({}) does not exist or is not a directory'.format(self.dir)
-        results = subprocess.run(args, cwd=self.dir, check=False, env=env)
+        if env is None:
+            env = self.getenv()
+        assert os.path.isdir(
+            self.dir), 'Target dir ({}) does not exist or is not a directory'.format(self.dir)
+        results = subprocess.run(
+            args, cwd=self.dir, check=False, env=env, stderr=self.log, stdout=self.log)
         if results.returncode != 0:
-            print('Build for {} failed\n'.format(self.dir))
+            self.log.write('Build for {} failed\n'.format(self.dir))
             if self.debug:
-                print('Unable to run command {}'.format(args[0]))
-                print('\t  args: {}'.format(args))
-                print('\tresult: {}'.format(results.returncode))
-                print('\t   env:')
+                self.log.write('Unable to run command {}'.format(args[0]))
+                self.log.write('\t  args: {}'.format(args))
+                self.log.write('\tresult: {}'.format(results.returncode))
+                self.log.write('\t   env:')
                 for field in env:
-                    print('\t\t{}={}'.format(field, env[field]))
-                print(self.dir, results)
+                    self.log.write('\t\t{}={}'.format(field, env[field]))
+                self.log.write(self.dir, results)
 
     def buildfile(self):
         ninjafile = '{}/build.ninja'.format(self.dir)
         return os.path.exists(ninjafile)
 
-
     def setup(self):
         '''Set up the configuration properly for the given configuration'''
         if self.buildfile():
-            print('ninjafile exists, skipping configuration')
+            print('ninjafile exists, skipping configuration ({})'.format(
+                self.get_name()))
             return
         srcdir = '../../..'
-        args = ['meson', 'setup', '--buildtype', self.buildtype, '--warnlevel', '3', '--werror', self.c_std, srcdir]
+        args = ['meson', 'setup', '--buildtype', self.buildtype,
+                '--warnlevel', '3', '--werror', self.c_std, srcdir]
         self.run(args)
 
     def build(self):
@@ -170,25 +196,70 @@ class BuildConfig:
             return
         self.run(['ninja', 'clean'])
 
+    def set_sanitizer(self, sanitizer=''):
+        self.sanitizer = BuildConfigData.sanitizers[sanitizer]
+
+    def setc_std(self, c_std='c11'):
+        assert type(c_std) is str, 'C standard must be string, is type {} = {}'.format(
+            type(c_std), c_std)
+        self.c_std = BuildConfigData.c_std[c_std]
+
+    def set_log(self, log):
+        self.log = log
+
 
 def main():
-    compiler_choices = BuildConfig.compilers() + ['all']
-    build_choices = ['debug', 'release', 'all']
-    operation_choices = ['setup', 'build']
+    compiler_choices = BuildConfig.compilers()
+    compiler_choices.append('all')
+    build_choices = [x for x in BuildConfigData.buildtypes]
+    build_choices.append('all')
+    operation_choices = ['setup', 'build', 'clean', 'delete']
+    sanitizer_choices = [x for x in BuildConfigData.sanitizers]
+    standards = [x for x in BuildConfigData.c_std]
     parser = argparse.ArgumentParser()
     parser.add_argument('--operation', dest='operation', type=str, nargs=1,
-                        choices=operation_choices, default=operation_choices[-1], help='set up or build')
+                        choices=operation_choices, default=operation_choices[1], help='set up or build')
     parser.add_argument('--compiler', dest='compiler', choices=compiler_choices,
                         default=compiler_choices[-1], help='compiler to use')
     parser.add_argument('--buildtype', dest='buildtype', choices=build_choices,
                         default=build_choices[-1], help='Type of build to perform')
-    parser.add_argument('--dir', dest='build_dir', default='build', help='Location to use for building')
-    parser.add_argument('--clean', dest='clean', default=False, action='store_true', help='Delete build directory if it already exists')
+    parser.add_argument('--dir', dest='build_dir',
+                        default='build', help='Location to use for building')
+    parser.add_argument('--clean', dest='clean', default=False,
+                        action='store_true', help='Delete build directory if it already exists')
+    parser.add_argument('--sanitize', dest='sanitizer', nargs=1, type=str,
+                        default=sanitizer_choices[-1], choices=sanitizer_choices, help='Choose the sanitizer option')
+    parser.add_argument(
+        '--c_std', dest='c_std', nargs=1, choices=standards, default=standards[-1], help='Which C standard to use')
+    parser.add_argument('--log', dest='log', nargs=1,
+                        default=None, help='Where to write log contents')
     args = parser.parse_args()
 
+    if args.log is None:
+        log = open(os.devnull, 'w')
+    else:
+        if type(args.log) is list:
+            args.log = args.log[0]
+        assert type(args.log) is str, 'Log must be a string, is a {} presently'.format(
+            type(args.log))
+        if args.clean and os.path.exists(args.log):
+            os.unlink(args.log)
+        log = open(args.log, 'w+')
+
     # normalize the name (doesn't do variable substitution at present)
-    if '~' in args.build_dir: args.build_dir=os.path.expanduser(args.build_dir)
-    if args.build_dir[0] != '/': args.build_dir = os.getcwd() + '/' + args.build_dir
+    if '~' in args.build_dir:
+        args.build_dir = os.path.expanduser(args.build_dir)
+    if args.build_dir[0] != '/':
+        args.build_dir = os.getcwd() + '/' + args.build_dir
+
+    if type(args.operation) is list:
+        args.operation = args.operation[0]
+
+    # if we were asked to delete, do so
+    if args.operation == 'delete':
+        print('Deleting {}'.format(args.build_dir))
+        shutil.rmtree(args.build_dir)
+        return
 
     # if we were asked to clean up first, and the build directory exists, delete it
     if args.clean and os.path.exists(args.build_dir):
@@ -212,15 +283,25 @@ def main():
         builds = [args.buildtype]
 
     # build a list of the configuration(s) to use
-    configs = [BuildConfig(args.build_dir, x, y) for x in compilers for y in builds]
+    configs = [BuildConfig(args.build_dir, x, y)
+               for x in compilers for y in builds]
 
+    # make sure standard is a string, not a list
+    if type(args.c_std) is list:
+        args.c_std = args.c_std[0]
+
+    # now run the various operations:
     for config in configs:
-        try:
-            config.setup()
+        config.set_log(log)
+        if args.operation == 'clean':
+            config.clean()
+            return
+        config.set_sanitizer(args.sanitizer)
+        config.setc_std(args.c_std)
+        print('Setup for {}'.format(config.get_name()))
+        config.setup()
+        if args.operation == 'build':
             config.build()
-        except Exception as e:
-            print('exception {} for config {}'.format(e, config.compiler))
-            pass
 
 
 if __name__ == "__main__":
