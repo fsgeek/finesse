@@ -9,31 +9,11 @@
 #include <malloc.h>
 #include <string.h>
 
-static finesse_api_call_statistics_t FinesseApiCallStatistics[FINESSE_API_CALLS_MAX - (FINESSE_API_CALL_BASE + 1)];
+static finesse_api_call_statistics_t FinesseApiCallStatistics[FINESSE_API_CALLS_COUNT];
 
-static const char *FinesseCallDataNames[] = {"Access",
-                                             "Faccessat",
-                                             "Chmod",
-                                             "Chown",
-                                             "Close"
-                                             "Dir",
-                                             "Dup",
-                                             "Fstat",
-                                             "Fstatat",
-                                             "Lstat",
-                                             "Link",
-                                             "Lseek",
-                                             "Mkdir",
-                                             "Open",
-                                             "Read",
-                                             "Rename",
-                                             "Rmdir",
-                                             "Stat",
-                                             "Statx",
-                                             "Unlink",
-                                             "Utime",
-                                             "Write",
-                                             NULL};
+static const char *FinesseCallDataNames[] = {"Access",  "Faccessat", "Chmod", "Chown",  "Close", "Dir",  "Dup",  "Fstat",
+                                             "Fstatat", "Lstat",     "Link",  "Lseek",  "Mkdir", "Open", "Read", "Rename",
+                                             "Rmdir",   "Stat",      "Statx", "Unlink", "Utime", "Write"};
 
 static const char *FinesseCallDataNames[FINESSE_API_CALLS_COUNT];
 
