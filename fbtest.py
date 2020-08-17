@@ -59,7 +59,7 @@ def main():
     if len(fbdirs) > 0:
         default_fbdir = fbdirs[0]
     parser = argparse.ArgumentParser(
-        description='Run filebench workload for a given file system')
+        description='Run filebench workload in a given filesystem location')
     parser.add_argument('--wldir', dest='wldir', type=str, default=default_fbdir,
                         help='location of the base workload files')
     parser.add_argument('--testdir', dest='testdir', default='/mnt/bitbucket',
@@ -68,23 +68,41 @@ def main():
                         type=str, help='which filebench test to run')
     parser.add_argument('--log', dest='log', type=str,
                         help='name to use for log file (otherwise, auto-generated name is used)')
+    parser.add_argument('--logdir', dest='logdir', default='data', type=str,
+                        help='directory where log files should be stored (default is "data")')
     parser.add_argument('--root', dest='root', default=True,
                         action='store_false', help='used to not run this with privilege')
     parser.add_argument('--ldpreload', dest='preload', default=None,
                         type=str, help='Preload library to use, if any')
+    parser.add_argument('--keeptemp', dest='keeptemp', default=False, action='store_true',
+                        help='keeps temp directory with modified scripts (for debugging)')
     args = parser.parse_args()
     assert os.path.exists(
         args.wldir), 'Invalid workload directory {}'.format(args.wldir)
     assert os.path.exists(
         args.testdir), 'Invalid test directory {}'.format(args.testdir)
     workdir = copy_tests(args.wldir, args.testdir)
+    logdir = args.logdir
+    if logdir is None:
+        logdir = '.'
+    elif '~' in logdir:
+        logdir = os.path.expanduser(logdir)
+    if os.path.exists(logdir):
+        assert os.path.isdir(
+            logdir), 'The log directory ({}) must be a directory!'.format(logdir)
+    else:
+        os.makedirs(logdir)
     if args.log is not None:
         logfile = args.log
     else:
-        logfile = './{}_{}_results-{}.log'.format(args.test, args.testdir.replace('/', '-'),
-                                                  time.strftime('%Y%m%d-%H%M%S'))
+        logfile = '{}/{}_{}_results-{}.log'.format(logdir, args.test, args.testdir.replace('/', '-'),
+                                                   time.strftime('%Y%m%d-%H%M%S'))
     env = {x: os.environ[x] for x in os.environ}
     if args.preload:
+        assert os.path.exists(
+            args.preload), 'The specified preload library ({}) does not exist'.format(args.preload)
+        assert not os.path.isdir(
+            args.preload), 'The specified preload library ({}) is not a file'.format(args.preload)
         env['LD_PRELOAD'] = args.preload
     # Now it is time to run filebench.
     test = args.test
@@ -95,12 +113,22 @@ def main():
         fb_args = ['sudo']
     fb_args = fb_args + ['filebench', '-f', test]
     with open(logfile, 'w') as log:
+        if args.preload:
+            # make sure we have an absolute path, since we run filebench from a different directory
+            if '~' in args.preload:
+                args.preload = os.path.expanduser(args.preload)
+            if '/' != args.preload[0]:
+                args.preload = '{}/{}'.format(os.getcwd(), args.preload)
+            log.write('LD_PRELOAD={} '.format(args.preload))
         log.write(' '.join(fb_args) + '\n')
         result = subprocess.run(['mount'], stdout=log, stderr=log)
         if result.returncode == 0:
             result = subprocess.run(fb_args, stdout=log,
                                     stderr=log, cwd=workdir, env=env)
-    shutil.rmtree(workdir)
+    if args.keeptemp:
+        print('Saved {} for analysis'.format(workdir))
+    else:
+        shutil.rmtree(workdir)
     sys.exit(result.returncode)
 
 

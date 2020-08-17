@@ -6,6 +6,7 @@ import argparse
 import pathlib
 import shutil
 import subprocess
+import time
 
 
 '''
@@ -233,18 +234,9 @@ def main():
         '--c_std', dest='c_std', nargs=1, choices=standards, default=standards[-1], help='Which C standard to use')
     parser.add_argument('--log', dest='log', nargs=1,
                         default=None, help='Where to write log contents')
+    parser.add_argument('--logdir', dest='logdir', default='build', type=str,
+                        help='directory where log files should be stored (default is "build")')
     args = parser.parse_args()
-
-    if args.log is None:
-        log = open(os.devnull, 'w')
-    else:
-        if type(args.log) is list:
-            args.log = args.log[0]
-        assert type(args.log) is str, 'Log must be a string, is a {} presently'.format(
-            type(args.log))
-        if args.clean and os.path.exists(args.log):
-            os.unlink(args.log)
-        log = open(args.log, 'w+')
 
     # normalize the name (doesn't do variable substitution at present)
     if '~' in args.build_dir:
@@ -268,6 +260,29 @@ def main():
     # if the build directory doesn't exist (for any reason), create it
     if not os.path.exists(args.build_dir):
         os.makedirs(args.build_dir)
+
+    # create log file
+
+    logdir = args.logdir
+    if logdir is None:
+        logdir = '.'
+    elif '~' in logdir:
+        logdir = os.path.expanduser(logdir)
+    if os.path.exists(logdir):
+        assert os.path.isdir(
+            logdir), 'The log directory ({}) must be a directory!'.format(logdir)
+    else:
+        os.makedirs(logdir)
+
+    logfile = args.log
+    if logfile is None:
+        logfile = '{}/build-results-{}.log'.format(logdir,
+                                                   time.strftime('%Y%m%d-%H%M%S'))
+    elif type(logfile) is list:
+        logfile = logfile[0]
+    if args.clean and os.path.exists(logfile):
+        os.unlink(logfile)
+    log = open(logfile, 'w+')
 
     # if the user specified 'all' for compilers, we construct a list.  Otherwise we use the explicit complier they passed.
     # Note that the list of compiles is generated based upon what we could find on the system.
