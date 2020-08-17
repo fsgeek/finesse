@@ -15,7 +15,6 @@ static int Access(struct fuse_session *se, void *Client, fincomm_message Message
     struct fuse_out_header * out             = NULL;
 
     assert(NULL != se);
-    assert(NULL != Client);
     assert(NULL != Message);
 
     while (1) {

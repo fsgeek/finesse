@@ -7,7 +7,8 @@
 #include <fcinternal.h>
 
 int FinesseSendCommonStatRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *Parent, uuid_t *Inode, int Flags,
-                                 const char *Path, fincomm_message *Message) {
+                                 const char *Path, fincomm_message *Message)
+{
     int                           status = 0;
     client_connection_state_t *   ccs    = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr;
@@ -28,12 +29,14 @@ int FinesseSendCommonStatRequest(finesse_client_handle_t FinesseClientHandle, uu
     fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STAT;
     if (NULL != Parent) {
         memcpy(&fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode, Parent, sizeof(uuid_t));
-    } else {
+    }
+    else {
         memset(&fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode, 0, sizeof(uuid_t));
     }
     if (NULL != Inode) {
         memcpy(&fmsg->Message.Fuse.Request.Parameters.Stat.Inode, Inode, sizeof(uuid_t));
-    } else {
+    }
+    else {
         memset(&fmsg->Message.Fuse.Request.Parameters.Stat.Inode, 0, sizeof(uuid_t));
     }
     fmsg->Message.Fuse.Request.Parameters.Stat.Flags = Flags;
@@ -57,7 +60,8 @@ int FinesseSendCommonStatRequest(finesse_client_handle_t FinesseClientHandle, uu
 }
 
 int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message,
-                            const struct stat *Stat, double Timeout, int Result) {
+                            const struct stat *Stat, double Timeout, int Result)
+{
     int                           status = 0;
     fincomm_shared_memory_region *fsmr   = NULL;
     finesse_msg *                 ffm;
@@ -69,7 +73,7 @@ int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *C
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
 
-    Message->Result      = 0;
+    Message->Result      = Result;
     Message->MessageType = FINESSE_RESPONSE;
 
     assert(NULL != Stat);
@@ -88,7 +92,8 @@ int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *C
 }
 
 int FinesseGetStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, struct stat *Attr, double *Timeout,
-                           int *Result) {
+                           int *Result)
+{
     int                           status = 0;
     client_connection_state_t *   ccs    = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr   = NULL;
@@ -116,6 +121,7 @@ int FinesseGetStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_
     return status;
 }
 
-void FinesseFreeStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response) {
+void FinesseFreeStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
+{
     FinesseFreeClientResponse(FinesseClientHandle, Response);
 }

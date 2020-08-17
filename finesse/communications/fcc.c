@@ -1,7 +1,7 @@
 /*
  * (C) Copyright 2020 Tony Mason
  * All Rights Reserved
-*/
+ */
 
 #include "fcinternal.h"
 
@@ -13,11 +13,10 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
         return;
     }
 
-    if ((ccs->reg_info.ClientSharedMemPathNameLength > 0) &&
-        (strlen(ccs->reg_info.ClientSharedMemPathName) > 0)) {
-        (void) unlink(ccs->reg_info.ClientSharedMemPathName);
+    if ((ccs->reg_info.ClientSharedMemPathNameLength > 0) && (strlen(ccs->reg_info.ClientSharedMemPathName) > 0)) {
+        (void)unlink(ccs->reg_info.ClientSharedMemPathName);
         ccs->reg_info.ClientSharedMemPathNameLength = 0;
-        ccs->reg_info.ClientSharedMemPathName[0] = '\0';
+        ccs->reg_info.ClientSharedMemPathName[0]    = '\0';
     }
 
     if (ccs->server_connection >= 0) {
@@ -26,8 +25,7 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
         ccs->server_connection = -1;
     }
 
-    if ((NULL != ccs->server_shm) &&
-        (ccs->server_shm_size > 0)) {
+    if ((NULL != ccs->server_shm) && (ccs->server_shm_size > 0)) {
         // Shutdown the shared memory region - note the server may have threads
         // blocked, but this should terminate them so the shared memory region
         // can be disconnected.
@@ -35,7 +33,7 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
 
         status = munmap(ccs->server_shm, ccs->server_shm_size);
         assert(0 == status);
-        ccs->server_shm = NULL;
+        ccs->server_shm      = NULL;
         ccs->server_shm_size = 0;
     }
 
@@ -47,14 +45,12 @@ static void CleanupClientConnectionState(client_connection_state_t *ccs)
 
     free(ccs);
     ccs = NULL;
-
 }
-
 
 int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, const char *MountPoint)
 {
-    int status = 0;
-    client_connection_state_t *ccs = NULL;
+    int                               status = 0;
+    client_connection_state_t *       ccs    = NULL;
     fincomm_registration_confirmation conf;
 
     while (0 == status) {
@@ -66,7 +62,8 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         memset(ccs, 0, sizeof(client_connection_state_t));
 
         uuid_generate(ccs->reg_info.ClientId);
-        status = GenerateClientSharedMemoryName(ccs->reg_info.ClientSharedMemPathName, sizeof(ccs->reg_info.ClientSharedMemPathName), ccs->reg_info.ClientId);
+        status = GenerateClientSharedMemoryName(ccs->reg_info.ClientSharedMemPathName,
+                                                sizeof(ccs->reg_info.ClientSharedMemPathName), ccs->reg_info.ClientId);
         assert(0 == status);
         ccs->reg_info.ClientSharedMemPathNameLength = strlen(ccs->reg_info.ClientSharedMemPathName);
         assert(ccs->reg_info.ClientSharedMemPathNameLength > 0);
@@ -75,7 +72,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         assert(ccs->server_shm_fd >= 0);
 
         ccs->server_shm_size = sizeof(fincomm_message_block) + (SHM_PAGE_SIZE * SHM_MESSAGE_COUNT);
-        status = ftruncate(ccs->server_shm_fd, ccs->server_shm_size);
+        status               = ftruncate(ccs->server_shm_fd, ccs->server_shm_size);
         assert(0 == status);
 
         ccs->server_shm = mmap(NULL, ccs->server_shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, ccs->server_shm_fd, 0);
@@ -99,6 +96,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
 
         memset(&conf, 0, sizeof(conf));
         status = recv(ccs->server_connection, &conf, sizeof(conf), 0);
+        assert(status >= 0);
         assert(sizeof(conf) == status);
         assert(conf.ClientSharedMemSize == ccs->server_shm_size);
         assert(0 == conf.Result);
@@ -109,7 +107,6 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
 
         // Done!
         break;
-
     }
 
     if (0 != status) {
@@ -123,8 +120,8 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
 
 int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
 {
-    int status = 0;
-    client_connection_state_t *ccs = FinesseClientHandle;
+    int                        status = 0;
+    client_connection_state_t *ccs    = FinesseClientHandle;
     assert(NULL != ccs);
 
     CleanupClientConnectionState(ccs);
@@ -132,33 +129,36 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
     return status;
 }
 
+// TODO: should th is be in fincomm.c?
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
 {
-    unsigned index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion)/SHM_PAGE_SIZE)-1);
-    u_int64_t bitmap; // = AllocationBitmap;
-    u_int64_t new_bitmap; 
+    unsigned  index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion) / SHM_PAGE_SIZE) - 1);
+    u_int64_t bitmap;  // = AllocationBitmap;
+    u_int64_t new_bitmap;
 
     assert(NULL != RequestRegion);
     assert(index < SHM_MESSAGE_COUNT);
     assert(NULL != Message);
 
-    Message->RequestId = 0; // invalid
+    Message->RequestId = 0;  // invalid
 
-    bitmap = RequestRegion->AllocationBitmap;
+    bitmap     = RequestRegion->AllocationBitmap;
     new_bitmap = bitmap & ~make_mask64(index);
-    assert(bitmap != new_bitmap); // freeing an unallocated message
+    assert(bitmap != new_bitmap);  // freeing an unallocated message
 
     assert(&RequestRegion->Messages[index] == Message);
 
     while (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
-        bitmap = RequestRegion->AllocationBitmap;
+        bitmap     = RequestRegion->AllocationBitmap;
         new_bitmap = (bitmap & ~make_mask64(index));
     }
+
+    // fprintf(stderr, "%s (%s:%d): thread %d released index %u\n", __func__, __FILE__, __LINE__, gettid(), index);
 }
 
 void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response)
 {
-    client_connection_state_t *ccs = FinesseClientHandle;
+    client_connection_state_t *   ccs = FinesseClientHandle;
     fincomm_shared_memory_region *fsmr;
 
     assert(NULL != ccs);
@@ -172,10 +172,10 @@ void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, finc
 // the only thing they want back is the result code from the operation.
 int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Message, int *Result)
 {
-    int status = 0;
-    client_connection_state_t *ccs = FinesseClientHandle;
-    fincomm_shared_memory_region *fsmr = NULL;
-    finesse_msg *fmsg = NULL;
+    int                           status = 0;
+    client_connection_state_t *   ccs    = FinesseClientHandle;
+    fincomm_shared_memory_region *fsmr   = NULL;
+    finesse_msg *                 fmsg   = NULL;
 
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
@@ -185,7 +185,7 @@ int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, finc
     // This is a blocking get
     status = FinesseGetResponse(fsmr, Message, 1);
     assert(0 != status);
-    status = 0; // FinesseGetResponse is a boolean return function
+    status = 0;  // FinesseGetResponse is a boolean return function
 
     assert(FINESSE_RESPONSE == Message->MessageType);
     fmsg = (finesse_msg *)Message->Data;
@@ -196,4 +196,3 @@ int FinesseGetReplyErrResponse(finesse_client_handle_t FinesseClientHandle, finc
 
     return status;
 }
-

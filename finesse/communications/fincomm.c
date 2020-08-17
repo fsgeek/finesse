@@ -4,7 +4,7 @@
 //
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
-#endif // _GNU_SOURCE
+#endif  // _GNU_SOURCE
 
 #include <aio.h>
 #include <assert.h>
@@ -15,6 +15,7 @@
 #include <mqueue.h>
 #include <openssl/sha.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -119,11 +120,16 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     _Static_assert(64 == SHM_MESSAGE_COUNT, "Check bit mask length");
     new_bitmap |= make_mask64(index);
 
-    if (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
+    // bitmap == new_bitmap - the last request is still in use, so we got unlucky
+    // CAS fails - we raced and lost.
+    if ((bitmap == new_bitmap) || !__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
         // This is the slow path, where we didn't get lucky, so we brute force scan
         for (index = 0; index < SHM_MESSAGE_COUNT; index++, mask = mask << 1) {
             bitmap     = RequestRegion->AllocationBitmap;
             new_bitmap = bitmap | mask;
+            if (bitmap == new_bitmap) {
+                continue;  // the bit we picked to try is already set
+            }
             if (__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
                 // found our index
                 break;
@@ -134,7 +140,13 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     if (index < SHM_MESSAGE_COUNT) {
         // Note: this is "unsafe" but we're only using it as a hint
         // and thus even if we race, it should work properly.
+        // TODO: might want to _use_ this hint (above)
         RequestRegion->LastBufferAllocated = index;
+    }
+
+    if (index < SHM_MESSAGE_COUNT) {
+        // fprintf(stderr, "%s (%s:%d): thread %d allocated index %u\n", __func__, __FILE__, __LINE__, gettid(), index);
+        assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));
     }
 
     // TODO: make this blocking?
@@ -152,17 +164,27 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
     CHECK_SHM_SIGNATURE(RequestRegion);
     assert(&RequestRegion->Messages[index] == Message);
 
-    assert(0 != (RequestRegion->AllocationBitmap & make_mask64(index)));
+    if (0 == (RequestRegion->AllocationBitmap & make_mask64(index))) {
+        // This is an invalid case
+        return 0;
+        // assert(0 != (RequestRegion->AllocationBitmap & make_mask64(index)));
+        // fprintf(stderr, "%s (%s:%d): thread %d used unallocated index %u\n", __func__, __FILE__, __LINE__, gettid(), index);
+    }
 
-    // if (0 != (RequestRegion->AllocationBitmap & make_mask64(index))) {
     request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
 
     pthread_mutex_lock(&RequestRegion->RequestMutex);
-    assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));  // this should NOT be set
+    if (0 != (RequestRegion->RequestBitmap & make_mask64(index))) {
+        // Debug code
+        // fprintf(stderr, "%s (%s:%d): thread %d used active index %u\n", __func__, __FILE__, __LINE__, gettid(), index);
+        assert(0);
+    }
+    // assert(0 == (RequestRegion->RequestBitmap & make_mask64(index)));  // this should NOT be set
     RequestRegion->RequestBitmap |= make_mask64(index);
     pthread_cond_signal(&RequestRegion->RequestPending);
     pthread_mutex_unlock(&RequestRegion->RequestMutex);
     // }
+    // fprintf(stderr, "%s (%s:%d): thread %d readied index %u\n", __func__, __FILE__, __LINE__, gettid(), index);
 
     return request_id;
 }

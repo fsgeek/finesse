@@ -140,14 +140,17 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
     ino_t    ino            = 0;
     ino_t    parentino      = 0;
     int      status         = EINVAL;
-    unsigned idx;
+    unsigned idx            = 0;
+    size_t   mp_length      = 0;
 
     assert(NULL != se);
     assert(NULL != Parameters);
     assert(NULL != Parameters->PathName);
 
     while (1) {
-        if (0 == Parameters->Parent) {
+        parentino = Parameters->Parent;
+
+        if (0 == parentino) {
             parentino = FUSE_ROOT_ID;
         }
 
@@ -158,23 +161,34 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             break;
         }
 
-        finalsep = rindex(Parameters->PathName, '/');
+        // we need a working buffer so we can carve things up
+        workpathlength = Parameters->PathNameBufferLength;
+        workpath       = (char *)malloc(workpathlength);
+        assert(NULL != workpath);
+
+        // Strip off the mount point path if it is present
+        mp_length = strlen(se->mountpoint);
+        if ((Parameters->PathNameBufferLength < mp_length) || (0 != memcmp(Parameters->PathName, se->mountpoint, mp_length))) {
+            mp_length = 0;  // don't strip it off
+        }
+
+        strcpy(workpath, &Parameters->PathName[mp_length]);
+
+        finalsep = rindex(workpath, '/');
         if (NULL == finalsep) {
             // "foo" - this is not valid (needs a "/" at the beginning)
             ino = 0;
             break;
         }
 
-        if (finalsep == Parameters->PathName) {
+        if (finalsep == workpath) {
             // "/foo" - just look it up relative to the parent; skips the leading slash
-            status = FinesseServerInternalNameLookup(se, parentino, &Parameters->PathName[1], &Parameters->StatxBuffer);
+            status = FinesseServerInternalNameLookup(se, parentino, workpath + 1, &Parameters->StatxBuffer);
 
             if (0 != status) {
-                assert(ENOENT == status);
-                Parameters->Cursor = Parameters->PathName;
-                Parameters->Parent = ino;
-                Parameters->Cursor = &Parameters->PathName[1];  // point to location we processed up to
-                Parameters->Parent = ino;                       // This is the parent we found.
+                assert((ENOENT == status) || (-ENOENT == status));
+                Parameters->Cursor = workpath + 1;
+                Parameters->Parent = ino;  // This is the parent we found.
                 break;
             }
             ino = Parameters->StatxBuffer.stx_ino;
@@ -182,12 +196,6 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             break;
         }
 
-        // otherwise, we need a working buffer so we can carve things up
-        workpathlength = Parameters->PathNameBufferLength;
-        workpath       = (char *)malloc(workpathlength);
-        assert(NULL != workpath);
-
-        strcpy(workpath, Parameters->PathName);
         workend = rindex(workpath, '/');
 
         // cases we've already eliminated
@@ -216,7 +224,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             // Look up the entry
             status = FinesseServerInternalNameLookup(se, parentino, workcurrent, &Parameters->StatxBuffer);
             if (0 != status) {
-                assert(ENOENT == status);  // don't handle other errors at this point
+                assert((ENOENT == status) || (-ENOENT == status));  // don't handle other errors at this point
 
                 idx                = (unsigned)((uintptr_t)(workcurrent - workpath));
                 Parameters->Cursor = &Parameters->PathName[idx];  // point to location we processed up to
@@ -246,8 +254,8 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
         Parameters->Parent    = ino;
 
         status = FinesseServerInternalNameLookup(se, parentino, workend, &Parameters->StatxBuffer);
-        if (0 != status) {
-            assert(ENOENT == status);
+        if ((0 != status)) {
+            assert((ENOENT == status) || (-ENOENT == status));
 
             if (Parameters->GetFinalParent) {
                 // The caller didn't _need_ the last path

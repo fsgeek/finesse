@@ -20,17 +20,26 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
     struct fuse_attr_out *   arg;
     double                   timeout;
     char                     uuid_buffer[40];
-    const char *             Name = uuid_buffer;
-    struct statx             statbuf;
+    const char *             Name        = uuid_buffer;
+    size_t                   name_length = 0;
 
     assert(NULL != se);
-    assert(NULL != Client);
     assert(NULL != Message);
 
     fsh  = (finesse_server_handle_t)se->server_handle;
     fmsg = (finesse_msg *)Message->Data;
 
     while (1) {
+        //
+        // Fairly standard preamble for this logic
+        //
+        if (uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode)) {
+            parentino = FUSE_ROOT_ID;
+        }
+        else {
+            parentino = 0;
+        }
+
         // fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode;
         // fmsg->Message.Fuse.Request.Parameters.Stat.Inode;
         // fmsg->Message.Fuse.Request.Parameters.Stat.Flags;
@@ -45,46 +54,46 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
         // symlink, as specified by flags Note: fstatat also has a "don't automount"
         // flag, but I don't think we can do anything about that one.
         //
+        // Note: no guarantee these are all working!
 
-        parentino = FUSE_ROOT_ID;
-        if (!uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode)) {
-            finobj = finesse_object_lookup_by_uuid(&fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode);
+        name_length = strlen(fmsg->Message.Fuse.Request.Parameters.Stat.Name);
 
-            if (NULL == finobj) {
-                // invalid parent uuid
-                status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, EBADF);
+        if (0 == name_length) {
+            // this has to be an fstat
+            if (uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode) ||
+                !uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.Inode)) {
+                // This is not a valid request
+                status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, EINVAL);
                 assert(0 == status);
                 break;
             }
 
-            parentino = finobj->inode;
-            finesse_object_release(finobj);
-            finobj = NULL;
-        }
-
-        if (uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.Inode)) {
-            // This must be name based, so let's go get the inode; we're skipping inserting it into
-            // the inode tracking list.
-            Name   = &fmsg->Message.Fuse.Request.Parameters.Stat.Name[0];
-            status = FinesseServerInternalNameLookup(se, parentino, Name, &statbuf);
-            if (0 != status) {
-                FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, status);
-                break;
-            }
-            ino = statbuf.stx_ino;
+            // Look up the inode
+            finobj = finesse_object_lookup_by_uuid(&fmsg->Message.Fuse.Request.Parameters.Stat.Inode);
         }
         else {
-            // This is UUID based; note that we shouldn't get both a parent AND file Inode - that's a logic error
-            assert(uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode));
-            uuid_unparse(fmsg->Message.Fuse.Request.Parameters.Stat.Inode, uuid_buffer);
-            assert(NULL == finobj);  // make sure we're not overwriting a previous lookup
-            finobj = finesse_object_lookup_by_uuid(&fmsg->Message.Fuse.Request.Parameters.Stat.Inode);
-            if (NULL == finobj) {
+            // One or the other, but not both
+            assert(uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode) || (0 == parentino));
+
+            // Resolve the various naming combinations, including a potential path walk.
+            status = FinesseServerInternalMapRequest(se, parentino, &fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode,
+                                                     fmsg->Message.Fuse.Request.Parameters.Stat.Name, 0, &finobj);
+
+            if (0 != status) {
+                // probably not found... move on.
                 status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, EBADF);
                 assert(0 == status);
                 break;
             }
         }
+
+        assert(0 == fmsg->Message.Fuse.Request.Parameters.Stat.Flags);  // currently do not handle lstat
+
+        // We now have the correct inode number to pass to the FUSE file system
+        assert(NULL != finobj);
+        parentino = finobj->inode;
+        finesse_object_release(finobj);
+        finobj = NULL;
 
         // We need to getattr at this point
         fuse_request    = FinesseAllocFuseRequest(se);

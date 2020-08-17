@@ -4,15 +4,15 @@
  */
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
-#endif // _GNU_SOURCE
+#endif  // _GNU_SOURCE
 
 #include <dirent.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include <stdlib.h>
 #include "fcinternal.h"
 
 #if !defined(make_mask64)
@@ -23,8 +23,9 @@ typedef struct server_internal_connection_state {
     int                        server_connection;
     int                        shutdown;
     pthread_t                  listener_thread;
+    pid_t                      listener_tid;
     uuid_t                     server_uuid;
-    unsigned char              align0[32];
+    unsigned char              align0[24];
     pthread_mutex_t            monitor_mutex;
     uint64_t                   waiting_client_request_bitmap;
     unsigned char              align1[64 - (sizeof(pthread_mutex_t) + sizeof(uint64_t))];
@@ -225,7 +226,7 @@ static void *inbound_request_worker(void *context)
     return NULL;
 }
 
-static void *listener(void *context)
+static void *listener_worker(void *context)
 {
     server_internal_connection_state_t *scs    = (server_internal_connection_state_t *)context;
     int                                 status = 0;
@@ -235,6 +236,8 @@ static void *listener(void *context)
 
     assert(NULL != context);
     assert(scs->server_connection >= 0);
+    assert(0 == scs->listener_tid);
+    scs->listener_tid = gettid();
 
     while (scs->server_connection >= 0) {
         server_connection_state_t *new_client = NULL;
@@ -243,6 +246,7 @@ static void *listener(void *context)
         int                        new_client_fd = -1;
 
         new_client_fd = accept(scs->server_connection, 0, 0);
+        assert(new_client_fd >= 0);
 
         if (NULL == new_client) {
             new_client = (server_connection_state_t *)malloc(sizeof(server_connection_state_t));
@@ -261,7 +265,7 @@ static void *listener(void *context)
             }
             break;
         }
-        assert(new_client->client_connection >= 0);
+
         status = read(new_client->client_connection, buffer, sizeof(buffer));
         assert((size_t)status >= sizeof(fincomm_registration_info));
 
@@ -331,6 +335,9 @@ static void *listener(void *context)
         status = pthread_cond_broadcast(&scs->server_cond);
         assert(0 == status);
     }
+
+    assert(scs->shutdown);
+    scs->listener_tid = (pid_t)-1;
 
     return (void *)0;
 }
@@ -431,7 +438,7 @@ int FinesseStartServerConnection(const char *MountPoint, finesse_server_handle_t
         status = listen(scs->server_connection, SHM_MESSAGE_COUNT);
         assert(status >= 0);  // listen shouldn't fail
 
-        status = pthread_create(&scs->listener_thread, NULL, listener, scs);
+        status = pthread_create(&scs->listener_thread, NULL, listener_worker, scs);
         assert(0 == status);
 
         // Done
@@ -460,7 +467,7 @@ int FinesseStopServerConnection(finesse_server_handle_t FinesseServerHandle)
     // Tell any waiting service callers that the state of teh world has changed
     pthread_cond_broadcast(&scs->server_cond);
 
-    // Close the client registration connection - this should kill the listener
+    // Close the client registration connection - this should kill the listener_worker
     status = close(scs->server_connection);
     assert(0 == status);
     scs->server_connection = -1;
@@ -573,7 +580,6 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
 {
     int                                 status          = 0;
     server_internal_connection_state_t *scs             = (server_internal_connection_state_t *)FinesseServerHandle;
-    client_connection_state_t *         ccs             = NULL;
     fincomm_message                     message         = NULL;
     long int                            rnd             = random() % SHM_MESSAGE_COUNT;
     unsigned                            index           = SHM_MESSAGE_COUNT;
@@ -663,7 +669,6 @@ int FinesseGetRequest(finesse_server_handle_t FinesseServerHandle, void **Client
         return ESHUTDOWN;
     }
 
-    *Client  = ccs;
     *Request = message;
     if (NULL == Request) {
         *Client = (void *)SHM_MESSAGE_COUNT;

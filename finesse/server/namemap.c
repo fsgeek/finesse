@@ -8,17 +8,20 @@
 // just maps the name to the corresponding fuse_ino_t.  The caller may just use it
 // or could keep it.  Note that the caller must release it at some point!
 //
+// Note: we should not call this with a path name.
+//
 int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, struct statx *attr)
 {
     struct fuse_req *        fuse_request    = NULL;
     struct finesse_req *     finesse_request = NULL;
     int                      status          = 0;
-    size_t                   mp_length       = strlen(se->mountpoint);
     struct fuse_out_header * out             = NULL;
     struct fuse_entry_param *arg             = NULL;
 
     assert(NULL != attr);
     memset(attr, 0, sizeof(struct statx));
+    assert(NULL != Name);
+    assert(NULL == index(Name, '/'));  // we no longer support path names - use the PathMap version!
 
     // We need to do a lookup here - allocate a request structure
     fuse_request    = FinesseAllocFuseRequest(se);
@@ -33,7 +36,7 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
         finesse_request->completed = 0;
         fuse_request->ctr++;                 // we want to hold on to this until we are done with it
         fuse_request->opcode = FUSE_LOOKUP;  // Fuse internal call
-        finesse_original_ops->lookup(fuse_request, Parent, &Name[mp_length]);
+        finesse_original_ops->lookup(fuse_request, Parent, Name);
 
         FinesseWaitForFuseRequestCompletion(finesse_request);
 
@@ -89,6 +92,10 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
     int                                      status         = EBADF;
     FinesseServerPathResolutionParameters_t *parameters     = NULL;
     ino_t                                    ino            = 0;
+    size_t                                   mp_length      = strlen(se->mountpoint);
+
+    // don't call this with the mount point!
+    assert(mp_length < strlen(Name) || 0 != memcmp(Name, se->mountpoint, mp_length));
 
     assert(0 == Flags);  // none supported at the moment
 

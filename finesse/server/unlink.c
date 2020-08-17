@@ -12,27 +12,35 @@ static int Unlink(struct fuse_session *se, void *Client, fincomm_message Message
     struct fuse_req *        fuse_request    = NULL;
     struct finesse_req *     finesse_request = NULL;
     struct fuse_out_header * out             = NULL;
+    fuse_ino_t               parent_ino      = FUSE_ROOT_ID;
 
     assert(NULL != se);
-    assert(NULL != Client);
     assert(NULL != Message);
 
     fsh  = (finesse_server_handle_t)se->server_handle;
     fmsg = (finesse_msg *)Message->Data;
 
     while (1) {
-        finobj = finesse_object_lookup_by_uuid(&fmsg->Message.Fuse.Request.Parameters.Unlink.Parent);
+        if (uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Unlink.Parent)) {
+            parent_ino = FUSE_ROOT_ID;
+        }
+        else {
+            parent_ino = 0;
+        }
 
-        if (NULL == finobj) {
-            // Didn't find it
-            status = FinesseSendUnlinkResponse(fsh, Client, Message, EBADF);
+        assert(uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Unlink.Parent) || (0 == parent_ino));
+
+        status = FinesseServerInternalMapRequest(se, parent_ino, &fmsg->Message.Fuse.Request.Parameters.Unlink.Parent,
+                                                 fmsg->Message.Fuse.Request.Parameters.Unlink.Name, 0, &finobj);
+
+        if (0 != status) {
+            // Something went wrong
+            status = FinesseSendUnlinkResponse(fsh, Client, Message, status);
             assert(0 == status);
             break;
         }
 
-        // fmsg->Message.Fuse.Request.Parameters.Unlink.Name;
-
-        // We need to getattr at this point
+        // We need to unlink the file at this point
         fuse_request    = FinesseAllocFuseRequest(se);
         finesse_request = (struct finesse_req *)fuse_request;
         fuse_request->ctr++;  // ensure's it doesn't go away before we're done with it

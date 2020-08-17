@@ -6,29 +6,29 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
+#include <fcntl.h>
+#include <finesse.h>
+#include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <uuid/uuid.h>
-#include <pthread.h>
-#include "munit.h"
-#include <errno.h>
-#include <finesse.h>
-#include "finesse_test.h"
-#include "fincomm.h"
 #include "../communications/fcinternal.h"
+#include "fincomm.h"
+#include "finesse_test.h"
+#include "munit.h"
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
-#endif // 
+#endif  //
 
 static fincomm_shared_memory_region *CreateInMemoryRegion(void)
 {
-    int status;
+    int                           status;
     fincomm_shared_memory_region *fsmr = (fincomm_shared_memory_region *)malloc(sizeof(fincomm_shared_memory_region));
     assert(NULL != fsmr);
 
@@ -48,18 +48,15 @@ static void DestroyInMemoryRegion(fincomm_shared_memory_region *Fsmr)
     free(Fsmr);
 }
 
-static MunitResult
-test_message(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_message(const MunitParameter params[] __notused, void *prv __notused)
 {
     fincomm_shared_memory_region *fsmr;
-    fincomm_message fm;
-    fincomm_message fm_server;
-    char test_message[64] = "This is a test message";
-    char test_response[64] = "This is a test response";
-    u_int64_t request_id;
-    int status;
+    fincomm_message               fm;
+    fincomm_message               fm_server;
+    char                          test_message[64]  = "This is a test message";
+    char                          test_response[64] = "This is a test response";
+    u_int64_t                     request_id;
+    int                           status;
 
     fsmr = CreateInMemoryRegion();
     munit_assert_not_null(fsmr);
@@ -94,7 +91,7 @@ test_message(
 
     //   (8) client can poll or block for response (FinesseGetResponse)
     status = FinesseGetResponse(fsmr, fm, 1);
-    munit_assert(0 != status); // boolean response
+    munit_assert(0 != status);  // boolean response
     munit_assert(0 == memcmp(test_response, fm->Data, sizeof(test_response)));
 
     //   (9) client frees the request region (FinesseReleaseRequestBuffer)
@@ -119,11 +116,11 @@ struct cs_info {
 
 static void *server_thread(void *param)
 {
-    struct cs_info *cs_info = (struct cs_info *)param;
+    struct cs_info *              cs_info = (struct cs_info *)param;
     fincomm_shared_memory_region *fsmr;
-    fincomm_message message;
-    int status;
-    unsigned count = 0;
+    fincomm_message               message;
+    int                           status;
+    unsigned                      count = 0;
 
     assert(NULL != param);
     fsmr = cs_info->shared_mem;
@@ -136,8 +133,7 @@ static void *server_thread(void *param)
     status = pthread_mutex_unlock(&cs_info->mutex);
     assert(0 == status);
 
-    for(;;) {
-
+    for (;;) {
         // Wait for a request to process
         status = FinesseReadyRequestWait(fsmr);
 
@@ -148,7 +144,7 @@ static void *server_thread(void *param)
 
         // Get the request
         status = FinesseGetReadyRequest(fsmr, &message);
-        
+
         if (0 != status) {
             munit_logf(MUNIT_LOG_ERROR, "FinesseGetReadyRequest returned 0x%x (%d)", status, status);
         }
@@ -158,7 +154,8 @@ static void *server_thread(void *param)
         munit_logf(MUNIT_LOG_INFO, "Server %lu has message at 0x%p\n", pthread_self(), (void *)message);
 
         if (0 != memcmp(cs_info->request_message, message->Data, sizeof(cs_info->request_message))) {
-            munit_errorf("Mismatched request (0x%p) data, got %s, expected %s\n", (void *)message, message->Data, cs_info->request_message);
+            munit_errorf("Mismatched request (0x%p) data, got %s, expected %s\n", (void *)message, message->Data,
+                         cs_info->request_message);
             munit_assert(0);
         }
 
@@ -172,12 +169,12 @@ static void *server_thread(void *param)
 
 static void *client_thread(void *param)
 {
-    struct cs_info *cs_info = (struct cs_info *)param;
+    struct cs_info *              cs_info = (struct cs_info *)param;
     fincomm_shared_memory_region *fsmr;
-    fincomm_message message;
-    int status;
-    u_int64_t request_id;
-    unsigned count = 0;
+    fincomm_message               message;
+    int                           status;
+    u_int64_t                     request_id;
+    unsigned                      count = 0;
 
     assert(NULL != param);
     fsmr = cs_info->shared_mem;
@@ -192,7 +189,7 @@ static void *client_thread(void *param)
     status = pthread_mutex_unlock(&cs_info->mutex);
     assert(0 == status);
 
-    while(count < cs_info->count) {
+    while (count < cs_info->count) {
         message = FinesseGetRequestBuffer(fsmr);
         munit_assert_not_null(message);
         munit_logf(MUNIT_LOG_INFO, "Client %lu has message at 0x%p\n", pthread_self(), (void *)message);
@@ -205,7 +202,7 @@ static void *client_thread(void *param)
 
         //   (7) client can poll or block for response (FinesseGetResponse)
         status = FinesseGetResponse(fsmr, message, 1);
-        munit_assert(0 != status); // boolean response
+        munit_assert(0 != status);  // boolean response
         munit_assert(0 == memcmp(cs_info->response_message, message->Data, sizeof(cs_info->response_message)));
 
         //   (8) client frees the request region (FinesseReleaseRequestBuffer)
@@ -216,18 +213,14 @@ static void *client_thread(void *param)
     }
 
     return NULL;
-
 }
 
-static MunitResult
-test_client_server(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_client_server(const MunitParameter params[] __notused, void *prv __notused)
 {
-    struct cs_info cs_info;
+    struct cs_info                cs_info;
     fincomm_shared_memory_region *fsmr;
-    pthread_t client, server;
-    int status;
+    pthread_t                     client, server;
+    int                           status;
 
     fsmr = CreateInMemoryRegion();
     munit_assert_not_null(fsmr);
@@ -235,7 +228,7 @@ test_client_server(
     strcpy(cs_info.request_message, "This is a request message");
     strcpy(cs_info.response_message, "This is a response message");
     cs_info.shared_mem = fsmr;
-    status = pthread_mutex_init(&cs_info.mutex, NULL);
+    status             = pthread_mutex_init(&cs_info.mutex, NULL);
     assert(0 == status);
     status = pthread_cond_init(&cs_info.cond, NULL);
     assert(0 == status);
@@ -275,14 +268,11 @@ test_client_server(
     return MUNIT_OK;
 }
 
-static MunitResult
-test_invalid_message_request(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_invalid_message_request(const MunitParameter params[] __notused, void *prv __notused)
 {
     fincomm_shared_memory_region *fsmr;
-    fincomm_message message;
-    u_int64_t request_id;
+    fincomm_message               message;
+    u_int64_t                     request_id;
 
     fsmr = CreateInMemoryRegion();
     munit_assert_not_null(fsmr);
@@ -303,16 +293,13 @@ test_invalid_message_request(
     return MUNIT_OK;
 }
 
-static MunitResult
-test_multi_client(
-    const MunitParameter params[] __notused,
-    void *prv __notused)
+static MunitResult test_multi_client(const MunitParameter params[] __notused, void *prv __notused)
 {
-    struct cs_info cs_info;
+    struct cs_info                cs_info;
     fincomm_shared_memory_region *fsmr;
-    pthread_t server, clients[128];
-    int status;
-    unsigned client_count = 2;
+    pthread_t                     server, clients[128];
+    int                           status;
+    unsigned                      client_count = 8;
 
     memset(clients, 0, sizeof(clients));
 
@@ -322,7 +309,7 @@ test_multi_client(
     strcpy(cs_info.request_message, "This is a request message");
     strcpy(cs_info.response_message, "This is a response message");
     cs_info.shared_mem = fsmr;
-    status = pthread_mutex_init(&cs_info.mutex, NULL);
+    status             = pthread_mutex_init(&cs_info.mutex, NULL);
     assert(0 == status);
     status = pthread_cond_init(&cs_info.cond, NULL);
     assert(0 == status);
@@ -342,7 +329,7 @@ test_multi_client(
     status = pthread_mutex_lock(&cs_info.mutex);
     assert(0 == status);
     cs_info.ready = 1;
-    status = pthread_cond_broadcast(&cs_info.cond);
+    status        = pthread_cond_broadcast(&cs_info.cond);
     assert(0 == status);
     status = pthread_mutex_unlock(&cs_info.mutex);
     assert(0 == status);
@@ -362,23 +349,21 @@ test_multi_client(
 }
 
 static MunitTest fincomm_tests[] = {
-    TEST((char *)(uintptr_t)"/null", test_null, NULL),
-    TEST((char *)(uintptr_t)"/simple", test_message, NULL),
-    TEST((char *)(uintptr_t)"/client-server", test_client_server, NULL),
-    TEST((char *)(uintptr_t)"/invalid-message", test_invalid_message_request, NULL),
-    TEST((char *)(uintptr_t)"/multi-client", test_multi_client, NULL),
+    TEST((char *)(uintptr_t) "/null", test_null, NULL),
+    TEST((char *)(uintptr_t) "/simple", test_message, NULL),
+    TEST((char *)(uintptr_t) "/client-server", test_client_server, NULL),
+    TEST((char *)(uintptr_t) "/invalid-message", test_invalid_message_request, NULL),
+    TEST((char *)(uintptr_t) "/multi-client", test_multi_client, NULL),
     TEST(NULL, NULL, NULL),
 };
 
-
 const MunitSuite fincomm_suite = {
-    .prefix = (char *)(uintptr_t)"/fincomm",
-    .tests = fincomm_tests,
-    .suites = NULL,
+    .prefix     = (char *)(uintptr_t) "/fincomm",
+    .tests      = fincomm_tests,
+    .suites     = NULL,
     .iterations = 1,
-    .options = MUNIT_SUITE_OPTION_NONE,
+    .options    = MUNIT_SUITE_OPTION_NONE,
 };
-
 
 /*
  * Local variables:
