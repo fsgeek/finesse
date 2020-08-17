@@ -5,8 +5,10 @@
 */
 
 #if !defined(_GNU_SOURCE)
-#define _GNU_SOURCE             /* See feature_test_macros(7) */
-#endif // _GNU_SOURCE
+#define _GNU_SOURCE /* See feature_test_macros(7) */
+#endif              // _GNU_SOURCE
+
+#include "finesse-fuse.h"
 
 #include "config.h"
 #include "fuse_i.h"
@@ -15,34 +17,31 @@
 #include "fuse_kernel.h"
 #include "fuse_opt.h"
 #pragma GCC diagnostic pop
-#include "fuse_misc.h"
-#include "fuse_log.h"
-#include <fuse_lowlevel.h>
-#include "finesse-fuse.h"
 #include <finesse-server.h>
+#include <fuse_lowlevel.h>
+#include "fuse_log.h"
+#include "fuse_misc.h"
 
+#include <assert.h>
+#include <errno.h>
+#include <limits.h>
+#include <mqueue.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
-#include <unistd.h>
-#include <limits.h>
-#include <errno.h>
-#include <assert.h>
 #include <sys/file.h>
 #include <time.h>
-#include <mqueue.h>
+#include <unistd.h>
 #include <uuid/uuid.h>
 
 #if !defined(offset_of)
 #define offset_of(type, field) (unsigned long)&(((type *)0)->field)
-#endif // offset_of
+#endif  // offset_of
 
 #if !defined(container_of)
 #define container_of(ptr, type, member) ((type *)(((char *)ptr) - offset_of(type, member)))
-#endif // container_of
-
-
+#endif  // container_of
 
 /* TODO: add remove! */
 const struct fuse_lowlevel_ops *finesse_original_ops;
@@ -55,21 +54,19 @@ static void finesse_fuse_init(void *userdata, struct fuse_conn_info *conn)
     finesse_original_ops->init(userdata, conn);
 }
 
-#define FINESSE_CHECK_ORIGINAL_OP(req, original_op) \
-do { \
-    if (NULL == finesse_original_ops->original_op) { \
-        fuse_reply_err(req, ENOSYS); \
-    } \
-} while(0)
+#define FINESSE_CHECK_ORIGINAL_OP(req, original_op)      \
+    do {                                                 \
+        if (NULL == finesse_original_ops->original_op) { \
+            fuse_reply_err(req, ENOSYS);                 \
+        }                                                \
+    } while (0)
 
 static void finesse_destroy(void *userdata)
 {
     if (finesse_original_ops->destroy) {
         finesse_original_ops->destroy(userdata);
     }
-
 }
-
 
 static void finesse_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
@@ -98,7 +95,6 @@ static void finesse_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     finesse_original_ops->getattr(req, ino, fi);
 }
 
-
 static void finesse_setattr(fuse_req_t req, fuse_ino_t nodeid, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, setattr);
@@ -115,14 +111,12 @@ static void finesse_readlink(fuse_req_t req, fuse_ino_t ino)
     finesse_original_ops->readlink(req, ino);
 }
 
-static void finesse_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
-				  mode_t mode, dev_t rdev)
+static void finesse_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode, dev_t rdev)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, mknod);
 
     finesse_set_provider(req, 0);
     finesse_original_ops->mknod(req, parent, name, mode, rdev);
-
 }
 
 // name is to avoid a collision with the internal implemenation - bleh.
@@ -143,8 +137,7 @@ static void finesse_fuse_unlink(fuse_req_t req, fuse_ino_t parent, const char *n
     finesse_original_ops->unlink(req, parent, name);
 }
 
-
-static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name)
+static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, rmdir);
 
@@ -152,8 +145,7 @@ static void finesse_rmdir(fuse_req_t req, fuse_ino_t parent, const char* name)
     finesse_original_ops->rmdir(req, parent, name);
 }
 
-static void finesse_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
-					const char *name)
+static void finesse_symlink(fuse_req_t req, const char *link, fuse_ino_t parent, const char *name)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, symlink);
 
@@ -161,19 +153,16 @@ static void finesse_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
     finesse_original_ops->symlink(req, link, parent, name);
 }
 
-static void finesse_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
-                fuse_ino_t newparent, const char *newname,
-                unsigned int flags)
+static void finesse_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname,
+                           unsigned int flags)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, rename);
 
     finesse_set_provider(req, 0);
     finesse_original_ops->rename(req, parent, name, newparent, newname, flags);
-
 }
 
-static void finesse_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
-				 const char *newname)
+static void finesse_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *newname)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, link);
 
@@ -197,8 +186,7 @@ static void finesse_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offs
     finesse_original_ops->read(req, ino, size, offset, fi);
 }
 
-static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char * buf,
-                          size_t size, off_t off, struct fuse_file_info *fi)
+static void finesse_write(fuse_req_t req, fuse_ino_t nodeid, const char *buf, size_t size, off_t off, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, rmdir);
 
@@ -215,13 +203,11 @@ static void finesse_flush(fuse_req_t req, fuse_ino_t nodeid, struct fuse_file_in
     finesse_original_ops->flush(req, nodeid, fi);
 }
 
-
 static void finesse_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     finesse_object_t *finobj = finesse_object_lookup_by_ino(ino);
 
-    if (NULL != finobj)
-    {
+    if (NULL != finobj) {
         /* basically, this is saying that this is no longer in use, so we remove the lookup reference */
         finesse_object_release(finobj);
     }
@@ -250,7 +236,6 @@ static void finesse_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_inf
     finesse_original_ops->opendir(req, ino, fi);
 }
 
-
 static void finesse_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t offset, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, readdir);
@@ -268,8 +253,7 @@ static void finesse_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_
     finesse_original_ops->releasedir(req, ino, fi);
 }
 
-static void finesse_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
-					 struct fuse_file_info *fi)
+static void finesse_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, fsyncdir);
 
@@ -277,7 +261,6 @@ static void finesse_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
     req->finesse.notify = 0;
     finesse_original_ops->fsyncdir(req, ino, datasync, fi);
 }
-
 
 static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid)
 {
@@ -288,8 +271,7 @@ static void finesse_fuse_statfs(fuse_req_t req, fuse_ino_t nodeid)
     finesse_original_ops->statfs(req, nodeid);
 }
 
-static void finesse_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-					 const char *value, size_t size, int flags)
+static void finesse_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name, const char *value, size_t size, int flags)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, setxattr);
 
@@ -297,7 +279,6 @@ static void finesse_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
     req->finesse.notify = 0;
     finesse_original_ops->setxattr(req, ino, name, value, size, flags);
 }
-
 
 static void finesse_getxattr(fuse_req_t req, fuse_ino_t nodeid, const char *name, size_t size)
 {
@@ -340,8 +321,7 @@ static void finesse_create(fuse_req_t req, fuse_ino_t parent, const char *name, 
     finesse_original_ops->create(req, parent, name, mode, fi);
 }
 
-static void finesse_getlk(fuse_req_t req, fuse_ino_t ino,
-				  struct fuse_file_info *fi, struct flock *lock)
+static void finesse_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, getlk);
 
@@ -349,34 +329,29 @@ static void finesse_getlk(fuse_req_t req, fuse_ino_t ino,
     finesse_original_ops->getlk(req, ino, fi, lock);
 }
 
-static void finesse_setlk(fuse_req_t req, fuse_ino_t ino,
-				  struct fuse_file_info *fi,
-				  struct flock *lock, int sleep)
+static void finesse_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sleep)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, setlk);
     finesse_set_provider(req, 0);
     finesse_original_ops->setlk(req, ino, fi, lock, sleep);
 }
 
-static void finesse_bmap(fuse_req_t req, fuse_ino_t ino, size_t blocksize,
-				 uint64_t idx)
+static void finesse_bmap(fuse_req_t req, fuse_ino_t ino, size_t blocksize, uint64_t idx)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, bmap);
     finesse_set_provider(req, 0);
     finesse_original_ops->bmap(req, ino, blocksize, idx);
 }
 
-static void finesse_ioctl(fuse_req_t req, fuse_ino_t ino, unsigned int cmd,
-		       void *arg, struct fuse_file_info *fi, unsigned flags,
-		       const void *in_buf, size_t in_bufsz, size_t out_bufsz)
+static void finesse_ioctl(fuse_req_t req, fuse_ino_t ino, unsigned int cmd, void *arg, struct fuse_file_info *fi, unsigned flags,
+                          const void *in_buf, size_t in_bufsz, size_t out_bufsz)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, ioctl);
     finesse_set_provider(req, 0);
     finesse_original_ops->ioctl(req, ino, cmd, arg, fi, flags, in_buf, in_bufsz, out_bufsz);
 }
 
-static void finesse_poll(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-				 struct fuse_pollhandle *ph)
+static void finesse_poll(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct fuse_pollhandle *ph)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, poll);
     finesse_set_provider(req, 0);
@@ -391,14 +366,12 @@ static void finesse_write_buf(fuse_req_t req, fuse_ino_t ino, struct fuse_bufvec
     finesse_original_ops->write_buf(req, ino, in_buf, off, fi);
 }
 
-static void finesse_retrieve_reply(fuse_req_t req, void *cookie, fuse_ino_t ino,
-						   off_t offset, struct fuse_bufvec *bufv)
+static void finesse_retrieve_reply(fuse_req_t req, void *cookie, fuse_ino_t ino, off_t offset, struct fuse_bufvec *bufv)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, retrieve_reply);
     finesse_set_provider(req, 0);
     finesse_original_ops->retrieve_reply(req, cookie, ino, offset, bufv);
 }
-
 
 static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forget_data *forgets)
 {
@@ -408,16 +381,14 @@ static void finesse_forget_multi(fuse_req_t req, size_t count, struct fuse_forge
     finesse_original_ops->forget_multi(req, count, forgets);
 }
 
-static void finesse_flock(fuse_req_t req, fuse_ino_t ino,
-				  struct fuse_file_info *fi, int op)
+static void finesse_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int op)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, flock);
     finesse_set_provider(req, 0);
     finesse_original_ops->flock(req, ino, fi, op);
 }
 
-static void finesse_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
-                    off_t offset, off_t length, struct fuse_file_info *fi)
+static void finesse_fallocate(fuse_req_t req, fuse_ino_t ino, int mode, off_t offset, off_t length, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, fallocate);
     finesse_set_provider(req, 0);
@@ -432,26 +403,20 @@ static void finesse_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size, off
     finesse_original_ops->readdirplus(req, ino, size, offset, fi);
 }
 
-static void finesse_copy_file_range(fuse_req_t req, fuse_ino_t ino_in,
-				 off_t off_in, struct fuse_file_info *fi_in,
-				 fuse_ino_t ino_out, off_t off_out,
-				 struct fuse_file_info *fi_out, size_t len,
-				 int flags)
+static void finesse_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in, struct fuse_file_info *fi_in,
+                                    fuse_ino_t ino_out, off_t off_out, struct fuse_file_info *fi_out, size_t len, int flags)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, copy_file_range);
     finesse_set_provider(req, 0);
     finesse_original_ops->copy_file_range(req, ino_in, off_in, fi_in, ino_out, off_out, fi_out, len, flags);
-
 }
 
-static void finesse_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
-		       struct fuse_file_info *fi)
+static void finesse_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence, struct fuse_file_info *fi)
 {
     FINESSE_CHECK_ORIGINAL_OP(req, lseek);
     finesse_set_provider(req, 0);
     finesse_original_ops->lseek(req, ino, off, whence, fi);
 }
-
 
 static struct fuse_lowlevel_ops finesse_ops = {
     .init            = finesse_fuse_init,
@@ -498,7 +463,7 @@ static struct fuse_lowlevel_ops finesse_ops = {
     .readdirplus     = finesse_readdirplus,
     .copy_file_range = finesse_copy_file_range,
     .lseek           = finesse_lseek,
-    };
+};
 
 uuid_t finesse_server_uuid;
 
@@ -507,12 +472,10 @@ uuid_t finesse_server_uuid;
  */
 void finesse_set_provider(fuse_req_t req, int finesse)
 {
-    if (finesse)
-    {
+    if (finesse) {
         req->finesse.allocated = 1;
     }
-    else
-    {
+    else {
         req->finesse.allocated = 0;
     }
 }
@@ -524,9 +487,7 @@ int finesse_get_provider(fuse_req_t req)
 
 #undef fuse_session_new
 
-struct fuse_session *finesse_session_new(struct fuse_args *args,
-                                         const struct fuse_lowlevel_ops *op,
-                                         size_t op_size, void *userdata)
+struct fuse_session *finesse_session_new(struct fuse_args *args, const struct fuse_lowlevel_ops *op, size_t op_size, void *userdata)
 {
     (void)op;
     struct fuse_session *se;
@@ -538,8 +499,7 @@ struct fuse_session *finesse_session_new(struct fuse_args *args,
 
     se = fuse_session_new(args, &finesse_ops, op_size, userdata);
 
-    if (NULL == se)
-    {
+    if (NULL == se) {
         return se;
     }
 
@@ -560,14 +520,6 @@ void finesse_session_mount(struct fuse_session *se)
         return;
     }
 
-    if (0 > FinesseStartServerConnection(se->mountpoint, &se->server_handle))
-    {
-        fuse_log(FUSE_LOG_ERR, "FINESSE: failed to start Finesse Server connection\n");
-        se->server_handle = NULL;
-    }
-
-    fuse_log(FUSE_LOG_INFO, "FINESSE: started Finesse Server connection\n");
-
     return;
 }
 
@@ -575,7 +527,7 @@ static const char *finesse_get_string_for_message_type(FINESSE_MESSAGE_TYPE Type
 {
     const char *str = "UNKNOWN MESSAGE TYPE";
 
-    switch(Type) {
+    switch (Type) {
         case FINESSE_REQUEST:
             str = "FINESSE REQUEST";
             break;
@@ -583,7 +535,7 @@ static const char *finesse_get_string_for_message_type(FINESSE_MESSAGE_TYPE Type
             str = "FINESSE RESPONSE";
             break;
         default:
-            break; // use default string
+            break;  // use default string
     }
 
     return str;
@@ -593,7 +545,7 @@ static const char *finesse_get_string_for_message_class(FINESSE_MESSAGE_CLASS Cl
 {
     const char *str = "UNKNOWN MESSAGE CLASS";
 
-    switch(Class) {
+    switch (Class) {
         case FINESSE_FUSE_MESSAGE:
             str = "FUSE MESSAGE CLASS";
             break;
@@ -601,60 +553,55 @@ static const char *finesse_get_string_for_message_class(FINESSE_MESSAGE_CLASS Cl
             str = "NATIVE MESSAGE CLASS";
             break;
         default:
-            break; // use default string
+            break;  // use default string
     }
 
     return str;
 }
 
-
 static void *finesse_process_request_worker(void *arg)
 {
-    struct fuse_session *se = (struct fuse_session *)arg;
+    struct fuse_session *   se  = (struct fuse_session *)arg;
     finesse_server_handle_t fsh = (finesse_server_handle_t)se->server_handle;
 
-    while (fsh)
-    {
-        int status;
-        void *client;
+    while (fsh) {
+        int             status;
+        void *          client;
         fincomm_message request;
-        finesse_msg *fmsg = NULL;
+        finesse_msg *   fmsg = NULL;
 
         status = FinesseGetRequest(fsh, &client, &request);
         assert(0 == status);
         assert(NULL != request);
         assert((uintptr_t)client < SHM_MESSAGE_COUNT);
-        assert(0 != request->RequestId); // invalid request number
+        assert(0 != request->RequestId);  // invalid request number
 
-        assert(FINESSE_REQUEST == request->MessageType); // nothing else makes sense here
-        fmsg = (finesse_msg *) request->Data;
+        assert(FINESSE_REQUEST == request->MessageType);  // nothing else makes sense here
+        fmsg = (finesse_msg *)request->Data;
         assert(NULL != fmsg);
-        fuse_log(FUSE_LOG_DEBUG, "FINESSE: message 0x%p type %s class %s\n",
-                 fmsg, finesse_get_string_for_message_type(request->MessageType),
+        fuse_log(FUSE_LOG_DEBUG, "FINESSE: message 0x%p type %s class %s\n", fmsg,
+                 finesse_get_string_for_message_type(request->MessageType),
                  finesse_get_string_for_message_class(fmsg->MessageClass));
 
         status = EINVAL;
         switch (fmsg->MessageClass) {
             default: {
                 // Bad request
-                request->Result = EINVAL;
+                request->Result      = EINVAL;
                 request->MessageType = FINESSE_RESPONSE;
-                status = FinesseSendResponse(se->server_handle, client, request);
+                status               = FinesseSendResponse(se->server_handle, client, request);
                 assert(0 == status);
-            }
-            break;
+            } break;
 
             case FINESSE_FUSE_MESSAGE: {
                 status = FinesseServerHandleFuseRequest(se, client, request);
-            }
-            break;
+            } break;
 
             case FINESSE_NATIVE_MESSAGE: {
                 status = FinesseServerHandleNativeRequest(se, client, request);
-            }
-            break;
+            } break;
         }
-        assert(0 == status); // shouldn't be failing
+        assert(0 == status);  // shouldn't be failing
     }
 
     if (NULL != fsh) {
@@ -669,14 +616,12 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
 {
     (void)iov;
 
-    if (0 != error)
-    {
+    if (0 != error) {
         // So far we don't care about the error outcomes
         return;
     }
 
-    if (count < 2)
-    {
+    if (count < 2) {
         // not sure what this means
         return;
     }
@@ -684,27 +629,24 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
     //
     // We want to process some requests here
     //
-    switch (req->opcode)
-    {
+    switch (req->opcode) {
         default:
             break;
-        case FUSE_LOOKUP:
-        {
-            ino_t ino;
+        case FUSE_LOOKUP: {
+            ino_t                  ino;
             struct fuse_entry_out *arg = (struct fuse_entry_out *)iov[1].iov_base;
-            finesse_object_t *nicobj;
-            uuid_t uuid;
+            finesse_object_t *     nicobj;
+            uuid_t                 uuid;
 
             uuid_generate_time_safe(uuid);
 
             assert(iov[1].iov_len >= sizeof(struct fuse_entry_out));
-            ino = arg->nodeid;
+            ino    = arg->nodeid;
             nicobj = finesse_object_create(ino, &uuid);
             assert(NULL != nicobj);
             finesse_object_release(nicobj);
         }
     }
-
 }
 
 int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int count, int free_req)
@@ -714,18 +656,17 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     // Note: we'll probably have to add additional case handling here (right now this is just lookup)
     // TODO: should we be DOING something with error?
 
-    if (error <= -1000 || error > 0)
-    {
+    if (error <= -1000 || error > 0) {
         fprintf(stderr, "fuse: bad error value: %i\n", error);
         // error = -ERANGE;
-        assert(0); // this situation isn't handled presently.
+        assert(0);  // this situation isn't handled presently.
     }
 
     assert(NULL != req);
     assert(NULL != req->se);
-    assert(req->finesse.allocated); // otherwise, shouldn't be here
+    assert(req->finesse.allocated);  // otherwise, shouldn't be here
     freq = (struct finesse_req *)req;
-    assert(NULL == freq->iov); // if not, we've got to clean up what IS there - but why would this happen?
+    assert(NULL == freq->iov);  // if not, we've got to clean up what IS there - but why would this happen?
     freq->iov = (struct iovec *)malloc(count * sizeof(struct iovec));
     assert(NULL != freq->iov);
     freq->iov_count = count;
@@ -741,7 +682,7 @@ int finesse_send_reply_iov(fuse_req_t req, int error, struct iovec *iov, int cou
     // signal the waiter
     FinesseSignalFuseRequestCompletion(freq);
 
-    assert(0 == free_req); // we don't handle the "don't free" case at this point.
+    assert(0 == free_req);  // we don't handle the "don't free" case at this point.
 
     return 0;
 }
@@ -760,18 +701,24 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
 
     status = 0;
 
-    while (NULL != se->server_handle)
-    {
+    if (0 > FinesseStartServerConnection(se->mountpoint, &se->server_handle)) {
+        fuse_log(FUSE_LOG_ERR, "FINESSE: failed to start Finesse Server connection\n");
+        se->server_handle = NULL;
+        assert(0);
+    }
+
+    fuse_log(FUSE_LOG_INFO, "FINESSE: started Finesse Server connection\n");
+
+    while (NULL != se->server_handle) {
         memset(&finesse_mq_thread_attr, 0, sizeof(finesse_mq_thread_attr));
         status = pthread_attr_init(&finesse_mq_thread_attr);
-        if (status < 0)
-        {
+        if (status < 0) {
             fprintf(stderr, "finesse (fuse): pthread_attr_init failed: %s\n", strerror(errno));
-            return status; // no cleanup
+            return status;  // no cleanup
         }
+
         status = pthread_attr_setdetachstate(&finesse_mq_thread_attr, PTHREAD_CREATE_DETACHED);
-        if (status < 0)
-        {
+        if (status < 0) {
             fprintf(stderr, "finesse (fuse): pthread_attr_setdetachstate failed: %s\n", strerror(errno));
             break;
         }
@@ -779,32 +726,29 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
         uuid_generate_time_safe(finesse_server_uuid);
 
         /* TODO: start worker thread(s) */
-        for (unsigned int index = 0; index < FINESSE_MAX_THREADS; index++)
-        {
+        for (unsigned int index = 0; index < FINESSE_MAX_THREADS; index++) {
             status = pthread_create(&finesse_threads[index], &finesse_mq_thread_attr, finesse_process_request_worker, se);
-            if (status < 0)
-            {
+            if (status < 0) {
                 fprintf(stderr, "finesse (fuse): pthread_create failed: %s\n", strerror(errno));
             }
+            fuse_log(FUSE_LOG_INFO, "FINESSE: started worker thread 0x%p", finesse_threads[index]);
         }
 
         /* done */
         break;
     }
 
-    if (status < 0)
-    {
+    if (status < 0) {
         pthread_attr_destroy(&finesse_mq_thread_attr);
         return status;
     }
-
     return fuse_session_loop_mt(se, config);
 }
 
 int finesse_session_loop_mt_31(struct fuse_session *se, int clone_fd)
 {
     struct fuse_loop_config config;
-    config.clone_fd = clone_fd;
+    config.clone_fd         = clone_fd;
     config.max_idle_threads = 10;
     return finesse_session_loop_mt(se, &config);
 }
@@ -820,8 +764,7 @@ void finesse_session_destroy(struct fuse_session *se)
 {
     /* TODO: need to add the finesse specific logic here */
 
-    if (NULL != se->server_handle)
-    {
+    if (NULL != se->server_handle) {
         FinesseStopServerConnection(se->server_handle);
         se->server_handle = NULL;
     }
