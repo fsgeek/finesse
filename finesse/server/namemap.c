@@ -28,7 +28,7 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
     finesse_request = (struct finesse_req *)fuse_request;
 
     if (NULL == fuse_request) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __func__, ENOMEM, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
         return ENOMEM;
     }
 
@@ -46,7 +46,7 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
         out = finesse_request->iov[0].iov_base;
         if ((0 != out->error) || (finesse_request->iov_count < 2) ||
             (finesse_request->iov[1].iov_len < sizeof(struct fuse_entry_out))) {
-            fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __func__, out->error, Name);
+            fuse_log(FUSE_LOG_INFO, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, out->error, Name);
             status = out->error;
             break;
         }
@@ -185,7 +185,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
         // look it up
         parent_fin_obj = finesse_object_lookup_by_uuid(ParentUuid);
         if (NULL == parent_fin_obj) {
-            fuse_log(FUSE_LOG_ERR, "Finesse: %s returning EBADF due to bad parent\n", __func__);
+            fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning EBADF due to bad parent\n", __func__, __LINE__);
             return EBADF;
         }
 
@@ -197,7 +197,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
     assert(NULL != Finobj);
 
     if ((strlen(Name) < mp_length) || (strncmp(Name, se->mountpoint, mp_length))) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __func__, ENOTDIR, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOTDIR, Name);
         return ENOTDIR;
     }
 
@@ -205,7 +205,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
     fuse_request = FinesseAllocFuseRequest(se);
 
     if (NULL == fuse_request) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __func__, ENOMEM, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
         return ENOMEM;
     }
 
