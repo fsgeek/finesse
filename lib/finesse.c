@@ -702,7 +702,7 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
     status = 0;
 
     if (0 > FinesseStartServerConnection(se->mountpoint, &se->server_handle)) {
-        fuse_log(FUSE_LOG_ERR, "FINESSE: failed to start Finesse Server connection\n");
+        fuse_log(FUSE_LOG_EMERG, "FINESSE: failed to start Finesse Server connection\n");
         se->server_handle = NULL;
         assert(0);
     }
@@ -713,13 +713,13 @@ int finesse_session_loop_mt(struct fuse_session *se, struct fuse_loop_config *co
         memset(&finesse_mq_thread_attr, 0, sizeof(finesse_mq_thread_attr));
         status = pthread_attr_init(&finesse_mq_thread_attr);
         if (status < 0) {
-            fprintf(stderr, "finesse (fuse): pthread_attr_init failed: %s\n", strerror(errno));
+            fuse_log(FUSE_LOG_ERR, "finesse (fuse): pthread_attr_init failed: %s\n", strerror(errno));
             return status;  // no cleanup
         }
 
         status = pthread_attr_setdetachstate(&finesse_mq_thread_attr, PTHREAD_CREATE_DETACHED);
         if (status < 0) {
-            fprintf(stderr, "finesse (fuse): pthread_attr_setdetachstate failed: %s\n", strerror(errno));
+            fuse_log(FUSE_LOG_ERR, "finesse (fuse): pthread_attr_setdetachstate failed: %s\n", strerror(errno));
             break;
         }
 
