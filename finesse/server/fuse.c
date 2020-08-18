@@ -159,7 +159,7 @@ int FinesseServerHandleFuseRequest(struct fuse_session *se, void *Client, fincom
     assert(NULL != fmsg);
     assert(FINESSE_FUSE_MESSAGE == fmsg->MessageClass);
 
-    fuse_log(FUSE_LOG_ERR, "FINESSE %s: FUSE request (0x%p) type %d (%s)\n", __func__, fmsg, fmsg->Message.Fuse.Request.Type,
+    fuse_log(FUSE_LOG_INFO, "FINESSE %s: FUSE request (0x%p) type %d (%s)\n", __func__, fmsg, fmsg->Message.Fuse.Request.Type,
              finesse_request_type_to_string(fmsg->Message.Fuse.Request.Type));
 
     FinesseCountFuseRequest(fmsg->Message.Fuse.Request.Type);
