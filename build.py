@@ -305,6 +305,10 @@ def main():
     if type(args.c_std) is list:
         args.c_std = args.c_std[0]
 
+    # make sure sanitizer is a string, not a list
+    if type(args.sanitizer) is list:
+        args.sanitizer = args.sanitizer[0]
+
     # now run the various operations:
     for config in configs:
         config.set_log(log)
