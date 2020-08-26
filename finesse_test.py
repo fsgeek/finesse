@@ -35,78 +35,6 @@ Should set this up to run multiple times.
 '''
 
 
-def find_workloads(start_dir='/', workload='fileserver.f', clean=False):
-    '''Given a starting directory, find all the locations where the given workload file is present'''
-    fbdata_file = './.finesse_test_fbdata.json'
-    if os.path.exists(fbdata_file):
-        if clean:
-            os.unlink(fbdata_file)
-        else:
-            print('Using existing filebench location data')
-            with open(fbdata_file, 'rt') as fd:
-                fblist = json.load(fd)
-            return fblist
-    print('Starting search for filebench workloads')
-    results = subprocess.run(
-        ['find', start_dir, '-name', workload], capture_output=True)
-    # we can't check the return code because every "access denied" in the search is considered a failure
-    # results.check_returncode()
-    if results.stdout is None or len(results.stdout) == 0:
-        # empty list
-        fblist = None
-    elif type(results.stdout) is bytes:
-        fblist = results.stdout.decode('ascii')
-    else:
-        fblist = results.stdout
-    fblist = [os.path.dirname(x) for x in fblist.split() if 'tmp' not in x]
-    with open(fbdata_file, 'wt') as fd:
-        json.dump(fblist, fd, ensure_ascii=True, indent=4)
-    print('Finished search for filebench workloads, found {}'.format(fblist))
-
-
-def find_default_build_dir(build_dirs):
-    '''Given a list of build directories, use the one that indicates it is using gcc in release mode'''
-    default = None
-    for bd in build_dirs:
-        if 'gcc' in bd and 'release' in bd:
-            default = bd
-            break
-    return default
-
-
-def find_build_dirs(start_dir='.', clean=False):
-    '''Given a starting directory, find all the locations where we can find builds of Finesse'''
-    bddata_file = './.finesse_test_bddata.json'
-    if os.path.exists(bddata_file):
-        if clean:
-            os.unlink(bddata_file)
-        else:
-            with open(bddata_file, 'rt') as fd:
-                bd_list = json.load(fd)
-            return (find_default_build_dir(bd_list), bd_list)
-    print('Starting search for Finesse builds')
-    results = subprocess.run(
-        ['find', start_dir, '-name', 'libfinesse_preload.so'], capture_output=True)
-    results.check_returncode()
-    if type(results.stdout) is bytes:
-        bdlist = results.stdout.decode('ascii')
-    else:
-        bdlist = results.stdout
-    bd_list = []
-    for e in [os.path.dirname(x) for x in bdlist.split()]:
-        parts = e.split('/')
-        bd_list.append('/'.join(parts[:-2]))
-    default = None
-    for e in bd_list:
-        if 'gcc' in e and 'release' in e:
-            default = e
-            break
-    with open(bddata_file, 'wt') as fd:
-        json.dump(bd_list, fd, indent=4)
-    print('Finished searching for Finesse builds')
-    return (default, bd_list)
-
-
 def retrieve_git_hash(dir):
     '''For the given directory, retrieve the current git hash'''
     results = subprocess.run(
@@ -163,8 +91,41 @@ class Filebench:
                             for t in results.stdout.decode('ascii').split()]
         return self.scripts
 
-    def find_workloads(self):
-        return find_workloads(start_dir=self.base_search_dir, workload=self.target_workload, clean=False)
+    def find_workloads(self, start_dir='/', workload='fileserver.f', clean=False):
+        '''Given a starting directory, find all the locations where the given workload file is present'''
+        if hasattr(self, 'fblist'):  # if we've already loaded it, no need to do so again
+            return self.fblist
+        if self.cache_file:
+            if '~' in self.cache_file:
+                fbdata_file = os.path.expanduser(self.cache_file)
+            else:
+                fbdata_file = self.cache_file
+        if os.path.exists(fbdata_file):
+            if clean:
+                os.unlink(fbdata_file)
+            else:
+                print('Using existing filebench location data')
+                with open(fbdata_file, 'rt') as fd:
+                    self.fblist = json.load(fd)
+                return self.fblist
+        print('Starting search for filebench workloads')
+        results = subprocess.run(
+            ['find', start_dir, '-name', workload], capture_output=True)
+        # we can't check the return code because every "access denied" in the search is considered a failure
+        # results.check_returncode()
+        if results.stdout is None or len(results.stdout) == 0:
+            # empty list
+            fblist = None
+        elif type(results.stdout) is bytes:
+            fblist = results.stdout.decode('ascii')
+        else:
+            fblist = results.stdout
+        fblist = [os.path.dirname(x) for x in fblist.split() if 'tmp' not in x]
+        with open(fbdata_file, 'wt') as fd:
+            json.dump(fblist, fd, ensure_ascii=True, indent=4)
+        print('Finished search for filebench workloads, found {}'.format(fblist))
+        self.fblist = fblist
+        return self.fblist
 
     def cleanup(self):
         if self.savetemp:
@@ -334,13 +295,13 @@ class Filebench:
 
 class Bitbucket:
 
+    __default_cache_file__ = '~/.finesse_test_bbdata.json'
     __default_log_level__ = 3
     __mountpoint_name__ = '/mnt/bitbucket'
     __mount_options__ = ['-o',  'allow_root',  '-o',  'auto_unmount']
     # finesse/bitbucket/bitbucket / mnt/bitbucket - o allow_root - o auto_unmount - -logfile = /home/tony/bblog-2020-08-17-13: 27.log - -loglevel = 3
 
-    def __init__(self, bbfs):
-        self.bbfs = bbfs
+    def __init__(self):
         self.mountpoint_name = self.__mountpoint_name__
         self.mount_options = self.__mount_options__
         self.timestamp = time.strftime('%Y%m%d-%H%M%S')
@@ -349,8 +310,18 @@ class Bitbucket:
             self.timestamp, self.bblog_level)
         self.bb_log_dir = '.'
         self.log = sys.stdout
+        self.cache_file = self.__default_cache_file__
+        if '~' in self.cache_file:
+            self.cache_file = os.path.expanduser(
+                self.cache_file)
+
+    def set_program(self, bbfs):
+        '''Set the location of the bitbucket file system binary to use'''
+        self.bbfs = bbfs
 
     def get_program_args(self):
+        assert hasattr(
+            self, 'bbfs'), 'Must set the correct binary before invoking'
         args = [self.bbfs, self.mountpoint_name] + self.mount_options
         if self.bb_log != None:
             args.append('--logfile={}/{}'.format(self.bb_log_dir, self.bb_log))
@@ -414,21 +385,59 @@ class Bitbucket:
                   result.stderr.decode('ascii'))
         return result.returncode
 
-    def run_filebench(self, workload_dir, test='fileserver.f'):
-        '''
-        Pass 1: ensure the file system isn't
-        '''
-        assert os.path.isdir(
-            workload_dir), 'Workload directory does not appear to exist'
+    def find_default_build_dir(self):
+        '''Given a list of build directories, use the one that indicates it is using gcc in release mode'''
+        default = None
+        for bd in self.bd_list:
+            if 'gcc' in bd and 'release' in bd:
+                default = bd
+                break
+        return default
+
+    def find_build_dirs(self, start_dir='.', clean=False):
+        '''Given a starting directory, find all the locations where we can find builds of Finesse'''
+        dirs = self.__find_build_dirs_internal__(
+            start_dir=start_dir, clean=clean)
+        return (self.find_default_build_dir(), self.bd_list)
+
+    def __find_build_dirs_internal__(self, start_dir, clean):
+        '''Internal work routine that ensures we have a build directory list'''
+        if hasattr(self, 'bd_list'):  # if we already loaded it, just return
+            return
+        if clean and os.path.exists(self.cache_file):
+            os.unlink(self.cache_file)
+        if os.path.exists(self.cache_file):
+            with open(self.cache_file, 'rt') as fd:
+                try:
+                    self.bd_list = json.load(fd)
+                except Exception as e:
+                    print('Loading {} failed ({}), rebuilding'.format(
+                        self.cache_file, e))
+        if hasattr(self, 'bd_list'):
+            return
+        print('Starting search for Finesse builds')
+        results = subprocess.run(
+            ['find', start_dir, '-name', 'libfinesse_preload.so'], capture_output=True)
+        results.check_returncode()
+        if type(results.stdout) is bytes:
+            bdlist = results.stdout.decode('ascii')
+        else:
+            bdlist = results.stdout
+        self.bd_list = []
+        for e in [os.path.dirname(x) for x in bdlist.split()]:
+            parts = e.split('/')
+            self.bd_list.append('/'.join(parts[:-2]))
+        print('Finished searching for Finesse builds')
 
 
 def main():
-    default_build_dir, build_dirs = find_build_dirs()
-    workload_dirs = find_workloads()
-    if len(workload_dirs) == 0:
+    bitbucket = Bitbucket()
+    default_build_dir, build_dirs = bitbucket.find_build_dirs()
+    fb = Filebench()
+    workload_dirs = fb.find_workloads()
+    if workload_dirs == None or len(workload_dirs) == 0:
         print('Could not find filebench workload(s).  Please install filebench.')
         return -1
-    fb = Filebench()
     assert 'fileserver' in fb.find_scripts(
     ), 'Default option fileserver not found in scripts'
     parser = argparse.ArgumentParser(
@@ -449,9 +458,11 @@ def main():
                         help='Indicates if saved state should be discarded and rebuilt')
     args = parser.parse_args()
     if args.clean:
-        default_build_dir, build_dirs = find_build_dirs(clean=True)
-        workload_dirs = find_workloads(clean=True)
-    args = parser.parse_args()
+        default_build_dir, build_dirs = bitbucket.find_build_dirs(clean=True)
+        workload_dirs = fb.find_workloads(clean=True)
+        args = parser.parse_args()
+
+    bitbucket.set_program(args.build_dir + '/finesse/bitbucket/bitbucket')
 
     # I need two filebench objects: one that runs with LD_PRELOAD
     # (for finesse) and one that runs without.  But I want it all
@@ -459,9 +470,6 @@ def main():
     timestamp = time.strftime('%Y%m%d-%H%M%S')
     logfile = '{}/finesse_test#{}#results#{}.log'.format(
         args.data_dir, args.test, timestamp)
-
-    bitbucket = Bitbucket(
-        args.build_dir + '/finesse/bitbucket/bitbucket')
 
     preload_fb = Filebench()
     preload_fb.set_preload(
