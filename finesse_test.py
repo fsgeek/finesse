@@ -208,10 +208,13 @@ class Filebench:
         print('Finished search for filebench workloads')
         return self.workload_dirs
 
-    def set_preload(self, preload_library=None, debug_options=[], debug_log=None):
+    def set_preload(self, preload_library, debug_options=[], debug_log=None):
         if '~' in preload_library:
             preload_library = os.path.expanduser(preload_library)
-        if '/' != preload_library[0]:
+        if preload_library[0].startswith('./'):
+            # ./foo/bar/preload.so -> foo/bar/preload.so
+            preload_library = '{}/{}'.format(os.getcwd(), preload_library[2:])
+        elif '/' != preload_library[0]:
             preload_library = '{}/{}'.format(os.getcwd(), preload_library)
         assert os.path.exists(
             preload_library), 'Unable to find preload library {}'.format(preload_library)
@@ -228,7 +231,7 @@ class Filebench:
         if self.preload is None:
             return os.environ
         env = {x: os.environ[x] for x in os.environ}
-        env['LD_PRELOAD'] = preload
+        env['LD_PRELOAD'] = self.preload
         preload_debug_options = ""
         for do in self.preload_debug_options:
             if self.preload_debug_options[do]:
@@ -282,12 +285,18 @@ class Filebench:
         '''This will run the default script and write to the specified log file (or log desciptor); an optional preload library may be specified'''
         if not self.setup_done:
             self.setup_tests()
+        if 'LD_PRELOAD' in self.get_env():
+            preload = 'LD_PRELOAD={} '.format(self.get_env()['LD_PRELOAD'])
+        else:
+            preload = ''
         args = []
+        if len(preload) > 0:
+            print(preload)
         if run_as_root and 0 != os.geteuid():
             args = ['sudo']
         args = args + ['filebench', '-f',
                        '{}/{}'.format(self.temp_dir, self.default_script)]
-        self.get_log().write(' '.join(args) + '\n')
+        self.get_log().write(preload + ' '.join(args) + '\n')
         result = subprocess.run(args, env=self.get_env(),
                                 stdout=self.get_log(), stderr=subprocess.STDOUT)
         return result.returncode
@@ -359,10 +368,13 @@ class Bitbucket:
     def get_program(self):
         return ' '.join(self.get_program_args())
 
+    def get_mountpoint(self):
+        return self.mountpoint_name
+
     def is_mounted(self):
         result = subprocess.run(['mount'], capture_output=True)
         result.check_returncode()
-        return self.__mountpoint_name__ in result.stdout.decode('ascii')
+        return self.mountpoint_name in result.stdout.decode('ascii')
 
     def mount(self):
         assert not self.is_mounted(), 'Bitbucket is already mounted!'
@@ -430,6 +442,86 @@ class Bitbucket:
         print('Finished searching for Finesse builds')
 
 
+def run(build_dir, data_dir, tests, bitbucket, fb, trial):
+    assert type(tests) == list, 'Tests is expected to be a list'
+    assert len(tests) > 0, 'Tests is expected to be a non-empty list'
+    # Use the same timestamp for all test runs within a single group
+    timestamp = time.strftime('%Y%m%d-%H%M%S')
+
+    # I need two filebench objects: one that runs with LD_PRELOAD
+    # (for finesse) and one that runs without.  But I want it all
+    # in a single log file
+    bitbucket.set_program(build_dir + '/finesse/bitbucket/bitbucket')
+    # Cleanup (from prior run?)
+    while bitbucket.is_mounted():
+        bitbucket.umount()
+
+    preload_fb = Filebench()
+    preload_fb.set_preload(
+        build_dir + '/finesse/preload/libfinesse_preload.so')
+
+    for test in tests:
+        # Let's make sure everything is clean
+        print('Starting test {}'.format(test))
+        logfile = '{}/finesse_test#{}#results#{}.log'.format(
+            data_dir, test, timestamp)
+        with open(logfile, 'wt+') as fd:
+            # (0) Write preamble information
+            fd.write('Finesse Test Data Collection Run: {}\n'.format(timestamp))
+            fd.write('Git Hash: {}\n'.format(retrieve_git_hash(build_dir)))
+            fd.flush()
+            subprocess.run(['mount'], stdout=fd, stderr=subprocess.STDOUT)
+            fd.write('\nRun: Test {} on native file system\n'.format(test))
+            fd.flush()
+            # (1) Run on native file system
+            fb.set_log(fd)
+            if trial:
+                fd.write("This is where we'd run the test")
+            else:
+                fb.run()
+            fd.write('\nEnd Run\n')
+
+            # (2) Run on Bitbucket
+            fd.write('Mount bitbucket: {}\n'.format(bitbucket.get_program()))
+            fd.flush()
+            bitbucket.set_log(fd)
+            bitbucket.set_bblog(
+                '{}/bblog#{}#data#{}.log'.format(data_dir, test, timestamp))
+            bitbucket.mount()
+            fd.write('Run: Test {} on bitbucket file system\n'.format(test))
+            fd.flush()
+            if trial:
+                fd.write("This is where we'd run the test")
+            else:
+                fb.run()
+            bitbucket.umount()
+            fd.write('\nEnd Run\n')
+
+            # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
+            preload_fb.set_log(fd)
+            bitbucket.set_bblog(
+                '{}/bblog-preload#{}#data#{}.log'.format(data_dir, test, timestamp))
+            bitbucket.mount()
+            fd.write(
+                'Run: Test {} on bitbucket file system with LD_PRELOAD (for filebench)\n'.format(test))
+            fd.flush()
+            if trial:
+                fd.write("This is where we'd run the test (LD_PRELOAD={}".format(
+                    preload_fb.get_env()['LD_PRELOAD']))
+            else:
+                preload_fb.run()
+            bitbucket.umount()
+            fd.write('\nEnd Run\n')
+
+            # Postamble
+            fd.write('Completed run {} at time {}'.format(
+                timestamp, time.strftime('%Y%m%d-%H%M%S')))
+
+            # Cleanup
+            while bitbucket.is_mounted():
+                bitbucket.umount()
+
+
 def main():
     bitbucket = Bitbucket()
     default_build_dir, build_dirs = bitbucket.find_build_dirs()
@@ -444,8 +536,8 @@ def main():
         description='Test Finesse+Bitbucket with Filebench')
     parser.add_argument('--testdir', dest='test_dir',
                         default=workload_dirs[-1], choices=workload_dirs, help='Where to find filebench workloads')
-    parser.add_argument('--test', dest='test', default='fileserver',
-                        choices=fb.find_scripts(), help='Which filebench test to run')
+    parser.add_argument('--test', dest='test', default=['all'],
+                        choices=fb.find_scripts() + ['all'], help='Which filebench test to run')
     parser.add_argument('--build_dir', dest='build_dir',
                         default=default_build_dir, choices=build_dirs, help='Which build to use')
     parser.add_argument('--datadir', dest='data_dir',
@@ -456,69 +548,38 @@ def main():
                         type=int, help='Number of runs to perform')
     parser.add_argument('--clean', dest='clean', default=False, action='store_true',
                         help='Indicates if saved state should be discarded and rebuilt')
+    parser.add_argument('--trial', dest='trial', default=False,
+                        action='store_true', help='Indicate that this should be a trial run')
     args = parser.parse_args()
     if args.clean:
         default_build_dir, build_dirs = bitbucket.find_build_dirs(clean=True)
         workload_dirs = fb.find_workloads(clean=True)
         args = parser.parse_args()
 
-    bitbucket.set_program(args.build_dir + '/finesse/bitbucket/bitbucket')
+    # Handle the 'all' case for the tests
+    if type(args.test) == str:
+        args.test = [args.test]
+    assert type(args.test) == list, 'Expected tests to be a list, not {}'.format(
+        type(args.test))
+    if len(args.test) == 1 and 'all' == args.test[0]:
+        args.test = fb.find_scripts()
 
-    # I need two filebench objects: one that runs with LD_PRELOAD
-    # (for finesse) and one that runs without.  But I want it all
-    # in a single log file
-    timestamp = time.strftime('%Y%m%d-%H%M%S')
-    logfile = '{}/finesse_test#{}#results#{}.log'.format(
-        args.data_dir, args.test, timestamp)
-
-    preload_fb = Filebench()
-    preload_fb.set_preload(
-        args.build_dir + '/finesse/preload/libfinesse_preload.so')
-
-    with open(logfile, 'wt+') as fd:
-        # (0) Write preamble information
-        fd.write('Finesse Test Data Collection Run: {}\n'.format(timestamp))
-        fd.write('Git Hash: {}\n'.format(retrieve_git_hash(args.build_dir)))
-        fd.flush()
-        subprocess.run(['mount'], stdout=fd, stderr=subprocess.STDOUT)
-        fd.write('\nRun: Test {} on native file system\n'.format(args.test))
-        fd.flush()
-        # (1) Run on native file system
-        fb.set_log(fd)
-        fb.run()
-        fd.write('\nEnd Run\n')
-
-        # (2) Run on Bitbucket
-        fd.write('Mount bitbucket: {}\n'.format(bitbucket.get_program()))
-        fd.flush()
-        bitbucket.set_log(fd)
-        bitbucket.set_bblog(
-            '{}/bblog#{}#data#{}.log'.format(args.data_dir, args.test, timestamp))
-        bitbucket.mount()
-        fd.write('Run: Test {} on bitbucket file system\n'.format(args.test))
-        fd.flush()
-        fb.run()
-        bitbucket.umount()
-        fd.write('\nEnd Run\n')
-
-        # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
-        preload_fb.set_log(fd)
-        bitbucket.set_bblog(
-            '{}/bblog-preload#{}#data#{}.log'.format(args.data_dir, args.test, timestamp))
-        bitbucket.mount()
-        fd.write(
-            'Run: Test {} on bitbucket file system with LD_PRELOAD (for filebench)\n'.format(args.test))
-        fd.flush()
-        fb.run()
-        bitbucket.umount()
-        fd.write('\nEnd Run\n')
-
-        # Postamble
-        fd.write('Completed run {} at time {}'.format(
-            timestamp, time.strftime('%Y%m%d-%H%M%S')))
-
+    # Make sure bitbucket is not mounted
     while bitbucket.is_mounted():
         bitbucket.umount()
+
+    # Make sure that we don't have any detritus left over from prior usage of the
+    # (unmounted) directory.
+    if os.path.exists(bitbucket.get_mountpoint()):
+        result = subprocess.run(
+            ['sudo', 'rm', '-rf', bitbucket.get_mountpoint()])
+        assert result.returncode == 0, 'Cleaning up {} failed'.format(
+            bitbucket.get_mountpoint())
+        result = subprocess.run(
+            ['sudo', 'mkdir', '-p', bitbucket.get_mountpoint()])
+
+    # Invoke the run logic
+    run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
 
 
 if __name__ == "__main__":
