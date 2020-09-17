@@ -290,8 +290,6 @@ class Filebench:
         else:
             preload = ''
         args = []
-        if len(preload) > 0:
-            print(preload)
         if run_as_root and 0 != os.geteuid():
             args = ['sudo']
         args = args + ['filebench', '-f',
@@ -452,9 +450,29 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
     # (for finesse) and one that runs without.  But I want it all
     # in a single log file
     bitbucket.set_program(build_dir + '/finesse/bitbucket/bitbucket')
-    # Cleanup (from prior run?)
-    while bitbucket.is_mounted():
-        bitbucket.umount()
+
+    # Make sure that we don't have any detritus left over from prior usage of the
+    # (unmounted) directory.
+    if os.path.exists(bitbucket.get_mountpoint()):
+        # Make sure bitbucket is not mounted
+        while bitbucket.is_mounted():
+            bitbucket.umount()
+
+        # make sure the bitbucket directory is empty; if it is not, delete it and
+        # recreate it with appropriate ownership (otherwise mount won't work and
+        # if you force mount, then unmount has to be sudo as well).
+        if len(os.listdir(bitbucket.get_mountpoint())) > 0:
+            result = subprocess.run(
+                ['sudo', 'rm', '-rf', bitbucket.get_mountpoint()])
+            assert result.returncode == 0, 'Cleaning up {} failed'.format(
+                bitbucket.get_mountpoint())
+            result = subprocess.run(
+                ['sudo', 'mkdir', '-p', bitbucket.get_mountpoint()])
+            if result.returncode == 0:
+                result = subprocess.run(
+                    ['sudo', 'chown', str(os.getuid()), bitbucket.get_mountpoint()])
+            assert result.returncode == 0, 'Mkdir or chown failed ({})'.format(
+                result.returncode)
 
     preload_fb = Filebench()
     preload_fb.set_preload(
@@ -550,6 +568,8 @@ def main():
                         help='Indicates if saved state should be discarded and rebuilt')
     parser.add_argument('--trial', dest='trial', default=False,
                         action='store_true', help='Indicate that this should be a trial run')
+    parser.add_argument('--repeat', dest='run_count', default=1,
+                        type=int, help='The number of times to run all of the tests')
     args = parser.parse_args()
     if args.clean:
         default_build_dir, build_dirs = bitbucket.find_build_dirs(clean=True)
@@ -564,22 +584,11 @@ def main():
     if len(args.test) == 1 and 'all' == args.test[0]:
         args.test = fb.find_scripts()
 
-    # Make sure bitbucket is not mounted
-    while bitbucket.is_mounted():
-        bitbucket.umount()
-
-    # Make sure that we don't have any detritus left over from prior usage of the
-    # (unmounted) directory.
-    if os.path.exists(bitbucket.get_mountpoint()):
-        result = subprocess.run(
-            ['sudo', 'rm', '-rf', bitbucket.get_mountpoint()])
-        assert result.returncode == 0, 'Cleaning up {} failed'.format(
-            bitbucket.get_mountpoint())
-        result = subprocess.run(
-            ['sudo', 'mkdir', '-p', bitbucket.get_mountpoint()])
-
-    # Invoke the run logic
-    run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
+    # Invoke the run logic, potentially repeating it multiple times.
+    count = 0
+    while count < args.run_count:
+        run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
+        count = count + 1
 
 
 if __name__ == "__main__":
