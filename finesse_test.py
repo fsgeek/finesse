@@ -209,6 +209,10 @@ class Filebench:
         return self.workload_dirs
 
     def set_preload(self, preload_library, debug_options=[], debug_log=None):
+        '''
+        Set LD_PRELOAD options.
+        For a more comprehensive list (this is a subset) see https://man7.org/linux/man-pages/man8/ld.so.8.html
+        '''
         if '~' in preload_library:
             preload_library = os.path.expanduser(preload_library)
         if preload_library[0].startswith('./'):
@@ -218,20 +222,17 @@ class Filebench:
             preload_library = '{}/{}'.format(os.getcwd(), preload_library)
         assert os.path.exists(
             preload_library), 'Unable to find preload library {}'.format(preload_library)
-        self.preload = preload_library
+        self.preload = {'LD_PRELOAD': preload_library}
         for do in debug_options:
-            assert do in self.preload_debug_options, 'Invalid preload debug option {}'.format(
-                do)
+            self.preload['LD_DEBUG': ','.join(debug_options)]
         if self.preload_debug_log != None:
             if '~' in self.preload_debug_log:
                 self.preload_debug_log = os.path.expanduser(
                     self.preload_debug_log)
+            self.preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
 
-    def get_env(self, debug=False):
-        if self.preload is None:
-            return os.environ
-        env = {x: os.environ[x] for x in os.environ}
-        env['LD_PRELOAD'] = self.preload
+    def get_preload(self, debug=False):
+        preload = {'LD_PRELOAD': self.preload}
         preload_debug_options = ""
         for do in self.preload_debug_options:
             if self.preload_debug_options[do]:
@@ -239,10 +240,29 @@ class Filebench:
         if len(preload_debug_options) > 0:
             # remove trailing comma
             preload_debug_options = preload_debug_options[:-1]
-            env['LD_DEBUG'] = preload_debug_options
-            if self.preload_debug_log:
-                env['LD_DEBUG_OUTPUT'] = self.preload_debug_log
-        return env
+            preload['LD_DEBUG'] = preload_debug_options
+        if self.preload_debug_log:
+            preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
+        return preload
+
+    def generate_script(self, timestamp):
+        '''
+        Because we run things with SUDO, we need to run them within a script so we can set the environment
+        and have it stick.  Otherwise, our LD_PRELOAD settings won't be properly preserved.
+        '''
+        args = ['filebench', '-f',
+                '{}/{}'.format(self.temp_dir, self.default_script)]
+        script = '{}/finesse_test.sh'.format(self.temp_dir)
+        with open(script, 'wt') as fd:
+            fd.write('#!/bin/bash\n')
+            env = self.get_preload()
+            for item in env:
+                if 'LD' not in item:  # don't care about non LD_XXX values
+                    continue
+                fd.write('export {}={}\n'.format(item, env[item]))
+            fd.write('\n')
+            fd.write(' '.join(args) + '\n')
+        return script
 
     def setup_tests(self):
         '''This creates the temporary workload directory, copies the workload, and modifies it'''
@@ -281,24 +301,18 @@ class Filebench:
                 time.strftime('%Y%m%d-%H%M%S'))
         self.log = open(self.logfile, 'wt')
 
-    def run(self, run_as_root=True):
+    def run(self, timestamp, run_as_root=True):
         '''This will run the default script and write to the specified log file (or log desciptor); an optional preload library may be specified'''
         if not self.setup_done:
             self.setup_tests()
-        if 'LD_PRELOAD' in self.get_env():
-            preload = 'LD_PRELOAD={} '.format(self.get_env()['LD_PRELOAD'])
-        else:
-            preload = ''
-        args = []
-        if len(preload) > 0:
-            print(preload)
         if run_as_root and 0 != os.geteuid():
             args = ['sudo']
-        args = args + ['filebench', '-f',
-                       '{}/{}'.format(self.temp_dir, self.default_script)]
-        self.get_log().write(preload + ' '.join(args) + '\n')
-        result = subprocess.run(args, env=self.get_env(),
-                                stdout=self.get_log(), stderr=subprocess.STDOUT)
+        else:
+            args = []
+        args.append('/bin/bash')
+        args.append(self.generate_script(timestamp))
+        result = subprocess.run(args, stdout=self.get_log(),
+                                stderr=subprocess.STDOUT)
         return result.returncode
 
 
@@ -452,9 +466,26 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
     # (for finesse) and one that runs without.  But I want it all
     # in a single log file
     bitbucket.set_program(build_dir + '/finesse/bitbucket/bitbucket')
+
     # Cleanup (from prior run?)
     while bitbucket.is_mounted():
         bitbucket.umount()
+
+    # Make sure that we don't have any detritus left over from prior usage of the
+    # (unmounted) directory.
+    if os.path.exists(bitbucket.get_mountpoint()):
+        result = subprocess.run(
+            ['sudo', 'rm', '-rf', bitbucket.get_mountpoint()])
+        assert result.returncode == 0, 'Cleaning up {} failed {}'.format(
+            bitbucket.get_mountpoint(), result.returncode)
+        result = subprocess.run(
+            ['sudo', 'mkdir', '-p', bitbucket.get_mountpoint()])
+        assert result.returncode == 0, 'Making dir {} failed {}'.format(
+            bitbucket.get_mountpoint(), result.returncode)
+        result = subprocess.run(
+            ['sudo', 'chown', str(os.getuid()), bitbucket.get_mountpoint()])
+        assert result.returncode == 0, 'Changing owner of {} to {} failed {}'.format(
+            bitbucket.get_mountpoint(), os.getuid(), result.returncode)
 
     preload_fb = Filebench()
     preload_fb.set_preload(
@@ -478,7 +509,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
             if trial:
                 fd.write("This is where we'd run the test")
             else:
-                fb.run()
+                fb.run(timestamp)
             fd.write('\nEnd Run\n')
 
             # (2) Run on Bitbucket
@@ -493,7 +524,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
             if trial:
                 fd.write("This is where we'd run the test")
             else:
-                fb.run()
+                fb.run(timestamp)
             bitbucket.umount()
             fd.write('\nEnd Run\n')
 
@@ -509,7 +540,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
                 fd.write("This is where we'd run the test (LD_PRELOAD={}".format(
                     preload_fb.get_env()['LD_PRELOAD']))
             else:
-                preload_fb.run()
+                preload_fb.run(timestamp)
             bitbucket.umount()
             fd.write('\nEnd Run\n')
 
@@ -563,20 +594,6 @@ def main():
         type(args.test))
     if len(args.test) == 1 and 'all' == args.test[0]:
         args.test = fb.find_scripts()
-
-    # Make sure bitbucket is not mounted
-    while bitbucket.is_mounted():
-        bitbucket.umount()
-
-    # Make sure that we don't have any detritus left over from prior usage of the
-    # (unmounted) directory.
-    if os.path.exists(bitbucket.get_mountpoint()):
-        result = subprocess.run(
-            ['sudo', 'rm', '-rf', bitbucket.get_mountpoint()])
-        assert result.returncode == 0, 'Cleaning up {} failed'.format(
-            bitbucket.get_mountpoint())
-        result = subprocess.run(
-            ['sudo', 'mkdir', '-p', bitbucket.get_mountpoint()])
 
     # Invoke the run logic
     run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
