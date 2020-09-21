@@ -232,7 +232,11 @@ class Filebench:
             self.preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
 
     def get_preload(self, debug=False):
-        preload = {'LD_PRELOAD': self.preload}
+        # ensures that if self.preload is None we still get a dict
+        if type(self.preload) is dict:
+            preload = self.preload
+        else:
+            preload = {}
         preload_debug_options = ""
         for do in self.preload_debug_options:
             if self.preload_debug_options[do]:
@@ -541,7 +545,10 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
                     preload_fb.get_env()['LD_PRELOAD']))
             else:
                 preload_fb.run(timestamp)
-            bitbucket.umount()
+            try:
+                bitbucket.umount()
+            except Exception as e:
+                fd.write('Final dismount failed\n{}\n'.format(e))
             fd.write('\nEnd Run\n')
 
             # Postamble
