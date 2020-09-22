@@ -588,6 +588,8 @@ def main():
                         help='Indicates if saved state should be discarded and rebuilt')
     parser.add_argument('--trial', dest='trial', default=False,
                         action='store_true', help='Indicate that this should be a trial run')
+    parser.add_argument('--repeat', dest='run_count', default=1,
+                        type=int, help='The number of times to run all of the tests')
     args = parser.parse_args()
     if args.clean:
         default_build_dir, build_dirs = bitbucket.find_build_dirs(clean=True)
@@ -602,8 +604,11 @@ def main():
     if len(args.test) == 1 and 'all' == args.test[0]:
         args.test = fb.find_scripts()
 
-    # Invoke the run logic
-    run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
+    # Invoke the run logic, potentially repeating it multiple times.
+    count = 0
+    while count < args.run_count:
+        run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
+        count = count + 1
 
 
 if __name__ == "__main__":
