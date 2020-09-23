@@ -348,12 +348,41 @@ static MunitResult test_multi_client(const MunitParameter params[] __notused, vo
     return MUNIT_OK;
 }
 
+static MunitResult test_buffer(const MunitParameter params[] __notused, void *prv __notused)
+{
+    char *                 test_name = (char *)(uintptr_t) "finesse_test";
+    fincomm_arena_handle_t arena;
+    void *                 buffer = NULL;
+    char                   name_buffer[64];
+    size_t                 size;
+    size_t                 count;
+    fincomm_arena_handle_t arena2;
+
+    arena  = FincommCreateArena(test_name, 64 * 1024 * 1024, 64);
+    buffer = FincommAllocateBuffer(arena);
+    munit_assert(NULL != buffer);
+    FincommFreeBuffer(arena, buffer);
+
+    FincommGetArenaInfo(arena, name_buffer, sizeof(name_buffer), &size, &count);
+    fprintf(stderr, "test name is %s\n", name_buffer);
+    munit_assert(0 == strcmp(test_name, name_buffer));
+    munit_assert(64 * 1024 * 1024 == size);
+    munit_assert(64 == count);
+
+    arena2 = FincommCreateArena(test_name, 64 * 1024 * 1024, 64);
+    FincommReleaseArena(arena2);
+    FincommReleaseArena(arena);
+
+    return MUNIT_OK;
+}
+
 static MunitTest fincomm_tests[] = {
     TEST((char *)(uintptr_t) "/null", test_null, NULL),
     TEST((char *)(uintptr_t) "/simple", test_message, NULL),
     TEST((char *)(uintptr_t) "/client-server", test_client_server, NULL),
     TEST((char *)(uintptr_t) "/invalid-message", test_invalid_message_request, NULL),
     TEST((char *)(uintptr_t) "/multi-client", test_multi_client, NULL),
+    TEST((char *)(uintptr_t) "/buffer", test_buffer, NULL),
     TEST(NULL, NULL, NULL),
 };
 
