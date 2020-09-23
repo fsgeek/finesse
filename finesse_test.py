@@ -89,6 +89,10 @@ class Filebench:
             assert results.returncode == 0, 'grep failed'
             self.scripts = [t[2:-2]
                             for t in results.stdout.decode('ascii').split()]
+        # I'm finding it picking up Makefile.f and Makefi.f for some reason, so filter them out
+        valid_scripts = [
+            x for x in self.scripts if 'makef'.casefold() not in x.casefold()]
+        self.scripts = valid_scripts
         return self.scripts
 
     def find_workloads(self, start_dir='/', workload='fileserver.f', clean=False):
