@@ -36,11 +36,31 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void finesse_setup_server_connections(void);
 
+static char        call_stat_log[256];
+static const char *call_stat_log_default = "/tmp/finesse-callstats.log";
+static const char *call_stat_log_env     = "FINESSE_CALL_STAT_LOG";
+
 static void finesse_real_init(void)
 {
     pthread_mutex_lock(&lock);
 
     while (finesse_init == finesse_real_init) {
+        const char *log_name = getenv(call_stat_log_env);
+
+        // If the environment variable isn't set OR the name specified won't fit
+        // we just use the default name
+        if ((NULL == log_name) || strlen(log_name) >= sizeof(call_stat_log)) {
+            log_name = call_stat_log_default;
+        }
+
+        assert(strlen(log_name) < sizeof(call_stat_log));
+        strcpy(call_stat_log, log_name);
+
+        // A bit of debug code
+        FILE *log = fopen(call_stat_log, "wt");
+        fprintf(log, "finesse_real_init called");
+        fclose(log);
+
         // Initialization logic goes here
         (void)finesse_init_file_state_mgr();
 
@@ -59,7 +79,8 @@ static void finesse_real_init(void)
 
 static void finesse_real_shutdown(void)
 {
-    int status = 0;
+    int status          = 0;
+    int save_call_stats = 0;
 
     pthread_mutex_lock(&lock);
 
@@ -79,19 +100,24 @@ static void finesse_real_shutdown(void)
             finesse_prefix_table[index].client_handle = NULL;
         }
         (void)finesse_terminate_file_state_mgr();
+
+        save_call_stats = 1;
     }
     pthread_mutex_unlock(&lock);
 
-    // Dump the call statistics
+    if (save_call_stats) {
+        // Dump the call statistics
 
-    FILE *                         log       = fopen("/home/tony/finesse-callstats.log", "wt");
-    finesse_api_call_statistics_t *callstats = FinesseApiGetCallStatistics();
-    const char *                   calldata  = FinesseApiFormatCallData(callstats, 0);
-    assert(NULL != log);
-    fprintf(log, "Finesse API Call Statistics:\n%s\n", calldata);
-    fclose(log);
-    FinesseApiFreeFormattedCallData(calldata);
-    FinesseApiReleaseCallStatistics(callstats);
+        FILE *                         log       = fopen(call_stat_log, "wt");
+        finesse_api_call_statistics_t *callstats = FinesseApiGetCallStatistics();
+        const char *                   calldata  = FinesseApiFormatCallData(callstats, 0);
+
+        assert(NULL != log);
+        fprintf(log, "Finesse API Call Statistics:\n%s\n", calldata);
+        fclose(log);
+        FinesseApiFreeFormattedCallData(calldata);
+        FinesseApiReleaseCallStatistics(callstats);
+    }
 }
 
 static void finesse_dummy_shutdown(void)
