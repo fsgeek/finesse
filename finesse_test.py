@@ -62,13 +62,16 @@ class Filebench:
                         )
     default_test_dir = '/mnt/bitbucket'
 
-    def __init__(self, logfile=None):
+    def __init__(self, logfile=None, temp_dir=None):
         '''Set up a filebench run instance, specify a log file (for filebench). Other options can be set up separately if defaults are not wanted'''
         self.default_script = self.target_workload
         self.cache_file = os.path.expanduser(self.default_cache_file)
         self.load_workload()
         self.workload_dir = self.workload_dirs[-1]
-        self.temp_dir = tempfile.mkdtemp()
+        if temp_dir == None:
+            self.temp_dir = tempfile.mkdtemp()
+        else:
+            self.temp_dir = temp_dir
         self.test_dir = self.default_test_dir
         atexit.register(self.cleanup)
         self.setup_done = False
@@ -78,7 +81,13 @@ class Filebench:
         self.savetemp = True  # False
         self.logfile = logfile
         self.find_scripts()
+        self.debug = False
         # Log creation is deferred
+
+    def set_debug(self, debug=False):
+        oldval = self.debug
+        self.debug = debug
+        return oldval
 
     def find_scripts(self):
         # only scripts with the 'run' keyword in them are top level; others are
@@ -143,6 +152,14 @@ class Filebench:
 
     def set_savetemp(self, save=False):
         self.savetemp = save
+
+    def get_temp_dir(self):
+        return self.temp_dir
+
+    def set_temp_dir(self, dir):
+        oldval = self.temp_dir
+        self.temp_dir = dir
+        return oldval
 
     def get_workload_dir(self):
         '''Returns the workload directory being used'''
@@ -253,14 +270,14 @@ class Filebench:
             preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
         return preload
 
-    def generate_script(self, timestamp):
+    def generate_script(self, timestamp, label):
         '''
         Because we run things with SUDO, we need to run them within a script so we can set the environment
         and have it stick.  Otherwise, our LD_PRELOAD settings won't be properly preserved.
         '''
         args = ['filebench', '-f',
                 '{}/{}'.format(self.temp_dir, self.default_script)]
-        script = '{}/finesse_test.sh'.format(self.temp_dir)
+        script = '{}/finesse_test_{}.sh'.format(self.temp_dir, label)
         with open(script, 'wt') as fd:
             fd.write('#!/bin/bash\n')
             env = self.get_preload()
@@ -309,18 +326,30 @@ class Filebench:
                 time.strftime('%Y%m%d-%H%M%S'))
         self.log = open(self.logfile, 'wt')
 
-    def run(self, timestamp, run_as_root=True):
+    def run(self, timestamp, label, run_as_root=True):
         '''This will run the default script and write to the specified log file (or log desciptor); an optional preload library may be specified'''
+        if self.debug:
+            print('Filebench: starting run')
         if not self.setup_done:
+            if self.debug:
+                print('Filebench: setup_tests() called')
             self.setup_tests()
         if run_as_root and 0 != os.geteuid():
+            if self.debug:
+                print('Filebench: run as root')
             args = ['sudo']
         else:
             args = []
         args.append('/bin/bash')
-        args.append(self.generate_script(timestamp))
+        args.append(self.generate_script(timestamp, label))
+        self.log.write('Run command: {}\n'.format(' '.join(args)))
+        if self.debug:
+            print('Filebench: run command {}'.format(' '.join(args)))
         result = subprocess.run(args, stdout=self.get_log(),
                                 stderr=subprocess.STDOUT)
+        self.log.write('Command exit code: {}\n'.format(result.returncode))
+        if self.debug:
+            print('Filebench: command exit code {}'.format(result.returncode))
         return result.returncode
 
 
@@ -464,7 +493,7 @@ class Bitbucket:
         print('Finished searching for Finesse builds')
 
 
-def run(build_dir, data_dir, tests, bitbucket, fb, trial):
+def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb=True, run_bb_preload=True):
     assert type(tests) == list, 'Tests is expected to be a list'
     assert len(tests) > 0, 'Tests is expected to be a non-empty list'
     # Use the same timestamp for all test runs within a single group
@@ -494,10 +523,17 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
             ['sudo', 'chown', str(os.getuid()), bitbucket.get_mountpoint()])
         assert result.returncode == 0, 'Changing owner of {} to {} failed {}'.format(
             bitbucket.get_mountpoint(), os.getuid(), result.returncode)
+        assert os.stat(bitbucket.get_mountpoint()).st_uid == os.getuid(), 'Owner ID of {} is {} should be {}'.format(
+            bitbucket.get_mountpoint(), os.stat(bitbucket.get_mountpoint().st_uid), os.getuid())
 
-    preload_fb = Filebench()
-    preload_fb.set_preload(
-        build_dir + '/finesse/preload/libfinesse_preload.so')
+    # use the same temporary directory
+    preload_fb = Filebench(temp_dir=fb.get_temp_dir())
+    preload_lib = '/finesse/preload/libfinesse_preload.so'
+    if build_dir[:2] == './':
+        preload_dir = build_dir[2:] + preload_lib
+    else:
+        preload_dir = build_dir + preload_dir
+    preload_fb.set_preload(preload_dir)
 
     for test in tests:
         # Let's make sure everything is clean
@@ -508,52 +544,56 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial):
             # (0) Write preamble information
             fd.write('Finesse Test Data Collection Run: {}\n'.format(timestamp))
             fd.write('Git Hash: {}\n'.format(retrieve_git_hash(build_dir)))
+            fd.write('Temp directory is: {}\n'.format(fb.get_temp_dir()))
             fd.flush()
             subprocess.run(['mount'], stdout=fd, stderr=subprocess.STDOUT)
             fd.write('\nRun: Test {} on native file system\n'.format(test))
             fd.flush()
-            # (1) Run on native file system
             fb.set_log(fd)
-            if trial:
-                fd.write("This is where we'd run the test")
-            else:
-                fb.run(timestamp)
-            fd.write('\nEnd Run\n')
-
-            # (2) Run on Bitbucket
-            fd.write('Mount bitbucket: {}\n'.format(bitbucket.get_program()))
-            fd.flush()
-            bitbucket.set_log(fd)
-            bitbucket.set_bblog(
-                '{}/bblog#{}#data#{}.log'.format(data_dir, test, timestamp))
-            bitbucket.mount()
-            fd.write('Run: Test {} on bitbucket file system\n'.format(test))
-            fd.flush()
-            if trial:
-                fd.write("This is where we'd run the test")
-            else:
-                fb.run(timestamp)
-            bitbucket.umount()
-            fd.write('\nEnd Run\n')
-
-            # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
-            preload_fb.set_log(fd)
-            bitbucket.set_bblog(
-                '{}/bblog-preload#{}#data#{}.log'.format(data_dir, test, timestamp))
-            bitbucket.mount()
-            fd.write(
-                'Run: Test {} on bitbucket file system with LD_PRELOAD (for filebench)\n'.format(test))
-            fd.flush()
-            if trial:
-                fd.write("This is where we'd run the test (LD_PRELOAD={}".format(
-                    preload_fb.get_env()['LD_PRELOAD']))
-            else:
-                preload_fb.run(timestamp)
-            try:
+            if run_local:
+                # (1) Run on native file system
+                if trial:
+                    fd.write("This is where we'd run the test")
+                else:
+                    fb.run(timestamp, 'native')
+                fd.write('\nEnd Local Run\n')
+            if run_bb:
+                # (2) Run on Bitbucket
+                fd.write('Mount bitbucket: {}\n'.format(
+                    bitbucket.get_program()))
+                fd.flush()
+                bitbucket.set_log(fd)
+                bitbucket.set_bblog(
+                    '{}/bblog#{}#data#{}.log'.format(data_dir, test, timestamp))
+                bitbucket.mount()
+                fd.write('Run: Test {} on bitbucket file system\n'.format(test))
+                fd.flush()
+                if trial:
+                    fd.write("This is where we'd run the test")
+                else:
+                    fb.run(timestamp, 'bitbucket')
                 bitbucket.umount()
-            except Exception as e:
-                fd.write('Final dismount failed\n{}\n'.format(e))
-            fd.write('\nEnd Run\n')
+                fd.write('\nEnd BB Run\n')
+            if run_bb_preload:
+                # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
+                preload_fb.set_log(fd)
+                bitbucket.set_bblog(
+                    '{}/bblog-preload#{}#data#{}.log'.format(data_dir, test, timestamp))
+                bitbucket.mount()
+                fd.write(
+                    'Run: Test {} on bitbucket file system with LD_PRELOAD (for filebench)\n'.format(test))
+                fd.flush()
+                fd.write('Running with LD_PRELOAD={}'.format(
+                    preload_fb.get_preload()))
+                if trial:
+                    fd.write("This is where we'd run the preload test")
+                else:
+                    preload_fb.run(timestamp, 'bitbucket_ldpreload')
+                try:
+                    bitbucket.umount()
+                except Exception as e:
+                    fd.write('Final dismount failed\n{}\n'.format(e))
+                fd.write('\nEnd BB Preload Run\n')
 
             # Postamble
             fd.write('Completed run {} at time {}'.format(
@@ -594,6 +634,12 @@ def main():
                         action='store_true', help='Indicate that this should be a trial run')
     parser.add_argument('--repeat', dest='run_count', default=1,
                         type=int, help='The number of times to run all of the tests')
+    parser.add_argument('--skip_local', dest='run_local', default=True,
+                        action='store_false', help='Suppress local run')
+    parser.add_argument('--skip_bb', dest='run_bb', default=True,
+                        action='store_false', help='Suppress bitbucket run')
+    parser.add_argument('--skip_preload', dest='run_bb_preload', default=True,
+                        action='store_false', help='Suppress LD_PRELOAD + bitbucket run')
     args = parser.parse_args()
     if args.clean:
         default_build_dir, build_dirs = bitbucket.find_build_dirs(clean=True)
@@ -611,7 +657,8 @@ def main():
     # Invoke the run logic, potentially repeating it multiple times.
     count = 0
     while count < args.run_count:
-        run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial)
+        run(args.build_dir, args.data_dir, args.test, bitbucket, fb, args.trial,
+            run_local=args.run_local, run_bb=args.run_bb, run_bb_preload=args.run_bb_preload)
         count = count + 1
 
 
