@@ -277,6 +277,10 @@ static void *listener_worker(void *context)
 
         // map in the shared memory
         new_client->client_shm_fd = shm_open(new_client->reg_info.ClientSharedMemPathName, O_RDWR, 0600);
+        if (new_client->client_shm_fd < 0) {
+            fprintf(stderr, "%s:%d shm_open failed, status %d, errno %d, path = %s\n", __func__, __LINE__,
+                    new_client->client_shm_fd, errno, new_client->reg_info.ClientSharedMemPathName);
+        }
         assert(new_client->client_shm_fd >= 0);
 
         status = fstat(new_client->client_shm_fd, &stat);

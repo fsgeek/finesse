@@ -68,7 +68,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         ccs->reg_info.ClientSharedMemPathNameLength = strlen(ccs->reg_info.ClientSharedMemPathName);
         assert(ccs->reg_info.ClientSharedMemPathNameLength > 0);
 
-        ccs->server_shm_fd = shm_open(ccs->reg_info.ClientSharedMemPathName, O_RDWR | O_CREAT | O_EXCL, 0600);
+        ccs->server_shm_fd = shm_open(ccs->reg_info.ClientSharedMemPathName, O_RDWR | O_CREAT | O_EXCL, 0660);
         assert(ccs->server_shm_fd >= 0);
 
         ccs->server_shm_size = sizeof(fincomm_message_block) + (SHM_PAGE_SIZE * SHM_MESSAGE_COUNT);
@@ -86,6 +86,38 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         ccs->server_connection = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         assert(ccs->server_connection >= 0);
 
+        // If the client has a different UID than the server, this code won't work.  We add a
+        // special case here, so that if the client is root, and the server is anything else,
+        // we will adjust the UID on the client's shared memory to match the server.  This allows
+        // the server to access it.
+        struct stat fcs_stat;
+
+        memset(&fcs_stat, 0, sizeof(fcs_stat));
+        status = stat(ccs->reg_info.ClientSharedMemPathName, &fcs_stat);
+        if (status < 0) {
+            if (ENOENT != errno) {
+                fprintf(stderr, "%s:%d - stat (%s) failed, errno = %d\n", __func__, __LINE__, ccs->server_sockaddr.sun_path, errno);
+            }
+            break;
+        }
+
+        if (fcs_stat.st_uid != getuid()) {
+            fprintf(stderr, "%s:%d - UIDs different, program %d, server %d\n", __func__, __LINE__, getuid(), fcs_stat.st_uid);
+            if (0 != getuid()) {
+                fprintf(stderr, "%s:%d - UIDs different, not root\n", __func__, __LINE__);
+                // Communications won't work in this case because we restrict things to prevent it.
+                status = -1;
+                errno  = EACCES;
+                break;
+            }
+
+            status = chown(ccs->reg_info.ClientSharedMemPathName, fcs_stat.st_uid, fcs_stat.st_gid);
+            if (status < 0) {
+                fprintf(stderr, "%s:%d - chown failed, errno %d\n", __func__, __LINE__, errno);
+                break;
+            }
+        }
+
         status = connect(ccs->server_connection, &ccs->server_sockaddr, sizeof(ccs->server_sockaddr));
         if (status < 0) {
             break;
@@ -97,6 +129,9 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         memset(&conf, 0, sizeof(conf));
         status = recv(ccs->server_connection, &conf, sizeof(conf), 0);
         assert(status >= 0);
+        if (sizeof(conf) != status) {
+            fprintf(stderr, "%s:%d status = %d, expected %zu\n", __func__, __LINE__, status, sizeof(conf));
+        }
         assert(sizeof(conf) == status);
         assert(conf.ClientSharedMemSize == ccs->server_shm_size);
         assert(0 == conf.Result);
