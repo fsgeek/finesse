@@ -229,7 +229,7 @@ class Filebench:
         print('Finished search for filebench workloads')
         return self.workload_dirs
 
-    def set_preload(self, preload_library, debug_options=[], debug_log=None):
+    def set_preload(self, preload_library, data_dir, debug_options=[], debug_log=None):
         '''
         Set LD_PRELOAD options.
         For a more comprehensive list (this is a subset) see https://man7.org/linux/man-pages/man8/ld.so.8.html
@@ -268,12 +268,12 @@ class Filebench:
             preload['LD_DEBUG'] = preload_debug_options
         if self.preload_debug_log:
             preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
+        # set the log file location
         return preload
 
     def generate_script(self, timestamp, label):
         '''
-        Because we run things with SUDO, we need to run them within a script so we can set the environment
-        and have it stick.  Otherwise, our LD_PRELOAD settings won't be properly preserved.
+        Generate a script with the LD_XXX settings so we can properly debug them.
         '''
         args = ['filebench', '-f',
                 '{}/{}'.format(self.temp_dir, self.default_script)]
@@ -326,8 +326,8 @@ class Filebench:
                 time.strftime('%Y%m%d-%H%M%S'))
         self.log = open(self.logfile, 'wt')
 
-    def run(self, timestamp, label, run_as_root=True):
-        '''This will run the default script and write to the specified log file (or log desciptor); an optional preload library may be specified'''
+    def run(self, timestamp, label, run_as_root=False):
+        '''This will run the default script and write to the specified log file (or log descriptor); an optional preload library may be specified'''
         if self.debug:
             print('Filebench: starting run')
         if not self.setup_done:
@@ -533,7 +533,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
         preload_dir = build_dir[2:] + preload_lib
     else:
         preload_dir = build_dir + preload_dir
-    preload_fb.set_preload(preload_dir)
+    preload_fb.set_preload(preload_dir, data_dir)
 
     for test in tests:
         # Let's make sure everything is clean
@@ -574,7 +574,10 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
                     fb.run(timestamp, 'bitbucket')
                 bitbucket.umount()
                 fd.write('\nEnd BB Run\n')
-            if run_bb_preload:
+            if 0 == os.getuid():
+                fd.write(
+                    'Skipping LD_PRELOAD for root user, since it does not work\n')
+            elif run_bb_preload:
                 # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
                 preload_fb.set_log(fd)
                 bitbucket.set_bblog(
