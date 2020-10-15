@@ -14,12 +14,16 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
     struct fuse_statfs_out * arg = NULL;
     struct finesse_req *     finesse_request;
     size_t                   len;
+    char                     uuid_string[40];
 
     assert(NULL != se);
     assert(NULL != Client);
     assert(NULL != Message);
     assert(NULL != key);
     assert(!uuid_is_null(*key));
+
+    uuid_unparse(*key, uuid_string);
+    fprintf(stderr, "%s:%d - fstatfs for file %s\n", __func__, __LINE__, uuid_string);
 
     fsh = (finesse_server_handle_t)se->server_handle;
 
@@ -94,11 +98,13 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         FinesseCountFuseResponse(FINESSE_FUSE_RSP_STATFS);
     }
 
+#if 0
     // clean up
     if (NULL != finobj) {
         finesse_object_release(finobj);
         finobj = NULL;
     }
+#endif  // 0
 
     if (NULL != fuse_request) {
         FinesseFreeFuseRequest(fuse_request);  // drops that extra reference we added above.

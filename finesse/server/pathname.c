@@ -186,6 +186,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             status = FinesseServerInternalNameLookup(se, parentino, workpath + 1, &Parameters->StatxBuffer);
 
             if (0 != status) {
+                fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed\n", __func__, __LINE__);
                 assert((ENOENT == status) || (-ENOENT == status));
                 Parameters->Cursor = workpath + 1;
                 Parameters->Parent = ino;  // This is the parent we found.
@@ -222,8 +223,9 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             }
 
             // Look up the entry
-            status = FinesseServerInternalNameLookup(se, parentino, workcurrent, &Parameters->StatxBuffer);
+            status = FinesseServerInternalNameLookup(se, ino, workcurrent, &Parameters->StatxBuffer);
             if (0 != status) {
+                fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed\n", __func__, __LINE__);
                 assert((ENOENT == status) || (-ENOENT == status));  // don't handle other errors at this point
 
                 idx                = (unsigned)((uintptr_t)(workcurrent - workpath));
@@ -253,8 +255,9 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
         Parameters->FinalName = Parameters->Cursor + 1;
         Parameters->Parent    = ino;
 
-        status = FinesseServerInternalNameLookup(se, parentino, workend, &Parameters->StatxBuffer);
+        status = FinesseServerInternalNameLookup(se, ino, workend, &Parameters->StatxBuffer);
         if ((0 != status)) {
+            fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed\n", __func__, __LINE__);
             assert((ENOENT == status) || (-ENOENT == status));
 
             if (Parameters->GetFinalParent) {
@@ -264,7 +267,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             break;
         }
 
-        // We've found it all.
+        // We've found it all. Final inode is in the parameters structure.
         break;
     }
 
@@ -273,7 +276,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
         workpath = NULL;
     }
 
-    return ino;
+    return status;
 }
 
 int FinesseGetResolvedStatx(FinesseServerPathResolutionParameters_t *Parameters, struct statx *StatxData)

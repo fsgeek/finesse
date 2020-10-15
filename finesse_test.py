@@ -82,6 +82,7 @@ class Filebench:
         self.logfile = logfile
         self.find_scripts()
         self.debug = False
+        self.callstat_log = None
         # Log creation is deferred
 
     def set_debug(self, debug=False):
@@ -269,6 +270,9 @@ class Filebench:
         if self.preload_debug_log:
             preload['LD_DEBUG_OUTPUT'] = self.preload_debug_log
         # set the log file location
+        if self.callstat_log != None:
+            preload['FINESSE_CALL_STAT_LOG'] = self.callstat_log
+            print('Setting FINESSE_CALL_STAT_LOG to {}'.format(self.callstat_log))
         return preload
 
     def generate_script(self, timestamp, label):
@@ -282,7 +286,8 @@ class Filebench:
             fd.write('#!/bin/bash\n')
             env = self.get_preload()
             for item in env:
-                if 'LD' not in item:  # don't care about non LD_XXX values
+                if 'LD' not in item and 'FINESSE' not in item:
+                    # don't care about non LD_XXX/FINESSE items
                     continue
                 fd.write('export {}={}\n'.format(item, env[item]))
             fd.write('\n')
@@ -316,6 +321,10 @@ class Filebench:
     def set_log(self, log):
         '''Set the log for this object to use'''
         self.log = log
+
+    def set_callstat_log(self, log):
+        '''Set the callstat log to use (overrides an internal default)'''
+        self.callstat_log = log
 
     def setup_log(self):
         if hasattr(self, 'log'):
@@ -580,6 +589,8 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
             elif run_bb_preload:
                 # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
                 preload_fb.set_log(fd)
+                preload_fb.set_callstat_log(
+                    '{}/bblog-preload#{}#call-stat#{}.log'.format(data_dir, test, timestamp))
                 bitbucket.set_bblog(
                     '{}/bblog-preload#{}#data#{}.log'.format(data_dir, test, timestamp))
                 bitbucket.mount()
@@ -637,9 +648,9 @@ def main():
                         action='store_true', help='Indicate that this should be a trial run')
     parser.add_argument('--repeat', dest='run_count', default=1,
                         type=int, help='The number of times to run all of the tests')
-    parser.add_argument('--skip_local', dest='run_local', default=True,
+    parser.add_argument('--skip_local', dest='run_local', default=False,
                         action='store_false', help='Suppress local run')
-    parser.add_argument('--skip_bb', dest='run_bb', default=True,
+    parser.add_argument('--skip_bb', dest='run_bb', default=False,
                         action='store_false', help='Suppress bitbucket run')
     parser.add_argument('--skip_preload', dest='run_bb_preload', default=True,
                         action='store_false', help='Suppress LD_PRELOAD + bitbucket run')

@@ -86,6 +86,9 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         ccs->server_connection = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         assert(ccs->server_connection >= 0);
 
+#if 0
+        // This code returns EINVAL for some reason, not sure why.
+
         // If the client has a different UID than the server, this code won't work.  We add a
         // special case here, so that if the client is root, and the server is anything else,
         // we will adjust the UID on the client's shared memory to match the server.  This allows
@@ -117,6 +120,7 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
                 break;
             }
         }
+#endif  // 0
 
         status = connect(ccs->server_connection, &ccs->server_sockaddr, sizeof(ccs->server_sockaddr));
         if (status < 0) {

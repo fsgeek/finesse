@@ -91,7 +91,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
 
         // We now have the correct inode number to pass to the FUSE file system
         assert(NULL != finobj);
-        parentino = finobj->inode;
+        ino = finobj->inode;
         finesse_object_release(finobj);
         finobj = NULL;
 
@@ -108,7 +108,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
         out = finesse_request->iov[0].iov_base;
 
         if ((0 != out->error) || (finesse_request->iov_count < 2) ||
-            (finesse_request->iov[1].iov_len < sizeof(struct fuse_entry_out))) {
+            (finesse_request->iov[1].iov_len < sizeof(struct fuse_attr_out))) {
             fuse_log(FUSE_LOG_ERR, "Finesse: %s returning %d for %s\n", __func__, out->error, Name);
             status = FinesseSendStatResponse(fsh, Client, Message, NULL, 0, out->error);
             break;

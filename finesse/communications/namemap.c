@@ -77,7 +77,10 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void
     ffm->Message.Native.Response.NativeResponseType    = FINESSE_NATIVE_RSP_MAP;
     ffm->Message.Native.Response.Parameters.Map.Result = (int)Result;
     assert(Result == ffm->Message.Native.Response.Parameters.Map.Result);  // ensure no loss of data
-    memcpy(&ffm->Message.Native.Response.Parameters.Map.Key, MapKey, sizeof(uuid_t));
+    assert((0 != Result) || (NULL != MapKey));                             // either error, or a UUID is being returned
+    if (NULL != MapKey) {
+        memcpy(&ffm->Message.Native.Response.Parameters.Map.Key, MapKey, sizeof(uuid_t));
+    }
 
     FinesseResponseReady(fsmr, Message, 0);
 
@@ -108,6 +111,7 @@ int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, finco
     assert(FINESSE_NATIVE_MESSAGE == fmsg->MessageClass);
     assert(FINESSE_NATIVE_RSP_MAP == fmsg->Message.Native.Response.NativeResponseType);
     assert(0 == fmsg->Message.Native.Response.Parameters.Map.Result);
+    assert(!uuid_is_null(fmsg->Message.Native.Response.Parameters.Map.Key));
     memcpy(MapKey, fmsg->Message.Native.Response.Parameters.Map.Key, sizeof(uuid_t));
 
     return status;

@@ -197,7 +197,7 @@ void *FincommAllocateBuffer(fincomm_arena_handle_t ArenaHandle)
     // probably wrong in all the places that I tried to do this.
     //
     index = ArenaHandle->Arena->LastAllocated;  // start from where we left off at some point
-    while (~0 != ArenaHandle->Arena->AllocationBitmap) {
+    while ((uint64_t)~0 != ArenaHandle->Arena->AllocationBitmap) {
         // As long as there's some bit that is zero, we have space
         new_bitmap = old_bitmap = ArenaHandle->Arena->AllocationBitmap;
         index                   = (index + 1) % ArenaHandle->Arena->Count;

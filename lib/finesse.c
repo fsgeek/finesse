@@ -644,7 +644,7 @@ void finesse_notify_reply_iov(fuse_req_t req, int error, struct iovec *iov, int 
             ino    = arg->nodeid;
             nicobj = finesse_object_create(ino, &uuid);
             assert(NULL != nicobj);
-            finesse_object_release(nicobj);
+            // finesse_object_release(nicobj);
         }
     }
 }

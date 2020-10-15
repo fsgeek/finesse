@@ -134,6 +134,8 @@ int finesse_open(const char *pathname, int flags, ...)
 
     // Get the answer from the server
     status = FinesseGetNameMapResponse(client_handle, message, &uuid);
+    assert(0 == status);
+    assert(!uuid_is_null(uuid));
     FinesseFreeNameMapResponse(client_handle, message);
 
     if (0 > fd) {

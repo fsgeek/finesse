@@ -1,7 +1,6 @@
 #include <finesse.h>
 #include "preload.h"
 
-
 int stat(const char *pathname, struct stat *statbuf)
 {
     return finesse_stat(pathname, statbuf);
@@ -22,3 +21,46 @@ int fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
     return finesse_fstatat(dirfd, pathname, statbuf, flags);
 }
 
+int __fxstat(int __ver, int __fildes, struct stat *__stat_buf)
+{
+    if (_STAT_VER != __ver) {
+        fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
+        errno = EINVAL;
+        return -1;
+    }
+
+    return finesse_fstat(__fildes, __stat_buf);
+}
+
+int __xstat(int __ver, const char *__filename, struct stat *__stat_buf)
+{
+    if (_STAT_VER != __ver) {
+        fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
+        errno = EINVAL;
+        return -1;
+    }
+
+    return finesse_stat(__filename, __stat_buf);
+}
+
+int __lxstat(int __ver, const char *__filename, struct stat *__stat_buf)
+{
+    if (_STAT_VER != __ver) {
+        fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
+        errno = EINVAL;
+        return -1;
+    }
+
+    return finesse_lstat(__filename, __stat_buf);
+}
+
+int __fxstatat(int __ver, int __fildes, const char *__filename, struct stat *__stat_buf, int __flag)
+{
+    if (_STAT_VER != __ver) {
+        fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
+        errno = EINVAL;
+        return -1;
+    }
+
+    return finesse_fstatat(__fildes, __filename, __stat_buf, __flag);
+}

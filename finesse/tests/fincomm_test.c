@@ -376,6 +376,11 @@ static MunitResult test_buffer(const MunitParameter params[] __notused, void *pr
     return MUNIT_OK;
 }
 
+static MunitResult test_namemap(const MunitParameter params[] __notused, void *prv __notused)
+{
+    return MUNIT_OK;
+}
+
 static MunitTest fincomm_tests[] = {
     TEST((char *)(uintptr_t) "/null", test_null, NULL),
     TEST((char *)(uintptr_t) "/simple", test_message, NULL),
@@ -383,6 +388,7 @@ static MunitTest fincomm_tests[] = {
     TEST((char *)(uintptr_t) "/invalid-message", test_invalid_message_request, NULL),
     TEST((char *)(uintptr_t) "/multi-client", test_multi_client, NULL),
     TEST((char *)(uintptr_t) "/buffer", test_buffer, NULL),
+    TEST((char *)(uintptr_t) "/namemap", test_namemap, NULL),
     TEST(NULL, NULL, NULL),
 };
 

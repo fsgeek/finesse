@@ -5,7 +5,7 @@
 
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
-#endif // _GNU_SOURCE
+#endif  // _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -97,6 +97,21 @@ typedef struct _lookup_entry {
     verify_magic("lookup_entry_t", __FILE__, __func__, __LINE__, FAST_LOOKUP_TABLE_MAGIC, (fle)->Magic)
 
 // uint64_t (*HashFunction)(void *Data, size_t DataLength);
+
+static list_entry_t    FreedInodeList = {&FreedInodeList, &FreedInodeList};
+static list_entry_t    FreedUuidList  = {&FreedUuidList, &FreedUuidList};
+static int             UseFreedLists  = 1;  // DEBUG AID
+static pthread_mutex_t FreedListLock  = PTHREAD_MUTEX_INITIALIZER;
+
+static void LockFreedList(void)
+{
+    pthread_mutex_lock(&FreedListLock);
+}
+
+static void UnlockFreedList(void)
+{
+    pthread_mutex_unlock(&FreedListLock);
+}
 
 static uint64_t truncate_hash(uint64_t UntruncatedHash, uint8_t Shift)
 {
@@ -488,8 +503,17 @@ static void release_entry(lookup_entry_table_t *Table, lookup_entry_t *Entry)
         remove_list_entry(&Entry->UuidListEntry);
         __atomic_fetch_sub(&Table->Buckets[first].EntryCount, 1, __ATOMIC_RELAXED);
         __atomic_fetch_sub(&Table->Buckets[second].EntryCount, 1, __ATOMIC_RELAXED);
-        memset(Entry, 0, sizeof(lookup_entry_t));  // this is really a debug aid...
-        free(Entry);
+        if (UseFreedLists) {
+            LockFreedList();
+            insert_list_tail(&FreedInodeList, &Entry->InodeListEntry);
+            insert_list_head(&FreedUuidList, &Entry->UuidListEntry);
+            Entry->Object.freed = 1;
+            UnlockFreedList();
+        }
+        else {
+            memset(Entry, 0, sizeof(lookup_entry_t));  // this is really a debug aid...
+            free(Entry);
+        }
     }
 
     if (first != second) {
@@ -563,11 +587,12 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     entry = malloc(sizeof(lookup_entry_t));
     assert(NULL != entry);
     entry->Magic          = FAST_LOOKUP_ENTRY_MAGIC;
-    entry->ReferenceCount = 1;
+    entry->ReferenceCount = 2;
     initialize_list_entry(&entry->InodeListEntry);
     initialize_list_entry(&entry->UuidListEntry);
     entry->Object.inode = InodeNumber;
     uuid_copy(entry->Object.uuid, *Uuid);
+    entry->Object.freed = 0;
 
     LockBucket(&Table->Buckets[first], 1);
     if (first != second) {
@@ -610,6 +635,10 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
 finesse_object_t *FinesseObjectCreate(finesse_object_table_t *Table, fuse_ino_t InodeNumber, uuid_t *Uuid)
 {
     lookup_entry_t *entry = NULL;
+
+    // Make sure nobody tries to pass us bogus values
+    assert(0 != InodeNumber);
+    assert(!uuid_is_null(*Uuid));
 
     entry = insert_entry((lookup_entry_table_t *)Table, InodeNumber, Uuid);
     assert(NULL != entry);
@@ -670,18 +699,28 @@ static void create_lookup_table(void)
 
 finesse_object_t *finesse_object_lookup_by_ino(fuse_ino_t inode)
 {
+    finesse_object_t *fobj = NULL;
+
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
-    return FinesseObjectLookupByIno(ObjectTable, inode);
+    fobj = FinesseObjectLookupByIno(ObjectTable, inode);
+    assert(0 == fobj->freed);
+    return fobj;
 }
 
 finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid)
 {
+    finesse_object_t *fobj = NULL;
+
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
-    return FinesseObjectLookupByUuid(ObjectTable, uuid);
+    assert(NULL != uuid);          // don't call with NULL
+    assert(!uuid_is_null(*uuid));  // don't call with invalid uuid
+    fobj = FinesseObjectLookupByUuid(ObjectTable, uuid);
+    assert(0 == fobj->freed);
+    return fobj;
 }
 
 void finesse_object_release(finesse_object_t *object)
@@ -689,16 +728,22 @@ void finesse_object_release(finesse_object_t *object)
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
+    assert(0 == object->freed);
     FinesseObjectRelease(ObjectTable, object);
+    assert((0 == UseFreedLists) || (0 == object->freed));
     return;
 }
 
 finesse_object_t *finesse_object_create(fuse_ino_t inode, uuid_t *uuid)
 {
+    finesse_object_t *fobj = NULL;
+
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
-    return FinesseObjectCreate(ObjectTable, inode, uuid);
+    fobj = FinesseObjectCreate(ObjectTable, inode, uuid);
+    assert((NULL == fobj) || (0 == fobj->freed));
+    return fobj;
 }
 
 uint64_t finesse_object_get_table_size(void)

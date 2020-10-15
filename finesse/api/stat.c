@@ -12,23 +12,29 @@ static int fin_stat(const char *file_name, struct stat *buf)
 {
     typedef int (*orig_stat_t)(const char *file_name, struct stat *buf);
     static orig_stat_t orig_stat = NULL;
+    typedef int (*orig_xstat_t)(int ver, const char *file_name, struct stat *buf);
+    static orig_xstat_t orig_xstat = NULL;
 
     if (NULL == orig_stat) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
         orig_stat = (orig_stat_t)dlsym(RTLD_NEXT, "stat");
         if (NULL == orig_stat) {
-            orig_stat = (orig_stat_t)dlsym(RTLD_NEXT, "__xstat");  // ubuntu 20.04 uses glibc 2.31, which uses statx
+            orig_xstat = (orig_xstat_t)dlsym(RTLD_NEXT, "__xstat");  // ubuntu 20.04 uses glibc 2.31, which uses statx
         }
 #pragma GCC diagnostic pop
-
-        assert(NULL != orig_stat);
-        if (NULL == orig_stat) {
-            return ENOSYS;
-        }
     }
 
-    return orig_stat(file_name, buf);
+    if (orig_xstat) {
+        return orig_xstat(_STAT_VER, file_name, buf);
+    }
+
+    if (orig_stat) {
+        return orig_stat(file_name, buf);
+    }
+
+    errno = ENOSYS;
+    return -1;
 }
 
 static int internal_stat(const char *file_name, struct stat *buf)
@@ -78,6 +84,10 @@ static int internal_stat(const char *file_name, struct stat *buf)
     assert(0 == tstatus);
     timespec_diff(&start, &stop, &elapsed);
     FinesseApiRecordOverhead(FINESSE_API_CALL_STAT, &elapsed);
+
+    if (result != 0) {
+        fprintf(stderr, "%s:%d failed with result %d for file %s\n", __func__, __LINE__, result, file_name);
+    }
 
     return result;
 }
@@ -157,7 +167,7 @@ static int internal_fstat(int filedes, struct stat *buf)
     tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
     assert(0 == tstatus);
     timespec_diff(&start, &stop, &elapsed);
-    FinesseApiRecordOverhead(FINESSE_API_CALL_LSTAT, &elapsed);
+    FinesseApiRecordOverhead(FINESSE_API_CALL_FSTAT, &elapsed);
 
     return result;
 }

@@ -59,7 +59,7 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
         attr->stx_uid             = arg->attr.st_uid;
         attr->stx_gid             = arg->attr.st_gid;
         attr->stx_mode            = arg->attr.st_mode;
-        attr->stx_ino             = arg->attr.st_ino;
+        attr->stx_ino             = arg->ino;
         attr->stx_size            = arg->attr.st_size;
         attr->stx_blocks          = arg->attr.st_blocks;
         attr->stx_attributes_mask = STATX_BASIC_STATS;  // everything except "btime"
@@ -93,18 +93,23 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
     FinesseServerPathResolutionParameters_t *parameters     = NULL;
     ino_t                                    ino            = 0;
     size_t                                   mp_length      = strlen(se->mountpoint);
+    uuid_t                                   uuid;
 
     // don't call this with the mount point!
     assert(mp_length < strlen(Name) || 0 != memcmp(Name, se->mountpoint, mp_length));
 
     assert(0 == Flags);  // none supported at the moment
 
+    if (0 == ParentInode) {
+        ParentInode = FUSE_ROOT_ID;
+    }
+
     // We can't specify both of these!
-    assert((0 == ParentInode) || uuid_is_null(*ParentUuid));
+    assert((FUSE_ROOT_ID == ParentInode) || ((NULL == ParentUuid) || uuid_is_null(*ParentUuid)));
 
     while (1) {
-        if (!uuid_is_null(*ParentUuid)) {
-            // Need to get the inode number
+        if ((NULL != ParentUuid) && !uuid_is_null(*ParentUuid)) {
+            // Need to get the inode number to override the default value
 
             parent_fin_obj = finesse_object_lookup_by_uuid(ParentUuid);
             if (NULL == parent_fin_obj) {
@@ -116,11 +121,6 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
             // Done with this
             finesse_object_release(parent_fin_obj);
             parent_fin_obj = NULL;
-        }
-        else {
-            if (0 == ParentInode) {
-                ParentInode = FUSE_ROOT_ID;
-            }
         }
 
         assert(0 != ParentInode);  // sanity - shouldn't be able to get here.
@@ -142,7 +142,16 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
 
         assert(0 != ino);
 
-        *Finobj = finesse_object_lookup_by_ino(ino);
+        uuid_generate_time_safe(uuid);
+        assert(0 != ino);
+        assert(!uuid_is_null(uuid));
+        *Finobj = finesse_object_create(ino, &uuid);
+        assert(NULL != *Finobj);
+        assert(!uuid_is_null((*Finobj)->uuid));
+        assert(0 != (*Finobj)->inode);
+
+        status = 0;
+        break;
     }
 
     // cleanup: parent_fin_obj
@@ -169,13 +178,13 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
                                                int Flags, finesse_object_t **Finobj)
 {
     struct fuse_req *fuse_request;
-    int              status         = 0;
-    size_t           mp_length      = strlen(se->mountpoint);
-    int              created_finobj = 0;
+    int              status    = 0;
+    size_t           mp_length = strlen(se->mountpoint);
     uuid_t           uuid;
     ino_t            parent_ino = FUSE_ROOT_ID;
     fuse_ino_t       ino        = 0;
     struct statx     statxbuf;
+    int              created_finobj = 0;
 
     assert(0 == Flags);  // don't handle these yet
 
@@ -252,12 +261,28 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
 int FinesseServerInternalMapRequest(struct fuse_session *se, ino_t ParentInode, uuid_t *ParentUuid, const char *Name, int Flags,
                                     finesse_object_t **Finobj)
 {
-    if (NULL != index(Name, '/')) {
-        // contains a path name
-        return FinsesseServerInternalPathMapRequest(se, ParentInode, ParentUuid, Name, Flags, Finobj);
+    size_t      mp_length     = strlen(se->mountpoint);
+    const char *name_to_parse = Name;
+
+    if ((strlen(name_to_parse) > mp_length) && (0 == memcmp(name_to_parse, se->mountpoint, mp_length))) {
+        // The name includes the mount point, so we need to strip that off
+
+        if (0 == ParentInode) {
+            ParentInode = FUSE_ROOT_ID;
+        }
+
+        assert((FUSE_ROOT_ID == ParentInode) ||
+               (1 == ParentInode));  // this really does require an absolute path, otherwise it makes no sense
+        assert((NULL == ParentUuid) || uuid_is_null(*ParentUuid));  // again, can't be relative
+        name_to_parse = Name + mp_length;
     }
 
-    return FinesseServerInternalNameMapRequest(se, ParentInode, ParentUuid, Name, Flags, Finobj);
+    if (NULL != index(name_to_parse, '/')) {
+        // contains a path name
+        return FinsesseServerInternalPathMapRequest(se, ParentInode, ParentUuid, name_to_parse, Flags, Finobj);
+    }
+
+    return FinesseServerInternalNameMapRequest(se, ParentInode, ParentUuid, name_to_parse, Flags, Finobj);
 }
 
 int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm_message Message)

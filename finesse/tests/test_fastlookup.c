@@ -4,8 +4,8 @@
  */
 
 #if !defined(_GNU_SOURCE)
-#define _GNU_SOURCE             /* See feature_test_macros(7) */
-#endif // _GNU_SOURCE
+#define _GNU_SOURCE /* See feature_test_macros(7) */
+#endif              // _GNU_SOURCE
 
 #include <finesse-fuse.h>
 #include <stdlib.h>
@@ -71,6 +71,7 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
 {
     test_object_t *   objects = NULL;
     finesse_object_t *fobj    = NULL;
+    finesse_object_t *fobj2   = NULL;
 
     munit_assert(NULL != Table);
     munit_assert(ObjectCount < (1024 * 1024 * 1024));
@@ -91,6 +92,10 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
         munit_assert(NULL != fobj);
         munit_assert(fobj->inode == objects[index].inode);
         munit_assert(0 == uuid_compare(fobj->uuid, objects[index].uuid));
+        FinesseObjectRelease(Table, fobj);
+        fobj2 = FinesseObjectLookupByIno(Table, objects[index].inode);
+        munit_assert(fobj == fobj2);
+        FinesseObjectRelease(Table, fobj2);
     }
 
     return objects;
@@ -489,14 +494,82 @@ static MunitResult test_mt(const MunitParameter params[] __notused, void *prv __
     return MUNIT_OK;
 }
 
+static MunitResult test_refcount(const MunitParameter params[] __notused, void *prv __notused)
+{
+#if 0
+    finesse_object_table_t *table   = NULL;
+    test_object_t *         objects = NULL;
+    test_object_t *         tobj    = NULL;
+    finesse_object_t *      tfobj;
+    const unsigned          count = 1024;
+
+    // First, a simple test
+    table = FinesseCreateTable(0);
+    munit_assert(NULL != table);
+
+    tobj = insert_multiple_objects(table, 1);
+    release(table, tobj, 0);
+    free(tobj);
+    tobj = NULL;
+
+    // Now, let's create an object and make sure we can look it up
+
+    objects = insert_multiple_objects(table, 1);
+
+    tfobj = lookup_by_inode(table, objects, 0);
+    munit_assert(NULL != tfobj);
+    munit_assert(tfobj->inode == objects[0].inode);
+    munit_assert(0 == uuid_compare(tfobj->uuid, objects[0].uuid));
+    release(table, objects, 0);
+
+    tfobj = lookup_by_uuid(table, objects, 0);
+    munit_assert(NULL != tfobj);
+    munit_assert(tfobj->inode == objects[0].inode);
+    munit_assert(0 == uuid_compare(tfobj->uuid, objects[0].uuid));
+    release(table, objects, 0);
+
+    // this is the release for the original create
+    release(table, objects, 0);
+
+    // This should be the last release
+    munit_assert(objects[0].lookups == objects[0].releases);
+    tfobj = NULL;
+
+    // make sure we can't find it by inode
+    tfobj = lookup_by_inode(table, objects, 0);
+    munit_assert(NULL == tfobj);
+
+    // make sure we can't find it by uuid
+    tfobj = lookup_by_uuid(table, objects, 0);
+    munit_assert(NULL == tfobj);
+
+    free(objects);
+    objects = NULL;
+
+    objects = insert_multiple_objects(table, count);
+    munit_assert(NULL != objects);
+
+    // Cleanup
+    release_multiple_objects(table, objects, count);
+    objects = NULL;
+
+    // Now destroy the table
+    FinesseDestroyTable(table);
+
+    return MUNIT_OK;
+
+    lookup_multiple_objects_sequential(table, objects, count, count * 10);
+
+    lookup_multiple_objects_random(table, objects, count, count * 10);
+#endif  // 0
+
+    return MUNIT_OK;
+}
+
 static MunitTest tests[] = {
-    TEST("/null", test_null, NULL),
-    TEST("/hash", test_hash, NULL),
-    TEST("/basics", test_table_basics, NULL),
-    TEST("/insert", test_table_insert, NULL),
-    TEST("/mt", test_mt, NULL),
-    TEST("/collision", test_collision, NULL),
-    TEST(NULL, NULL, NULL),
+    TEST("/null", test_null, NULL),           TEST("/hash", test_hash, NULL), TEST("/basics", test_table_basics, NULL),
+    TEST("/insert", test_table_insert, NULL), TEST("/mt", test_mt, NULL),     TEST("/collision", test_collision, NULL),
+    TEST("/refcount", test_refcount, NULL),   TEST(NULL, NULL, NULL),
 };
 
 const MunitSuite fastlookup_suite = {
