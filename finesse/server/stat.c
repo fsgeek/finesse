@@ -81,7 +81,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
 
             if (0 != status) {
                 // probably not found... move on.
-                status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, EBADF);
+                status = FinesseSendStatResponse(fsh, Client, Message, &zerostat, 0, status);
                 assert(0 == status);
                 break;
             }

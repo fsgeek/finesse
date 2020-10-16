@@ -85,8 +85,19 @@ static int internal_stat(const char *file_name, struct stat *buf)
     timespec_diff(&start, &stop, &elapsed);
     FinesseApiRecordOverhead(FINESSE_API_CALL_STAT, &elapsed);
 
-    if (result != 0) {
+#if 0
+    if ((0 != result) /* && (-2 != result) */) {
         fprintf(stderr, "%s:%d failed with result %d for file %s\n", __func__, __LINE__, result, file_name);
+    }
+#endif  // 0
+    errno = 0;
+    if (result < 0) {
+        errno  = -result;
+        result = -1;
+    }
+    if (result > 0) {
+        errno  = result;
+        result = -1;
     }
 
     return result;

@@ -118,6 +118,7 @@ int finesse_open(const char *pathname, int flags, ...)
         return fin_open(pathname, flags, mode);
     }
 
+    fprintf(stderr, "%s:%d open for %s\n", __FILE__, __LINE__, pathname);
     //
     // Ask the Finesse server
     //
@@ -126,6 +127,7 @@ int finesse_open(const char *pathname, int flags, ...)
 
     if (0 != status) {
         // fallback
+        fprintf(stderr, "%s:%d failed with result %d for file %s\n", __FILE__, __LINE__, status, pathname);
         return fin_open(pathname, flags, mode);
     }
 
@@ -155,6 +157,7 @@ int finesse_open(const char *pathname, int flags, ...)
     // the open succeeded
     if (0 != status) {
         // lookup failed
+        fprintf(stderr, "%s:%d failed with result %d for file %s\n", __FILE__, __LINE__, status, pathname);
         return fd;
     }
 
@@ -386,6 +389,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
         if (0 != status) {
             // Note that something went wrong with the server, maybe it
             // died?
+            fprintf(stderr, "%s:%d failed with result %d for file %s\n", __FILE__, __LINE__, status, pathname);
             return file;
         }
     }

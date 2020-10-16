@@ -696,8 +696,8 @@ static MunitTest fuse_tests[] = {
     TEST("/openat", test_openat, open_params),
     TEST("/open/existing-files", test_open_existing_files, open_params),
     TEST("/open/nonexistant-files", test_open_nonexistant_files, open_params),
-    TEST("/fstatfs", test_fstatfs, open_params),
     TEST("/stat", test_stat, open_params),
+    TEST("/fstatfs", test_fstatfs, open_params),
     TEST(NULL, NULL, NULL),
 };
 

@@ -5,8 +5,8 @@
 
 #include "api-internal.h"
 
-
-static int fin_mkdir(const char *path, mode_t mode) {
+static int fin_mkdir(const char *path, mode_t mode)
+{
     typedef int (*orig_mkdir_t)(const char *path, mode_t mode);
     static orig_mkdir_t orig_mkdir = NULL;
 
@@ -25,7 +25,8 @@ static int fin_mkdir(const char *path, mode_t mode) {
     return orig_mkdir(path, mode);
 }
 
-static int fin_mkdirat(int fd, const char *path, mode_t mode) {
+static int fin_mkdirat(int fd, const char *path, mode_t mode)
+{
     typedef int (*orig_mkdirat_t)(int fd, const char *path, mode_t mode);
     static orig_mkdirat_t orig_mkdirat = NULL;
 
@@ -44,24 +45,30 @@ static int fin_mkdirat(int fd, const char *path, mode_t mode) {
     return orig_mkdirat(fd, path, mode);
 }
 
-int finesse_mkdir(const char *path, mode_t mode) {
-    struct stat sb;
-
+int finesse_mkdir(const char *path, mode_t mode)
+{
     int status;
+#if 0
+    struct stat sb;
 
     if (stat(path, &sb) == 0 && S_ISDIR(sb.st_mode)) {
         // Directory already exists
         return -1;
     }
+#endif  // 0
 
     status = fin_mkdir(path, mode);
 
+    if (0 != status) {
+        fprintf(stderr, "%s:%d mkdir for %s, status = %d, errno = %d\n", __FILE__, __LINE__, path, status, errno);
+    }
     return status;
 }
 
-int finesse_mkdirat(int fd, const char *path, mode_t mode) {
+int finesse_mkdirat(int fd, const char *path, mode_t mode)
+{
     int status;
-    
+
     fd = fin_mkdirat(fd, path, mode);
 
     status = fin_mkdirat(fd, path, mode);

@@ -12,11 +12,11 @@
 //
 int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, const char *Name, struct statx *attr)
 {
-    struct fuse_req *        fuse_request    = NULL;
-    struct finesse_req *     finesse_request = NULL;
-    int                      status          = 0;
-    struct fuse_out_header * out             = NULL;
-    struct fuse_entry_param *arg             = NULL;
+    struct fuse_req *       fuse_request    = NULL;
+    struct finesse_req *    finesse_request = NULL;
+    int                     status          = 0;
+    struct fuse_out_header *out             = NULL;
+    struct fuse_entry_out * arg             = NULL;
 
     assert(NULL != attr);
     memset(attr, 0, sizeof(struct statx));
@@ -28,7 +28,7 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
     finesse_request = (struct finesse_req *)fuse_request;
 
     if (NULL == fuse_request) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s:%d returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
         return ENOMEM;
     }
 
@@ -46,30 +46,31 @@ int FinesseServerInternalNameLookup(struct fuse_session *se, fuse_ino_t Parent, 
         out = finesse_request->iov[0].iov_base;
         if ((0 != out->error) || (finesse_request->iov_count < 2) ||
             (finesse_request->iov[1].iov_len < sizeof(struct fuse_entry_out))) {
-            fuse_log(FUSE_LOG_INFO, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, out->error, Name);
+            fuse_log(FUSE_LOG_INFO, "Finesse: %s:%d returning %d for %s\n", __func__, __LINE__, out->error, Name);
             status = out->error;
             break;
         }
 
-        arg                       = finesse_request->iov[1].iov_base;
-        attr->stx_mask            = 0;
-        attr->stx_blksize         = arg->attr.st_blksize;
-        attr->stx_attributes      = 0;
-        attr->stx_nlink           = arg->attr.st_nlink;
-        attr->stx_uid             = arg->attr.st_uid;
-        attr->stx_gid             = arg->attr.st_gid;
-        attr->stx_mode            = arg->attr.st_mode;
-        attr->stx_ino             = arg->ino;
-        attr->stx_size            = arg->attr.st_size;
-        attr->stx_blocks          = arg->attr.st_blocks;
+        arg                  = finesse_request->iov[1].iov_base;
+        attr->stx_mask       = 0;
+        attr->stx_blksize    = arg->attr.blksize;
+        attr->stx_attributes = 0;
+        attr->stx_nlink      = arg->attr.nlink;
+        attr->stx_uid        = arg->attr.uid;
+        attr->stx_gid        = arg->attr.gid;
+        attr->stx_mode       = arg->attr.mode;
+        attr->stx_ino        = arg->nodeid;
+        assert(arg->nodeid == arg->attr.ino);
+        attr->stx_size            = arg->attr.size;
+        attr->stx_blocks          = arg->attr.blocks;
         attr->stx_attributes_mask = STATX_BASIC_STATS;  // everything except "btime"
-        attr->stx_atime.tv_sec    = arg->attr.st_atim.tv_sec;
-        attr->stx_atime.tv_nsec   = arg->attr.st_atim.tv_nsec;
+        attr->stx_atime.tv_sec    = arg->attr.atime;
+        attr->stx_atime.tv_nsec   = arg->attr.atimensec;
         // TODO: would be great to get the creation time back
-        attr->stx_ctime.tv_sec  = arg->attr.st_ctim.tv_sec;
-        attr->stx_ctime.tv_nsec = arg->attr.st_ctim.tv_nsec;
-        attr->stx_mtime.tv_sec  = arg->attr.st_mtim.tv_sec;
-        attr->stx_mtime.tv_nsec = arg->attr.st_mtim.tv_nsec;
+        attr->stx_ctime.tv_sec  = arg->attr.ctime;
+        attr->stx_ctime.tv_nsec = arg->attr.ctimensec;
+        attr->stx_mtime.tv_sec  = arg->attr.mtime;
+        attr->stx_mtime.tv_nsec = arg->attr.mtimensec;
         status                  = 0;
         break;
     }
@@ -94,6 +95,7 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
     ino_t                                    ino            = 0;
     size_t                                   mp_length      = strlen(se->mountpoint);
     uuid_t                                   uuid;
+    int                                      created_finobj = 0;
 
     // don't call this with the mount point!
     assert(mp_length < strlen(Name) || 0 != memcmp(Name, se->mountpoint, mp_length));
@@ -149,14 +151,25 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
         assert(NULL != *Finobj);
         assert(!uuid_is_null((*Finobj)->uuid));
         assert(0 != (*Finobj)->inode);
+        if (0 == uuid_compare((*Finobj)->uuid, uuid)) {
+            created_finobj = 1;
+        }
 
         status = 0;
         break;
     }
 
+    // Just clean up
+    if (created_finobj) {
+        // Creation returns with TWO references - I want to release mine, let the caller
+        // release theres if they don't need it any longer.
+        finesse_object_release(*Finobj);
+    }
+
     // cleanup: parent_fin_obj
     if (NULL != parent_fin_obj) {
         finesse_object_release(parent_fin_obj);
+        parent_fin_obj = NULL;
     }
 
     if (NULL != parameters) {
@@ -194,7 +207,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
         // look it up
         parent_fin_obj = finesse_object_lookup_by_uuid(ParentUuid);
         if (NULL == parent_fin_obj) {
-            fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning EBADF due to bad parent\n", __func__, __LINE__);
+            fuse_log(FUSE_LOG_ERR, "Finesse: %s:%d returning EBADF due to bad parent\n", __func__, __LINE__);
             return EBADF;
         }
 
@@ -206,7 +219,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
     assert(NULL != Finobj);
 
     if ((strlen(Name) < mp_length) || (strncmp(Name, se->mountpoint, mp_length))) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOTDIR, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s:%d returning %d for %s\n", __func__, __LINE__, ENOTDIR, Name);
         return ENOTDIR;
     }
 
@@ -214,7 +227,7 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
     fuse_request = FinesseAllocFuseRequest(se);
 
     if (NULL == fuse_request) {
-        fuse_log(FUSE_LOG_ERR, "Finesse: %s (%d) returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
+        fuse_log(FUSE_LOG_ERR, "Finesse: %s:%d returning %d for %s\n", __func__, __LINE__, ENOMEM, Name);
         return ENOMEM;
     }
 
@@ -233,9 +246,23 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
         assert(NULL != *Finobj);
         if (0 == uuid_compare(uuid, (*Finobj)->uuid)) {
             created_finobj = 1;
+            assert((*Finobj)->inode == ino);
         }
         else {
+            struct finesse_req *finesse_request = (struct finesse_req *)fuse_request;
+
             created_finobj = 0;
+
+            // release the FUSE lookup
+            finesse_request->completed = 0;
+            fuse_request->ctr++;                 // we want to hold on to this until we are done with it
+            fuse_request->opcode = FUSE_FORGET;  // Fuse internal call
+
+            finesse_original_ops->forget(fuse_request, ino, 1);
+
+            FinesseWaitForFuseRequestCompletion(finesse_request);
+
+            // Note that the request will be freed below.
         }
 
         // No need to try again.
@@ -333,6 +360,7 @@ int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Clie
 
     object = finesse_object_lookup_by_uuid(&fmsg->Message.Native.Request.Parameters.MapRelease.Key);
     if (NULL != object) {
+        // TODO: need to add a FUSE release for the original lookup
         finesse_object_release(object);
     }
 

@@ -42,7 +42,7 @@ static int bitbucket_internal_unlink(fuse_req_t req, fuse_ino_t parent, const ch
 
     while (NULL != inode) {
         if (BITBUCKET_DIR_TYPE != inode->InodeType) {
-            status = ENOTDIR;
+            status = EISDIR;
             break;
         }
 

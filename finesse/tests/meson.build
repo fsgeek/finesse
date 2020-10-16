@@ -39,6 +39,10 @@ testparse_sources = [
     'test_parse.c',
 ]
 
+testbbfin_sources = [
+    'testbbfin_test.c'
+]
+
 
 executable('testutils',
            [testutils_sources],
@@ -73,3 +77,10 @@ executable('testperf',
            include_directories: [include_dirs, finesse_inc_dirs],
            link_with: [finesscommunications, finesse_utils, libfinesse_api]
           )
+
+executable('testbbfin',
+           [common_sources, testbbfin_sources],
+           dependencies: [deps, munit],
+           include_directories: [include_dirs, finesse_inc_dirs],
+           link_with: [finesscommunications, finesse_utils, libfinesse_api]
+)

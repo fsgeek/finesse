@@ -17,7 +17,6 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
     char                     uuid_string[40];
 
     assert(NULL != se);
-    assert(NULL != Client);
     assert(NULL != Message);
     assert(NULL != key);
     assert(!uuid_is_null(*key));
@@ -98,13 +97,11 @@ static int finesse_fstatfs_handler(struct fuse_session *se, void *Client, fincom
         FinesseCountFuseResponse(FINESSE_FUSE_RSP_STATFS);
     }
 
-#if 0
     // clean up
     if (NULL != finobj) {
         finesse_object_release(finobj);
         finobj = NULL;
     }
-#endif  // 0
 
     if (NULL != fuse_request) {
         FinesseFreeFuseRequest(fuse_request);  // drops that extra reference we added above.
@@ -122,7 +119,6 @@ static int finesse_statfs_handler(struct fuse_session *se, void *Client, fincomm
     finesse_msg *     fmsg;
 
     assert(NULL != se);
-    assert(NULL != Client);
     assert(NULL != Message);
     assert(NULL != PathName);
 

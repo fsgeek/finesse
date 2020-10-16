@@ -439,7 +439,13 @@ finesse_object_t *FinesseObjectLookupByIno(finesse_object_table_t *Table, fuse_i
     LockBucket(bucket, 0);
     entry = lookup_entry(bucket, InodeNumber, &null_uuid);
     if (NULL != entry) {
-        __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump ref count
+        uint64_t refCount = __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump ref count
+        {
+            char uuid_str[40];
+            uuid_unparse(entry->Object.uuid, uuid_str);
+            fprintf(stderr, "++++ %s:%d - inode %ld, uuid %s, refcount %lu\n", __func__, __LINE__, entry->Object.inode, uuid_str,
+                    refCount);
+        }
     }
     UnlockBucket(&table->Buckets[index]);
 
@@ -470,7 +476,14 @@ finesse_object_t *FinesseObjectLookupByUuid(finesse_object_table_t *Table, uuid_
     if (NULL != entry) {
         refcount = __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump ref count
         assert(refcount > 0);  // shouldn't ever do 0->1 transition.  If it does, there's a logic bug.
+        {
+            char uuid_str[40];
+            uuid_unparse(entry->Object.uuid, uuid_str);
+            fprintf(stderr, "++++ %s:%d - inode %ld, uuid %s, refcount %lu\n", __func__, __LINE__, entry->Object.inode, uuid_str,
+                    refcount);
+        }
     }
+
     UnlockBucket(&table->Buckets[index]);
 
     if (NULL != entry) {
@@ -498,6 +511,12 @@ static void release_entry(lookup_entry_table_t *Table, lookup_entry_t *Entry)
     }
 
     refCount = __atomic_fetch_sub(&Entry->ReferenceCount, 1, __ATOMIC_RELAXED);
+    {
+        char uuid_str[40];
+        uuid_unparse(Entry->Object.uuid, uuid_str);
+        fprintf(stderr, "++++ %s:%d - inode %ld, uuid %s, refcount %lu\n", __func__, __LINE__, Entry->Object.inode, uuid_str,
+                refCount);
+    }
     if (1 == refCount) {
         remove_list_entry(&Entry->InodeListEntry);
         remove_list_entry(&Entry->UuidListEntry);
@@ -545,7 +564,13 @@ void FinesseObjectRelease(finesse_object_table_t *Table, finesse_object_t *Objec
     assert(0 != refCount);  // This is an underflow - logic error
     if (1 == refCount) {
         // this is the removal but we don't hold the exclusive lock
-        __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);
+        refCount = __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);
+    }
+    else {
+        char uuid_str[40];
+        uuid_unparse(Object->uuid, uuid_str);
+        fprintf(stderr, "---- %s:%d - inode %ld, uuid %s, refcount %lu\n", __func__, __LINE__, entry->Object.inode, uuid_str,
+                refCount);
     }
     UnlockBucket(bucket);
 
@@ -569,6 +594,7 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
     lookup_entry_t *             entry        = NULL;
     lookup_entry_t *             old_entry    = NULL;
     static uuid_t                null_uuid;
+    uint64_t                     refCount = (uint64_t)~0;
 
     assert(NULL != Table);
     assert(0 != InodeNumber);
@@ -609,6 +635,14 @@ static lookup_entry_t *insert_entry(lookup_entry_table_t *Table, fuse_ino_t Inod
             // we use the existing entry
             free(entry);
             entry = old_entry;
+            assert((0 == UseFreedLists) || (0 == entry->Object.freed));
+            refCount = __atomic_fetch_add(&entry->ReferenceCount, 1, __ATOMIC_RELAXED);  // bump reference
+            {
+                char uuid_str[40];
+                uuid_unparse(entry->Object.uuid, uuid_str);
+                fprintf(stderr, "++++ %s:%d - inode %ld, uuid %s, refcount %lu\n", __func__, __LINE__, entry->Object.inode,
+                        uuid_str, refCount);
+            }
             break;
         }
 
@@ -705,7 +739,7 @@ finesse_object_t *finesse_object_lookup_by_ino(fuse_ino_t inode)
         create_lookup_table();
     }
     fobj = FinesseObjectLookupByIno(ObjectTable, inode);
-    assert(0 == fobj->freed);
+    assert((NULL == fobj) || (0 == fobj->freed));
     return fobj;
 }
 
@@ -719,7 +753,7 @@ finesse_object_t *finesse_object_lookup_by_uuid(uuid_t *uuid)
     assert(NULL != uuid);          // don't call with NULL
     assert(!uuid_is_null(*uuid));  // don't call with invalid uuid
     fobj = FinesseObjectLookupByUuid(ObjectTable, uuid);
-    assert(0 == fobj->freed);
+    assert((NULL == fobj) || (0 == fobj->freed));
     return fobj;
 }
 
@@ -728,9 +762,10 @@ void finesse_object_release(finesse_object_t *object)
     if (NULL == ObjectTable) {
         create_lookup_table();
     }
-    assert(0 == object->freed);
-    FinesseObjectRelease(ObjectTable, object);
+
     assert((0 == UseFreedLists) || (0 == object->freed));
+    FinesseObjectRelease(ObjectTable, object);
+
     return;
 }
 

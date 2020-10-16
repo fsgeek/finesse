@@ -186,7 +186,7 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             status = FinesseServerInternalNameLookup(se, parentino, workpath + 1, &Parameters->StatxBuffer);
 
             if (0 != status) {
-                fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed\n", __func__, __LINE__);
+                fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed, status = %d\n", __func__, __LINE__, status);
                 assert((ENOENT == status) || (-ENOENT == status));
                 Parameters->Cursor = workpath + 1;
                 Parameters->Parent = ino;  // This is the parent we found.
@@ -235,6 +235,12 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             }
 
             if (S_ISLNK(Parameters->StatxBuffer.stx_mode)) {
+                // DEBUG: there is some odd case where I'm told something is a symlink; the mode bits are strange, so I'm going to
+                // repeat the operation here to see if I can figure out WHY it thinks that it is a symlink.
+                struct statx stxbuf;
+                int          status2 = FinesseServerInternalNameLookup(se, ino, workcurrent, &stxbuf);
+
+                assert(0 == status2);
                 //
                 // This is a symlink.  To handle this properly, we need to read the link contents
                 // and then reconstruct the name.  For Finesse this gets _more_ complicated because
@@ -249,6 +255,12 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
             workcurrent = segend + 1;  // move to the next entry
         }
 
+        if (0 != status) {
+            // We were not able to finish parsing the full path
+            // TODO: add handling where the caller just wants the parent (someday)
+            break;
+        }
+
         // At this point I have a single segment left
         idx                   = (unsigned)((uintptr_t)(workcurrent - workpath));
         Parameters->Cursor    = &Parameters->PathName[idx];
@@ -257,7 +269,8 @@ int FinesseServerResolvePathName(struct fuse_session *se, FinesseServerPathResol
 
         status = FinesseServerInternalNameLookup(se, ino, workend, &Parameters->StatxBuffer);
         if ((0 != status)) {
-            fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed\n", __func__, __LINE__);
+            fprintf(stderr, "%s:%d --> FinesseServerInternalNameLookup failed, status = %d, errno = %d\n", __func__, __LINE__,
+                    status, errno);
             assert((ENOENT == status) || (-ENOENT == status));
 
             if (Parameters->GetFinalParent) {

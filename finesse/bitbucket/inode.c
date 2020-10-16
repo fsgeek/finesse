@@ -881,7 +881,7 @@ void BitbucketReferenceInode(bitbucket_inode_t *Inode, uint8_t Reason)
         uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
 
         fuse_log(FUSE_LOG_DEBUG,
-                 "Finesse: Add reference to inode %ld reason %d (%s) (ref: %lu -> "
+                 "Bitbucket: Add reference to inode %ld reason %d (%s) (ref: %lu -> "
                  "%lu, reason: %lu -> %lu)\n",
                  bbpi->PublicInode.Attributes.st_ino, Reason, InodePrivateObjectAttributes.ReferenceReasonsNames[Reason], refcnt,
                  refcnt + 1, reasoncount, reasoncount + 1);
@@ -903,7 +903,7 @@ void BitbucketDereferenceInode(bitbucket_inode_t *Inode, uint8_t Reason, uint64_
         uint64_t reasoncount = BitbucketGetInodeReasonReferenceCount(Inode, Reason);
 
         fuse_log(FUSE_LOG_DEBUG,
-                 "Finesse: Remove reference to inode %ld reason %d (%s) (ref: %lu "
+                 "Bitbucket: Remove reference to inode %ld reason %d (%s) (ref: %lu "
                  "-> %lu, reason: %lu -> %lu)\n",
                  bbpi->PublicInode.Attributes.st_ino, Reason, InodePrivateObjectAttributes.ReferenceReasonsNames[Reason], refcnt,
                  refcnt - 1, reasoncount, reasoncount - 1);

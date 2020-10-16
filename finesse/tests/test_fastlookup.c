@@ -96,6 +96,7 @@ static test_object_t *insert_multiple_objects(finesse_object_table_t *Table, uin
         fobj2 = FinesseObjectLookupByIno(Table, objects[index].inode);
         munit_assert(fobj == fobj2);
         FinesseObjectRelease(Table, fobj2);
+        fobj2 = NULL;
     }
 
     return objects;
