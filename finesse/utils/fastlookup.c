@@ -33,12 +33,25 @@ static inline void verify_magic(const char *StructureName, const char *File, con
     }
 }
 
+typedef struct _lookup_entry {
+    uint64_t         Magic;
+    uint64_t         ReferenceCount;
+    list_entry_t     InodeListEntry;
+    list_entry_t     UuidListEntry;
+    finesse_object_t Object;
+} lookup_entry_t;
+
+#define FAST_LOOKUP_ENTRY_MAGIC (0x4a0a84a016989cdf)
+#define CHECK_FAST_LOOKUP_ENTRY_MAGIC(fle) \
+    verify_magic("lookup_entry_t", __FILE__, __func__, __LINE__, FAST_LOOKUP_TABLE_MAGIC, (fle)->Magic)
+
 typedef struct _lookup_entry_table_bucket lookup_entry_table_bucket_t;
 typedef struct _lookup_entry_table        lookup_entry_table_t;
 
 struct _lookup_entry_table_bucket {
-    uint64_t Magic;
-    uint64_t EntryCount;
+    uint64_t        Magic;
+    uint64_t        EntryCount;
+    lookup_entry_t *LastEntry;
     enum {
         LookupEntryTypeLinkedLists = 73,
         LookupEntryTypeLookupTable = 91,
@@ -56,7 +69,7 @@ struct _lookup_entry_table_bucket {
     uint64_t (*HashFunction)(lookup_entry_table_bucket_t *Bucket);
     uint64_t         LastHashValue;
     pthread_rwlock_t Lock;
-    // char                            UnusedSpace[8]; // pad to 64 bytes
+    char             UnusedSpace[56];  // pad to 64 bytes
 };
 
 #define FAST_LOOKUP_TABLE_BUCKET_MAGIC (0x7800c6664e1c877c)
@@ -83,18 +96,6 @@ typedef struct _lookup_entry_table {
 // static char foo[sizeof(lookup_entry_table_t)];
 
 _Static_assert(0 == sizeof(lookup_entry_table_t) % 64, "lookup_entry_table_t length is not a multiple of 64 bytes (cache line)");
-
-typedef struct _lookup_entry {
-    uint64_t         Magic;
-    uint64_t         ReferenceCount;
-    list_entry_t     InodeListEntry;
-    list_entry_t     UuidListEntry;
-    finesse_object_t Object;
-} lookup_entry_t;
-
-#define FAST_LOOKUP_ENTRY_MAGIC (0x4a0a84a016989cdf)
-#define CHECK_FAST_LOOKUP_ENTRY_MAGIC(fle) \
-    verify_magic("lookup_entry_t", __FILE__, __func__, __LINE__, FAST_LOOKUP_TABLE_MAGIC, (fle)->Magic)
 
 // uint64_t (*HashFunction)(void *Data, size_t DataLength);
 
@@ -140,11 +141,12 @@ static uint64_t LookupBucketHashFunction(lookup_entry_table_bucket_t *Bucket)
 {
     uint64_t mh[2];
     uint64_t hash;
+    int      len = sizeof(Bucket->LookupEntryInstance);
 
     assert(NULL != Bucket);
     CHECK_FAST_LOOKUP_TABLE_BUCKET_MAGIC(Bucket);
 
-    MurmurHash3_x64_128(Bucket, offsetof(lookup_entry_table_bucket_t, LastHashValue), 0x7800c666, &mh);
+    MurmurHash3_x64_128(&Bucket->LookupEntryInstance, len, 0x7800c666, &mh);
     hash = mh[0] ^ mh[1];  // mix them
     if (0 == hash) {
         hash = ~0;  // so we can use 0 as "not valid"
@@ -208,6 +210,7 @@ static void *CreateLookupTable(uint16_t BucketCount, uint32_t HashSeed)
     for (unsigned index = 0; index < BucketCount; index++) {
         table->Buckets[index].Magic           = FAST_LOOKUP_TABLE_BUCKET_MAGIC;
         table->Buckets[index].EntryCount      = 0;
+        table->Buckets[index].LastEntry       = NULL;
         table->Buckets[index].LookupEntryType = LookupEntryTypeLinkedLists;  // this is always where we start
         initialize_list(&table->Buckets[index].LookupEntryInstance.LinkedLists.InodeTableEntry);
         initialize_list(&table->Buckets[index].LookupEntryInstance.LinkedLists.UuidTableEntry);
@@ -389,13 +392,33 @@ static lookup_entry_t *lookup_entry(lookup_entry_table_bucket_t *Bucket, fuse_in
     CHECK_FAST_LOOKUP_TABLE_BUCKET_MAGIC(Bucket);
     assert(LookupEntryTypeLinkedLists == Bucket->LookupEntryType);  // we haven't coded anything else
 
+    // Let's see if this is the same entry we looked up last time
+    // Note that even if this changes after we capture it, the entry
+    // can't become invalid on us.
+    entry = __atomic_load_n(&Bucket->LastEntry, __ATOMIC_RELAXED);
     if (0 != InodeNumber) {
         check_inode = 1;
         listHead    = &Bucket->LookupEntryInstance.LinkedLists.InodeTableEntry;
+
+        if ((NULL != entry) && (InodeNumber != entry->Object.inode)) {
+            entry = NULL;  // not a match
+        }
     }
     else {
         check_inode = 0;
         listHead    = &Bucket->LookupEntryInstance.LinkedLists.UuidTableEntry;
+        if ((NULL != Bucket->LastEntry) && (Bucket->LastEntry->Object.inode)) {
+            entry = Bucket->LastEntry;
+        }
+
+        if ((NULL != entry) && (0 != uuid_compare(*Uuid, entry->Object.uuid))) {
+            entry = NULL;  // not a match
+        }
+    }
+
+    if (NULL != entry) {
+        // Hit in the one entry cache.
+        return entry;
     }
 
     list_for_each(listHead, le)
@@ -413,6 +436,10 @@ static lookup_entry_t *lookup_entry(lookup_entry_table_bucket_t *Bucket, fuse_in
             }
         }
         entry = NULL;
+    }
+
+    if (NULL != entry) {
+        __atomic_store_n(&Bucket->LastEntry, entry, __ATOMIC_RELAXED);
     }
 
     return entry;
@@ -532,6 +559,19 @@ static void release_entry(lookup_entry_table_t *Table, lookup_entry_t *Entry)
         else {
             memset(Entry, 0, sizeof(lookup_entry_t));  // this is really a debug aid...
             free(Entry);
+        }
+
+        // clear the one-entry cache if it contains this entry; I use the stronger release because I don't want
+        // some other thread accessing this pointer from a cached value of it (unlikely...)
+        __atomic_compare_exchange_n(&Table->Buckets[first].LastEntry, &Entry, NULL, 1, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+        __atomic_compare_exchange_n(&Table->Buckets[first].LastEntry, &Entry, NULL, 1, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
+
+        if (Table->Buckets[first].LastEntry == Entry) {
+            Table->Buckets[first].LastEntry = NULL;  // invalidate one-entry cache
+        }
+
+        if (Table->Buckets[second].LastEntry == Entry) {
+            Table->Buckets[second].LastEntry = NULL;  // invalidate one-entry cache
         }
     }
 
