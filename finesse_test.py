@@ -562,7 +562,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
             if run_local:
                 # (1) Run on native file system
                 if trial:
-                    fd.write("This is where we'd run the test")
+                    fd.write("This is where we'd run the local test")
                 else:
                     fb.run(timestamp, 'native')
                 fd.write('\nEnd Local Run\n')
@@ -648,9 +648,9 @@ def main():
                         action='store_true', help='Indicate that this should be a trial run')
     parser.add_argument('--repeat', dest='run_count', default=1,
                         type=int, help='The number of times to run all of the tests')
-    parser.add_argument('--skip_local', dest='run_local', default=False,
+    parser.add_argument('--skip_local', dest='run_local', default=True,
                         action='store_false', help='Suppress local run')
-    parser.add_argument('--skip_bb', dest='run_bb', default=False,
+    parser.add_argument('--skip_bb', dest='run_bb', default=True,
                         action='store_false', help='Suppress bitbucket run')
     parser.add_argument('--skip_preload', dest='run_bb_preload', default=True,
                         action='store_false', help='Suppress LD_PRELOAD + bitbucket run')
