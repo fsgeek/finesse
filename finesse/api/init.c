@@ -57,7 +57,7 @@ static void finesse_real_init(void)
         strcpy(call_stat_log, log_name);
 
         // A bit of debug code
-        FILE *log = fopen(call_stat_log, "wt");
+        FILE *log = fopen(call_stat_log, "wt+");
         fprintf(log, "finesse_real_init called");
         fclose(log);
 
@@ -108,12 +108,12 @@ static void finesse_real_shutdown(void)
     if (save_call_stats) {
         // Dump the call statistics
 
-        FILE *                         log       = fopen(call_stat_log, "wt");
+        FILE *                         log       = fopen(call_stat_log, "wt+");
         finesse_api_call_statistics_t *callstats = FinesseApiGetCallStatistics();
         const char *                   calldata  = FinesseApiFormatCallData(callstats, 0);
 
         assert(NULL != log);
-        fprintf(log, "Finesse API Call Statistics:\n%s\n", calldata);
+        fprintf(log, "Finesse API Call Statistics: (pid=%d)\n%s\n", getpid(), calldata);
         fclose(log);
         FinesseApiFreeFormattedCallData(calldata);
         FinesseApiReleaseCallStatistics(callstats);
