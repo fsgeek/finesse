@@ -51,37 +51,29 @@ static int internal_unlink(const char *file_name)
     fincomm_message         message;
     finesse_client_handle_t finesse_client_handle = NULL;
     int                     result;
-    struct timespec         start, stop, elapsed;
-    int                     status, tstatus;
+    int                     status;
     uuid_t                  null_uuid;
+    DECLARE_TIME(FINESSE_API_CALL_UNLINK)
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    assert(0 == tstatus);
+    START_TIME
 
     finesse_client_handle = finesse_check_prefix(file_name);
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-    assert(0 == tstatus);
-    timespec_diff(&start, &stop, &elapsed);
-    FinesseApiRecordOverhead(FINESSE_API_CALL_UNLINK, &elapsed);
+    STOP_FINESSE_TIME
 
     if (NULL == finesse_client_handle) {
         // not of interest - fallback
-        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-        assert(0 == tstatus);
+
+        START_TIME
 
         status = fin_unlink(file_name);
 
-        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-        assert(0 == tstatus);
-        timespec_diff(&start, &stop, &elapsed);
-        FinesseApiRecordNative(FINESSE_API_CALL_STAT, &elapsed);
+        STOP_NATIVE_TIME
 
         return status;
     }
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    assert(0 == tstatus);
+    START_TIME
 
     memset(&null_uuid, 0, sizeof(uuid_t));
 
@@ -92,10 +84,7 @@ static int internal_unlink(const char *file_name)
     result = message->Result;
     FinesseFreeUnlinkResponse(finesse_client_handle, message);
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-    assert(0 == tstatus);
-    timespec_diff(&start, &stop, &elapsed);
-    FinesseApiRecordOverhead(FINESSE_API_CALL_UNLINK, &elapsed);
+    STOP_NATIVE_TIME
 
     return result;
 }
@@ -111,58 +100,71 @@ int finesse_unlink(const char *pathname)
 
 static int internal_unlinkat(int dirfd, const char *pathname, int flags)
 {
-    struct timespec         start, stop, elapsed;
-    int                     status, tstatus;
-    fincomm_message         message;
-    finesse_client_handle_t finesse_client_handle = NULL;
-    int                     result;
-    finesse_file_state_t *  ffs = NULL;
+    int                   status;
+    fincomm_message       message;
+    finesse_file_state_t *ffs = NULL;
+    DECLARE_TIME(FINESSE_API_CALL_UNLINKAT)
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    assert(0 == tstatus);
+    while (1) {
+        if (0 != flags) {
+            START_TIME
 
-    // Let's see if we know about this file descriptor
-    ffs = finesse_lookup_file_state(dirfd);
+            // We don't handle any flags at present
+            status = fin_unlinkat(dirfd, pathname, flags);
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-    assert(0 == tstatus);
-    timespec_diff(&start, &stop, &elapsed);
-    FinesseApiRecordOverhead(FINESSE_API_CALL_UNLINKAT, &elapsed);
+            STOP_NATIVE_TIME
+            break;
+        }
 
-    if (NULL == ffs) {
-        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-        assert(0 == tstatus);
+        if (AT_FDCWD == dirfd) {
+            if ('/' == *pathname) {
+                // Absolute path name!
+                status = internal_unlink(pathname);
+            }
+            else {
+                START_TIME
 
-        // We aren't tracking this, so we do pass-through
-        status = fin_unlinkat(dirfd, pathname, flags);
+                status = fin_unlinkat(dirfd, pathname, flags);
 
-        tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-        assert(0 == tstatus);
-        timespec_diff(&start, &stop, &elapsed);
-        FinesseApiRecordNative(FINESSE_API_CALL_FSTAT, &elapsed);
+                STOP_NATIVE_TIME
+            }
+            break;
+        }
 
-        return status;
+        START_TIME
+
+        // look up the file descriptor to see if we know about it already
+        ffs = finesse_lookup_file_state(finesse_nfd_to_fd(dirfd));
+
+        STOP_FINESSE_TIME
+
+        if (NULL == ffs) {
+            START_TIME
+
+            // Don't care about this one
+            status = fin_unlinkat(dirfd, pathname, flags);
+
+            STOP_NATIVE_TIME
+
+            break;
+        }
+
+        START_TIME
+        // At this point we do know about the directory, so we can construct the unlink request
+        status = FinesseSendUnlinkRequest(ffs->client, &ffs->key, pathname, &message);
+        assert(0 == status);
+        status = FinesseGetUnlinkResponse(ffs->client, message);
+        assert(0 == status);
+        status = message->Result;
+        FinesseFreeUnlinkResponse(ffs->client, message);
+
+        STOP_NATIVE_TIME
+
+        // Done!
+        break;
     }
 
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-    assert(0 == tstatus);
-
-    // We ARE tracking the file, so we can use the key to query.
-    assert(0 == flags);  // we currently don't support flags here
-
-    status = FinesseSendUnlinkRequest(finesse_client_handle, &ffs->key, pathname, &message);
-    assert(0 == status);
-    status = FinesseGetUnlinkResponse(finesse_client_handle, message);
-    assert(0 == status);
-    result = message->Result;
-    FinesseFreeUnlinkResponse(finesse_client_handle, message);
-
-    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
-    assert(0 == tstatus);
-    timespec_diff(&start, &stop, &elapsed);
-    FinesseApiRecordOverhead(FINESSE_API_CALL_UNLINKAT, &elapsed);
-
-    return result;
+    return status;
 }
 
 int finesse_unlinkat(int dirfd, const char *pathname, int flags)

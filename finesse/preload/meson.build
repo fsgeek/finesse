@@ -1,6 +1,7 @@
 
 finesse_preload_sources = [
     'access.c',
+    'chdir.c',
     'chmod.c',
     'chown.c',
     'close.c',

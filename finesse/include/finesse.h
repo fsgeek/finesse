@@ -121,8 +121,9 @@ void FinesseFreeCreateResponse(finesse_client_handle_t FinesseClientHandle, finc
 extern void (*finesse_init)(void);
 finesse_client_handle_t *finesse_check_prefix(const char *name);
 int                      finesse_open(const char *pathname, int flags, ...);
-int                      finesse_creat(const char *pathname, mode_t mode);
 int                      finesse_openat(int dirfd, const char *pathname, int flags, ...);
+int                      finesse_creat(const char *pathname, mode_t mode);
+int                      finesse_chdir(const char *pathname);
 int                      finesse_close(int fd);
 int                      finesse_unlink(const char *pathname);
 int                      finesse_unlinkat(int dirfd, const char *pathname, int flags);
@@ -142,3 +143,4 @@ int                      finesse_faccessat(int dirfd, const char *pathname, int 
 FILE *                   finesse_fopen(const char *pathname, const char *mode);
 FILE *                   finesse_fdopen(int fd, const char *mode);
 FILE *                   finesse_freopen(const char *pathname, const char *mode, FILE *stream);
+int                      finesse_is_fd_tracked(int fd);

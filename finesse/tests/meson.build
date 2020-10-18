@@ -40,7 +40,8 @@ testparse_sources = [
 ]
 
 testbbfin_sources = [
-    'testbbfin_test.c'
+    'testbbfin_test.c',
+    'testbbfin_mkdir_data.c',
 ]
 
 

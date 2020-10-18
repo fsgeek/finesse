@@ -12,12 +12,17 @@
 #define FINESSE_API_CALL_BASE (200)
 #define FINESSE_API_CALL_ACCESS (FINESSE_API_CALL_BASE + 1)
 #define FINESSE_API_CALL_FACCESSAT (FINESSE_API_CALL_ACCESS + 1)
-#define FINESSE_API_CALL_CHMOD (FINESSE_API_CALL_FACCESSAT + 1)
+#define FINESSE_API_CALL_CHDIR (FINESSE_API_CALL_FACCESSAT + 1)
+#define FINESSE_API_CALL_CHMOD (FINESSE_API_CALL_CHDIR + 1)
 #define FINESSE_API_CALL_CHOWN (FINESSE_API_CALL_CHMOD + 1)
 #define FINESSE_API_CALL_CLOSE (FINESSE_API_CALL_CHOWN + 1)
-#define FINESSE_API_CALL_DIR (FINESSE_API_CALL_CLOSE + 1)
+#define FINESSE_API_CALL_CREAT (FINESSE_API_CALL_CLOSE + 1)
+#define FINESSE_API_CALL_DIR (FINESSE_API_CALL_CREAT + 1)
 #define FINESSE_API_CALL_DUP (FINESSE_API_CALL_DIR + 1)
-#define FINESSE_API_CALL_FSTAT (FINESSE_API_CALL_DUP + 1)
+#define FINESSE_API_CALL_FOPEN (FINESSE_API_CALL_DUP + 1)
+#define FINESSE_API_CALL_FDOPEN (FINESSE_API_CALL_FOPEN + 1)
+#define FINESSE_API_CALL_FREOPEN (FINESSE_API_CALL_FDOPEN + 1)
+#define FINESSE_API_CALL_FSTAT (FINESSE_API_CALL_FREOPEN + 1)
 #define FINESSE_API_CALL_FSTATAT (FINESSE_API_CALL_FSTAT + 1)
 #define FINESSE_API_CALL_FSTATFS (FINESSE_API_CALL_FSTATAT + 1)
 #define FINESSE_API_CALL_LSTAT (FINESSE_API_CALL_FSTATFS + 1)
@@ -25,7 +30,8 @@
 #define FINESSE_API_CALL_LSEEK (FINESSE_API_CALL_LINK + 1)
 #define FINESSE_API_CALL_MKDIR (FINESSE_API_CALL_LSEEK + 1)
 #define FINESSE_API_CALL_OPEN (FINESSE_API_CALL_MKDIR + 1)
-#define FINESSE_API_CALL_READ (FINESSE_API_CALL_OPEN + 1)
+#define FINESSE_API_CALL_OPENAT (FINESSE_API_CALL_OPEN + 1)
+#define FINESSE_API_CALL_READ (FINESSE_API_CALL_OPENAT + 1)
 #define FINESSE_API_CALL_RENAME (FINESSE_API_CALL_READ + 1)
 #define FINESSE_API_CALL_RMDIR (FINESSE_API_CALL_RENAME + 1)
 #define FINESSE_API_CALL_STAT (FINESSE_API_CALL_RMDIR + 1)
@@ -79,5 +85,23 @@ static inline void timespec_add(struct timespec *one, struct timespec *two, stru
 void FinesseApiCountCall(uint8_t Call, uint8_t Success);
 void FinesseApiRecordNative(uint8_t Call, struct timespec *Elapsed);
 void FinesseApiRecordOverhead(uint8_t Call, struct timespec *Elapsed);
+
+#define DECLARE_TIME(type)                \
+    struct timespec start, stop, elapsed; \
+    int             tstatus;              \
+    uint8_t         call_index = type;
+#define START_TIME                                        \
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start); \
+    assert(0 == tstatus);
+#define STOP_FINESSE_TIME                                \
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop); \
+    assert(0 == tstatus);                                \
+    timespec_diff(&start, &stop, &elapsed);              \
+    FinesseApiRecordOverhead(call_index, &elapsed);
+#define STOP_NATIVE_TIME                                 \
+    tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop); \
+    assert(0 == tstatus);                                \
+    timespec_diff(&start, &stop, &elapsed);              \
+    FinesseApiRecordNative(call_index, &elapsed);
 
 #endif  // __FINESSE_CALLSTATS_H__

@@ -24,6 +24,7 @@
 #include "fincomm.h"
 #include "finesse_test.h"
 #include "munit.h"
+#include "testbbfin_data.h"
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
@@ -81,10 +82,40 @@ static const char *get_mountpoint(const char *name)
     return mountpoint;
 }
 
-// gack - this is a generated data file, it's long, and not very
-// interesting.
+static void cleanup_test_dir(const char *dirname)
+{
+    int         status;
+    struct stat statbuf;
+    int         childpid;
+    int         retries;
 
-#include "testbbfin_mkdir_data.c"
+    if (0 == stat(dirname, &statbuf)) {
+        // The test directory exists, so make sure we delete it first.
+        // Note I'm not checking to see if it is a directory... TODO
+
+        childpid = vfork();
+        munit_assert(childpid >= 0);
+        if (0 == childpid) {
+            char *const rmargs[] = {(char *)(uintptr_t) "rm", (char *)(uintptr_t) "-rf", (char *)(uintptr_t)dirname, NULL};
+            status               = execv("/bin/rm", rmargs);
+            // code that shouldn't ever run...
+            munit_assert(0 == status);
+            exit(0);
+        }
+
+        // wait up to 10 seconds for the directory to go away...
+        retries = 0;
+        while (retries < 10) {
+            if (0 > stat(dirname, &statbuf)) {
+                // directory seems to be gone!
+                break;
+            }
+            sleep(1);
+            retries++;
+        }
+        munit_assert(retries < 10);
+    }
+}
 
 static MunitResult test_finesse_started(const MunitParameter params[] __notused, void *prv __notused)
 {
@@ -96,32 +127,85 @@ static MunitResult test_finesse_started(const MunitParameter params[] __notused,
     return MUNIT_OK;
 }
 
-static MunitResult test_directories(const MunitParameter params[] __notused, void *prv __notused)
+static void execute_operations(const testbbfin_info_t *operations)
 {
     unsigned    index;
     struct stat statbuf;
     int         status;
 
-    for (index = 0; index < sizeof(test_dir_data) / sizeof(test_dir_info_t); index++) {
+    for (index = 0; TEST_DIR_OP_TYPE_END != operations[index].Operation; index++) {
         //
         // (1) stat the directory
         // (2) create the directory
         //
         switch (test_dir_data[index].Operation) {
+            case TEST_DIR_OP_TYPE_OPEN:
+                status = finesse_open(operations[index].Pathname, 0);
+                break;
+
             case TEST_DIR_OP_TYPE_STAT:
                 memset(&statbuf, 0, sizeof(statbuf));
-                status = finesse_stat(test_dir_data[index].Pathname, &statbuf);
+                status = finesse_stat(operations[index].Pathname, &statbuf);
                 break;
+
             case TEST_DIR_OP_TYPE_MKDIR:
-                status = finesse_mkdir(test_dir_data[index].Pathname, 0775);
+                status = finesse_mkdir(operations[index].Pathname, 0775);
                 break;
+
+            case TEST_DIR_OP_TYPE_CREATE:
+                munit_assert(0);
+                break;
+
+            case TEST_DIR_OP_TYPE_UNLINK:
+                munit_assert(0);
+                break;
+
+            case TEST_DIR_OP_TYPE_CLOSE:
+                munit_assert(0);
+                break;
+
             default:
                 munit_assert(0);  // unsupported operation
         }
 
-        munit_assert(test_dir_data[index].ExpectedStatus == status);
+        if (status != operations[index].ExpectedStatus) {
+            fprintf(stderr, "%s: %d, Unexpected result index %d, expected %d, got %d\n", __func__, __LINE__, index,
+                    operations[index].ExpectedStatus, status);
+        }
+        munit_assert(operations[index].ExpectedStatus == status);
     }
+}
 
+static MunitResult test_directories(const MunitParameter params[] __notused, void *prv __notused)
+{
+    cleanup_test_dir(test_dir_data[0].Pathname);
+
+    execute_operations(test_dir_data);
+
+    return MUNIT_OK;
+}
+
+//
+// This test is really a test of the Finesse API library that now handles various open options.
+// It relies upon having a full file system (hence bitbucket) to ensure that we get the
+// correct behavior.
+//
+static MunitResult test_open(const MunitParameter params[] __notused, void *prv __notused)
+{
+    const char *testdir = "/mnt/bitbucket/open_test";
+
+    cleanup_test_dir(testdir);
+
+    return MUNIT_OK;
+}
+
+static MunitResult test_openat(const MunitParameter params[] __notused, void *prv __notused)
+{
+    return MUNIT_OK;
+}
+
+static MunitResult test_unlinkat(const MunitParameter params[] __notused, void *prv __notused)
+{
     return MUNIT_OK;
 }
 
@@ -129,6 +213,9 @@ static MunitTest fuse_tests[] = {
     TEST((char *)(uintptr_t) "/null", test_null, NULL),
     TEST((char *)(uintptr_t) "/started", test_finesse_started, NULL),
     TEST((char *)(uintptr_t) "/directories", test_directories, NULL),
+    TEST((char *)(uintptr_t) "/open", test_open, NULL),
+    TEST((char *)(uintptr_t) "/openat", test_openat, NULL),
+    TEST((char *)(uintptr_t) "/unlinkat", test_unlinkat, NULL),
     TEST(NULL, NULL, NULL),
 };
 

@@ -1,7 +1,9 @@
 
 libfinesse_api_sources = [
    'access.c',
+   'api_test.c',
    'callstats.c',
+   'chdir.c',
    'fdmgr.c',
    # 'finesse-search.c',
    'init.c',

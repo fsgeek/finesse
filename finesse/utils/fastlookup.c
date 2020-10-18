@@ -737,6 +737,10 @@ finesse_object_table_t *FinesseCreateTable(uint64_t EstimatedSize)
     uint64_t bucket_count = EstimatedSize / 1024;
     unsigned index;
 
+    if (0 == bucket_count) {
+        bucket_count = 10240;  // default table size;
+    }
+
     if (bucket_count < 1024) {
         bucket_count = 1024;  // smallest size we're doing for now
     }
