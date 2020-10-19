@@ -33,6 +33,7 @@ static int fin_stat(const char *file_name, struct stat *buf)
         return orig_stat(file_name, buf);
     }
 
+    assert(0);
     errno = ENOSYS;
     return -1;
 }
@@ -115,17 +116,26 @@ static int fin_fstat(int filedes, struct stat *buf)
 {
     typedef int (*orig_fstat_t)(int filedes, struct stat *buf);
     static orig_fstat_t orig_fstat = NULL;
+    typedef int (*orig_fxstat_t)(int ver, int filedes, struct stat *buf);
+    static orig_fxstat_t orig_fxstat = NULL;
 
     if (NULL == orig_fstat) {
+        dlerror();
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
         orig_fstat = (orig_fstat_t)dlsym(RTLD_NEXT, "fstat");
-#pragma GCC diagnostic pop
-
-        assert(NULL != orig_fstat);
         if (NULL == orig_fstat) {
-            return ENOSYS;
+            orig_fxstat = (orig_fxstat_t)dlsym(RTLD_NEXT, "__fxstat");
         }
+#pragma GCC diagnostic pop
+    }
+
+    if (orig_fxstat) {
+        return orig_fxstat(_STAT_VER, filedes, buf);
+    }
+
+    if (orig_fstat) {
+        return orig_fstat(filedes, buf);
     }
 
     return orig_fstat(filedes, buf);
@@ -163,6 +173,8 @@ static int internal_fstat(int filedes, struct stat *buf)
         assert(0 == tstatus);
         timespec_diff(&start, &stop, &elapsed);
         FinesseApiRecordNative(FINESSE_API_CALL_FSTAT, &elapsed);
+
+        return status;
     }
 
     tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);

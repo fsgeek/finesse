@@ -3,32 +3,26 @@
 
 int stat(const char *pathname, struct stat *statbuf)
 {
-    fprintf(stderr, "preload: stat (%s)\n", pathname);
     return finesse_stat(pathname, statbuf);
 }
 
 int fstat(int fd, struct stat *statbuf)
 {
-    fprintf(stderr, "preload: fstat\n");
     return finesse_fstat(fd, statbuf);
 }
 
 int lstat(const char *pathname, struct stat *statbuf)
 {
-    fprintf(stderr, "preload: lstat (%s)\n", pathname);
     return finesse_lstat(pathname, statbuf);
 }
 
 int fstatat(int dirfd, const char *pathname, struct stat *statbuf, int flags)
 {
-    fprintf(stderr, "preload: fstatat (%s)\n", pathname);
     return finesse_fstatat(dirfd, pathname, statbuf, flags);
 }
 
 int __fxstat(int __ver, int __fildes, struct stat *__stat_buf)
 {
-    fprintf(stderr, "preload: fxstat\n");
-
     if (_STAT_VER != __ver) {
         fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
         errno = EINVAL;
@@ -60,7 +54,6 @@ int __xstat(int __ver, const char *__filename, struct stat *__stat_buf)
 
 int __lxstat(int __ver, const char *__filename, struct stat *__stat_buf)
 {
-    fprintf(stderr, "preload: __lxstat (%s)\n", __filename);
     if (_STAT_VER != __ver) {
         fprintf(stderr, "%s:%d call fails, ver = %d, expects %d\n", __func__, __LINE__, __ver, _STAT_VER);
         errno = EINVAL;
