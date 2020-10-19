@@ -68,6 +68,13 @@ int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle, c
         ccs->reg_info.ClientSharedMemPathNameLength = strlen(ccs->reg_info.ClientSharedMemPathName);
         assert(ccs->reg_info.ClientSharedMemPathNameLength > 0);
 
+        uuid_generate(ccs->reg_info.ClientArenaId);
+        status = GenerateClientSharedMemoryName(ccs->reg_info.ClientArenaPathName, sizeof(ccs->reg_info.ClientArenaPathName),
+                                                ccs->reg_info.ClientArenaId);
+        assert(0 == status);
+        ccs->reg_info.ClientArenaPathNameLength = strlen(ccs->reg_info.ClientArenaPathName);
+        ccs->arena                              = FincommCreateArena(ccs->reg_info.ClientArenaPathName, 0, 0);
+
         ccs->server_shm_fd = shm_open(ccs->reg_info.ClientSharedMemPathName, O_RDWR | O_CREAT | O_EXCL, 0660);
         assert(ccs->server_shm_fd >= 0);
 

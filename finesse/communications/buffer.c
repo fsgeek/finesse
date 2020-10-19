@@ -58,18 +58,19 @@ typedef struct _fincomm_arena_info_t {
     unsigned LastAllocated;     // This is just a hint on where to start looking
 } fincomm_arena_info_t;
 
-typedef struct _fincomm_arena_handle {
+struct _fincomm_arena_handle {
     char                  Signature[sizeof(Signature)];
     fincomm_arena_info_t *Arena;
     int                   FileDescriptor;
-} fincomm_arena_handle;
-
-typedef fincomm_arena_handle *fincomm_arena_handle_t;
+};
 
 #define ARENA_CONTROL_AREA_SIZE (4096)
 
 // declarations to be moved to a header file
 //
+struct _fincomm_arena_handle;
+typedef struct _fincomm_arena_handle *fincomm_arena_handle_t;
+
 fincomm_arena_handle_t FincommCreateArena(char *Name, size_t BufferSize, size_t Count);
 void *                 FincommAllocateBuffer(fincomm_arena_handle_t ArenaHandle);
 void                   FincommFreeBuffer(fincomm_arena_handle_t ArenaHandle, void *Buffer);

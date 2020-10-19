@@ -18,6 +18,7 @@ finessecommmunications_sources = [
    'fincomm.c',
    'fcc.c',
    'fcs.c',
+   'ioctl.c',
    'namemap.c',
    'pathsearch.c',
    'serverstat.c',

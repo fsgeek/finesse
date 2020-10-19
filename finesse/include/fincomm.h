@@ -47,6 +47,9 @@ typedef struct {
     uuid_t    ClientId;
     u_int32_t ClientSharedMemPathNameLength;
     char      ClientSharedMemPathName[MAX_SHM_PATH_NAME];
+    uuid_t    ClientArenaId;
+    u_int32_t ClientArenaPathNameLength;
+    char      ClientArenaPathName[MAX_SHM_PATH_NAME];
 } fincomm_registration_info;
 
 typedef struct {
@@ -126,6 +129,16 @@ _Static_assert(0 == sizeof(fincomm_shared_memory_region) % SHM_PAGE_SIZE, "Lengt
 int GenerateServerName(const char *MountPath, char *ServerName, size_t ServerNameLength);
 int GenerateClientSharedMemoryName(char *SharedMemoryName, size_t SharedMemoryNameLength, uuid_t ClientId);
 
+// see buffer.c
+struct _fincomm_arena_handle;
+typedef struct _fincomm_arena_handle *fincomm_arena_handle_t;
+
+fincomm_arena_handle_t FincommCreateArena(char *Name, size_t BufferSize, size_t Count);
+void *                 FincommAllocateBuffer(fincomm_arena_handle_t ArenaHandle);
+void                   FincommFreeBuffer(fincomm_arena_handle_t ArenaHandle, void *Buffer);
+void  FincommGetArenaInfo(fincomm_arena_handle_t Handle, char *Name, size_t NameSize, size_t *BufferSize, size_t *Count);
+off_t FincommGetBufferOffset(fincomm_arena_handle_t Handle, void *Buffer);
+
 typedef struct _client_connection_state {
     fincomm_registration_info reg_info;
     int                       server_connection;
@@ -133,6 +146,7 @@ typedef struct _client_connection_state {
     int                       server_shm_fd;
     size_t                    server_shm_size;
     void *                    server_shm;
+    fincomm_arena_handle_t    arena;
 } client_connection_state_t;
 
 typedef struct server_connection_state {
