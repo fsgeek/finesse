@@ -671,7 +671,8 @@ typedef struct {
         } MapRelease;
 
         struct {
-            uint64_t Version;
+            uint64_t      Version;
+            unsigned char Request[64];
         } Test;
 
         struct {
@@ -724,7 +725,8 @@ typedef struct {
             FinesseServerStat Data;
         } ServerStat;
         struct {
-            uint64_t Version;
+            uint64_t      Version;
+            unsigned char Response[64];
         } Test;
 
     } Parameters;
