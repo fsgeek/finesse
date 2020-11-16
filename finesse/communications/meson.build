@@ -13,6 +13,7 @@ endif
 finessecommmunications_sources = [
    'access.c',
    'buffer.c',
+   'commstat.c',
    'create.c',
    'dirmap.c',
    'fincomm.c',

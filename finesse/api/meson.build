@@ -9,9 +9,11 @@ libfinesse_api_sources = [
    'init.c',
    'mkdir.c',
    'openclose.c',
+   'read.c',
    'stat.c',
    'statfs.c',
-   'unlink.c'
+   'unlink.c',
+   'write.c',
 ]
 
 deps = [ thread_dep ]

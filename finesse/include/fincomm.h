@@ -167,9 +167,11 @@ typedef struct server_connection_state {
     } aux_shm_table[SHM_MESSAGE_COUNT];         // could need one per message
 } server_connection_state_t;
 
+#define FINESSE_FUSE_REQ_BASE_TYPE (42)
+
 // This declares the operations that correspond to various message types
 typedef enum _FINESSE_FUSE_REQ_TYPE {
-    FINESSE_FUSE_REQ_LOOKUP = 42,
+    FINESSE_FUSE_REQ_LOOKUP = FINESSE_FUSE_REQ_BASE_TYPE,
     FINESSE_FUSE_REQ_FORGET,
     FINESSE_FUSE_REQ_STAT,
     FINESSE_FUSE_REQ_GETATTR,
@@ -243,8 +245,9 @@ typedef enum _FINESSE_FUSE_RSP_TYPE {
     FINESSE_FUSE_RSP_MAX
 } FINESSE_FUSE_RSP_TYPE;
 
+#define FINESSE_NATIVE_REQ_BASE (1024)
 typedef enum {
-    FINESSE_NATIVE_REQ_TEST = 1024,
+    FINESSE_NATIVE_REQ_TEST = FINESSE_NATIVE_REQ_BASE,
     FINESSE_NATIVE_REQ_SERVER_STAT,
     FINESSE_NATIVE_REQ_MAP,
     FINESSE_NATIVE_REQ_MAP_RELEASE,
@@ -531,7 +534,7 @@ typedef struct {
 
         struct {
             uint16_t Count;
-            uuid_t   Inodes[250];
+            uuid_t   Inodes[240];
         } ForgetMulti;
 
         struct {
@@ -738,6 +741,20 @@ typedef struct _finesse_message {
     uint64_t              Version;
     FINESSE_MESSAGE_CLASS MessageClass;
     int                   Result;  // this is the result of the request; requester should set this to non-zero
+    struct {
+        // These fields duplicate, but this is just for perf statistics
+        FINESSE_MESSAGE_CLASS RequestClass;
+        union {
+            FINESSE_NATIVE_REQ_TYPE Native;
+            FINESSE_FUSE_REQ_TYPE   Fuse;
+        } RequestType;
+        struct timespec RequestStartTime;
+        struct timespec RequestQueueTime;
+        struct timespec RequestDequeueTime;
+        struct timespec ResponseQueueTime;
+        struct timespec ResponseReceiptTime;
+        struct timespec RequestCompeltionTime;
+    } Stats;
     union {
         union {
             finesse_fuse_request  Request;
@@ -751,6 +768,14 @@ typedef struct _finesse_message {
 } finesse_msg;
 
 // Make sure this all fits.
+extern const size_t finesse_msg_size;
+extern const size_t fincomm_message_block_size;
+extern const size_t fincomm_message_header_size;
+extern const size_t fincomm_fuse_request_size;
+extern const size_t fincomm_native_request_size;
+extern const size_t fincomm_fuse_response_size;
+extern const size_t fincomm_native_response_size;
+
 _Static_assert(sizeof(finesse_msg) <= (sizeof(fincomm_message_block) - offsetof(fincomm_message_block, Data)),
                "finesse_msg is too big to fit");
 
