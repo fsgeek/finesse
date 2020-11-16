@@ -29,6 +29,14 @@
 
 const char FinesseSharedMemoryRegionSignature[8] = {'F', 'i', 'n', 'e', 's', 's', 'e'};
 
+const size_t finesse_msg_size             = sizeof(finesse_msg);
+const size_t fincomm_message_block_size   = sizeof(fincomm_message_block);
+const size_t fincomm_message_header_size  = offsetof(fincomm_message_block, Data);
+const size_t fincomm_fuse_request_size    = sizeof(finesse_fuse_request);
+const size_t fincomm_native_request_size  = sizeof(finesse_native_request);
+const size_t fincomm_fuse_response_size   = sizeof(finesse_fuse_response);
+const size_t fincomm_native_response_size = sizeof(finesse_native_response);
+
 //
 // This is the common code for the finesse communications package, shared
 // between client and server.
