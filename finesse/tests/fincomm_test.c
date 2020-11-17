@@ -64,9 +64,10 @@ static MunitResult test_message(const MunitParameter params[] __notused, void *p
     munit_assert_not_null(fsmr);
 
     //   (1) client allocates a request region (FinesseGetRequestBuffer)
-    fm = FinesseGetRequestBuffer(fsmr);
+    fm = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_TEST);
     munit_assert_not_null(fm);
     fin_cmsg = (finesse_msg *)fm->Data;
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
     //   (2) client sets up the request (message->Data)
     memcpy(fin_cmsg->Message.Native.Request.Parameters.Test.Request, test_message, sizeof(test_message));
@@ -74,10 +75,12 @@ static MunitResult test_message(const MunitParameter params[] __notused, void *p
     //   (3) client asks for server notification (FinesseRequestReady)
     request_id = FinesseRequestReady(fsmr, fm);
     munit_assert(0 != request_id);
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
     //   (4) server waits until there's a response to process
     status = FinesseReadyRequestWait(fsmr);
     munit_assert(0 == status);
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
     //   (5) server retrieves message (FinesseGetReadyRequest) - note this is non-blocking!
     status = FinesseGetReadyRequest(fsmr, &fm_server);
@@ -85,12 +88,15 @@ static MunitResult test_message(const MunitParameter params[] __notused, void *p
     munit_assert_not_null(fm_server);
     munit_assert(fm == fm_server);
     fin_smsg = (finesse_msg *)fm_server->Data;
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
     munit_assert(sizeof(test_message) <= sizeof(fin_smsg->Message.Native.Request.Parameters.Test.Request));
     munit_assert(0 == memcmp(test_message, fin_smsg->Message.Native.Request.Parameters.Test.Request, sizeof(test_message)));
 
     //   (6) server constructs response in-place
     munit_assert(sizeof(test_response) <= sizeof(fin_smsg->Message.Native.Response.Parameters.Test.Response));
     memcpy(fin_smsg->Message.Native.Response.Parameters.Test.Response, test_response, sizeof(test_response));
+    fin_smsg->Message.Native.Response.NativeResponseType = FINESSE_NATIVE_RSP_TEST;
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
     //   (7) server notifies client (FinesseResponseReady)
     FinesseResponseReady(fsmr, fm_server, 0);
@@ -100,6 +106,7 @@ static MunitResult test_message(const MunitParameter params[] __notused, void *p
     munit_assert(0 != status);  // boolean response
     fin_cmsg = (finesse_msg *)fm->Data;
     munit_assert(0 == memcmp(test_response, fin_cmsg->Message.Native.Response.Parameters.Test.Response, sizeof(test_response)));
+    munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
     //   (9) client frees the request region (FinesseReleaseRequestBuffer)
     FinesseReleaseRequestBuffer(fsmr, fm);
@@ -202,7 +209,7 @@ static void *client_thread(void *param)
     assert(0 == status);
 
     while (count < cs_info->count) {
-        message = FinesseGetRequestBuffer(fsmr);
+        message = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_TEST);
         munit_assert_not_null(message);
         munit_logf(MUNIT_LOG_INFO, "Client %lu has message at 0x%p\n", pthread_self(), (void *)message);
         fin_cmsg = (finesse_msg *)message->Data;
@@ -293,7 +300,7 @@ static MunitResult test_invalid_message_request(const MunitParameter params[] __
     fsmr = CreateInMemoryRegion();
     munit_assert_not_null(fsmr);
 
-    message = FinesseGetRequestBuffer(fsmr);
+    message = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_TEST);
     munit_assert_not_null(message);
 
     FinesseReleaseRequestBuffer(fsmr, message);

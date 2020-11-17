@@ -19,14 +19,11 @@ int FinesseSendCommonStatRequest(finesse_client_handle_t FinesseClientHandle, uu
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    message = FinesseGetRequestBuffer(fsmr);
+    message = FinesseGetRequestBuffer(fsmr, FINESSE_FUSE_MESSAGE, FINESSE_FUSE_REQ_STAT);
     assert(NULL != message);
-    message->MessageType            = FINESSE_REQUEST;
-    message->Result                 = ENOSYS;
-    fmsg                            = (finesse_msg *)message->Data;
-    fmsg->Version                   = FINESSE_MESSAGE_VERSION;
-    fmsg->MessageClass              = FINESSE_FUSE_MESSAGE;
-    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_STAT;
+
+    fmsg = (finesse_msg *)message->Data;
+
     if (NULL != Parent) {
         memcpy(&fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode, Parent, sizeof(uuid_t));
     }
@@ -77,8 +74,7 @@ int FinesseSendStatResponse(finesse_server_handle_t FinesseServerHandle, void *C
     Message->MessageType = FINESSE_RESPONSE;
 
     assert(NULL != Stat);
-    ffm = (finesse_msg *)Message->Data;
-    memset(ffm, 0, sizeof(finesse_msg));  // not necessary for production
+    ffm                                                    = (finesse_msg *)Message->Data;
     ffm->Version                                           = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass                                      = FINESSE_FUSE_MESSAGE;
     ffm->Result                                            = Result;

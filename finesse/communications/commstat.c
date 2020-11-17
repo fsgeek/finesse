@@ -38,7 +38,7 @@ struct timespec RequestQueueTime;
 struct timespec RequestDequeueTime;
 struct timespec ResponseQueueTime;
 struct timespec ResponseReceiptTime;
-struct timespec RequestCompeltionTime;
+struct timespec RequestCompletionTime;
 #endif  // 0
 
 typedef struct _fincomm_call_time {
@@ -67,38 +67,44 @@ static int      commstat_initialized = 0;
 pthread_mutex_t commstat_init_lock   = PTHREAD_MUTEX_INITIALIZER;
 
 // TODO: move to a header file
-void FincommRecordStats(fincomm_message Response);
-void FincommCallStatRequestStart(fincomm_message Message);
-void FincommCallStatQueueRequest(fincomm_message Message);
-void FincommCallStatDequeueRequest(fincomm_message Message);
-void FincommCallStatQueueResponse(fincomm_message Message);
-void FincommCallStatDequeueResponse(fincomm_message Message);
-void FincommCallStatCompleteRequest(fincomm_message Message);
 
 // Note: this code is copied from callstats.h - probably should extract into a common header
 
-#if 0   // apparently, this isn't currently being used
 static inline void timespec_diff(struct timespec *begin, struct timespec *end, struct timespec *diff)
 {
     struct timespec result = {.tv_sec = 0, .tv_nsec = 0};
-    assert((end->tv_sec > begin->tv_sec) || ((end->tv_sec == begin->tv_sec) && end->tv_nsec >= begin->tv_nsec));
-    result.tv_sec = end->tv_sec - begin->tv_sec;
-    if (end->tv_nsec < begin->tv_nsec) {
-        result.tv_sec--;
-        result.tv_nsec = (long)1000000000 + end->tv_nsec - begin->tv_nsec;
+
+    // I've seen cases where the timestamps are just wrong; in that case, we should ignore the computation
+    // (there's a test case that triggers this, where the message is created and then released...)
+    if ((end->tv_sec > begin->tv_sec) || ((end->tv_sec == begin->tv_sec) && end->tv_nsec >= begin->tv_nsec)) {
+        result.tv_sec = end->tv_sec - begin->tv_sec;
+        if (end->tv_nsec < begin->tv_nsec) {
+            result.tv_sec--;
+            result.tv_nsec = (long)1000000000 + end->tv_nsec - begin->tv_nsec;
+        }
     }
     *diff = result;
 }
-#endif  // 0
 
-static inline void timespec_add(struct timespec *one, struct timespec *two, struct timespec *result)
+static inline void timespec_add_diff(struct timespec *accumulator, struct timespec *start, struct timespec *end)
 {
-    result->tv_sec  = one->tv_sec + two->tv_sec;
-    result->tv_nsec = one->tv_nsec + two->tv_nsec;
-    while ((long)1000000000 <= result->tv_nsec) {
-        result->tv_sec++;
-        result->tv_nsec -= (long)1000000000;
+    struct timespec diff;
+
+    timespec_diff(start, end, &diff);
+    accumulator->tv_sec += diff.tv_sec;
+    accumulator->tv_nsec += diff.tv_nsec;
+    while ((long)1000000000 <= accumulator->tv_nsec) {
+        accumulator->tv_sec++;
+        accumulator->tv_nsec -= (long)1000000000;
     }
+}
+
+static int is_zero_time(struct timespec *time)
+{
+    if ((time->tv_sec == 0) && (time->tv_nsec == 0)) {
+        return 1;
+    }
+    return 0;
 }
 
 static void commstat_init(void)
@@ -126,6 +132,7 @@ void FincommRecordStats(fincomm_message Response)
     fincomm_api_call_statistics_t *callstats = NULL;
     unsigned                       index     = ~0;  // bogus value
     finesse_msg *                  message;
+    struct timespec                diff;
 
     if (0 == commstat_initialized) {
         commstat_init();
@@ -143,8 +150,11 @@ void FincommRecordStats(fincomm_message Response)
     }
     else {
         index = (unsigned)message->Stats.RequestType.Native;
-        assert((index >= FINESSE_NATIVE_REQ_BASE) && (index < FINESSE_NATIVE_REQ_MAX));
-        index -= FINESSE_NATIVE_REQ_BASE;
+        if ((index < FINESSE_NATIVE_REQ_BASE_TYPE) || (index >= FINESSE_NATIVE_REQ_MAX)) {
+            fprintf(stderr, "Stats type (%u) is not valid\n", index);
+        }
+        assert((index >= FINESSE_NATIVE_REQ_BASE_TYPE) && (index < FINESSE_NATIVE_REQ_MAX));
+        index -= FINESSE_NATIVE_REQ_BASE_TYPE;
         callstats = &fincomm_call_data.Native[index];
     }
 
@@ -152,31 +162,63 @@ void FincommRecordStats(fincomm_message Response)
     // static inline void timespec_add(struct timespec * one, struct timespec * two, struct timespec * result)
 
     pthread_mutex_lock(&callstats->Lock);
+    assert(message->Stats.RequestStartTime.tv_sec > 0);  // if it is zero, it's probably not been set
+    timespec_diff(&message->Stats.RequestStartTime, &message->Stats.RequestCompletionTime, &diff);
+    assert(diff.tv_sec <= 3600);  // one hour?  Probably bogus data!
+
     if (0 == message->Result) {
         callstats->Success++;
-        timespec_add(&callstats->SuccessTimings.RequestCreateTime, &message->Stats.RequestQueueTime,
-                     &message->Stats.RequestStartTime);
-        timespec_add(&callstats->SuccessTimings.RequestQueueDelay, &message->Stats.RequestDequeueTime,
-                     &message->Stats.RequestQueueTime);
-        timespec_add(&callstats->SuccessTimings.ResponseProcessingTime, &message->Stats.ResponseQueueTime,
-                     &message->Stats.RequestDequeueTime);
-        timespec_add(&callstats->SuccessTimings.ResponseQueueDelay, &message->Stats.ResponseReceiptTime,
-                     &message->Stats.ResponseQueueTime);
-        timespec_add(&callstats->SuccessTimings.RequestTotalTime, &message->Stats.RequestCompeltionTime,
-                     &message->Stats.RequestStartTime);
+        if (!is_zero_time(&message->Stats.RequestStartTime) && !is_zero_time(&message->Stats.RequestQueueTime)) {
+            timespec_add_diff(&callstats->SuccessTimings.RequestCreateTime, &message->Stats.RequestStartTime,
+                              &message->Stats.RequestQueueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestQueueTime) && !is_zero_time(&message->Stats.RequestDequeueTime)) {
+            timespec_add_diff(&callstats->SuccessTimings.RequestQueueDelay, &message->Stats.RequestQueueTime,
+                              &message->Stats.RequestDequeueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestDequeueTime) && !is_zero_time(&message->Stats.ResponseQueueTime)) {
+            timespec_add_diff(&callstats->SuccessTimings.ResponseProcessingTime, &message->Stats.RequestDequeueTime,
+                              &message->Stats.ResponseQueueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.ResponseQueueTime) && !is_zero_time(&message->Stats.ResponseReceiptTime)) {
+            timespec_add_diff(&callstats->SuccessTimings.ResponseQueueDelay, &message->Stats.ResponseQueueTime,
+                              &message->Stats.ResponseReceiptTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestStartTime) && !is_zero_time(&message->Stats.RequestCompletionTime)) {
+            timespec_add_diff(&callstats->SuccessTimings.RequestTotalTime, &message->Stats.RequestStartTime,
+                              &message->Stats.RequestCompletionTime);
+        }
     }
     else {
         callstats->Failure++;
-        timespec_add(&callstats->FailureTimings.RequestCreateTime, &message->Stats.RequestQueueTime,
-                     &message->Stats.RequestStartTime);
-        timespec_add(&callstats->FailureTimings.RequestQueueDelay, &message->Stats.RequestDequeueTime,
-                     &message->Stats.RequestQueueTime);
-        timespec_add(&callstats->FailureTimings.ResponseProcessingTime, &message->Stats.ResponseQueueTime,
-                     &message->Stats.RequestDequeueTime);
-        timespec_add(&callstats->FailureTimings.ResponseQueueDelay, &message->Stats.ResponseReceiptTime,
-                     &message->Stats.ResponseQueueTime);
-        timespec_add(&callstats->FailureTimings.RequestTotalTime, &message->Stats.RequestCompeltionTime,
-                     &message->Stats.RequestStartTime);
+        if (!is_zero_time(&message->Stats.RequestStartTime) && !is_zero_time(&message->Stats.RequestQueueTime)) {
+            timespec_add_diff(&callstats->FailureTimings.RequestCreateTime, &message->Stats.RequestStartTime,
+                              &message->Stats.RequestQueueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestQueueTime) && !is_zero_time(&message->Stats.RequestDequeueTime)) {
+            timespec_add_diff(&callstats->FailureTimings.RequestQueueDelay, &message->Stats.RequestQueueTime,
+                              &message->Stats.RequestDequeueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestDequeueTime) && !is_zero_time(&message->Stats.ResponseQueueTime)) {
+            timespec_add_diff(&callstats->FailureTimings.ResponseProcessingTime, &message->Stats.RequestDequeueTime,
+                              &message->Stats.ResponseQueueTime);
+        }
+
+        if (!is_zero_time(&message->Stats.ResponseQueueTime) && !is_zero_time(&message->Stats.ResponseReceiptTime)) {
+            timespec_add_diff(&callstats->FailureTimings.ResponseQueueDelay, &message->Stats.ResponseQueueTime,
+                              &message->Stats.ResponseReceiptTime);
+        }
+
+        if (!is_zero_time(&message->Stats.RequestStartTime) && !is_zero_time(&message->Stats.RequestCompletionTime)) {
+            timespec_add_diff(&callstats->FailureTimings.RequestTotalTime, &message->Stats.RequestStartTime,
+                              &message->Stats.RequestCompletionTime);
+        }
     }
     callstats->Calls++;
     pthread_mutex_unlock(&callstats->Lock);
@@ -188,36 +230,48 @@ struct timespec RequestQueueTime;
 struct timespec RequestDequeueTime;
 struct timespec ResponseQueueTime;
 struct timespec ResponseReceiptTime;
-struct timespec RequestCompeltionTime;
+struct timespec RequestCompletionTime;
 #endif  // 0
 
 void FincommCallStatRequestStart(fincomm_message Message)
 {
-    finesse_msg *message = (finesse_msg *)Message->Data;
-    int          status;
+    finesse_msg *                message = (finesse_msg *)Message->Data;
+    int                          status;
+    static const struct timespec zero = {.tv_sec = 0, .tv_nsec = 0};
 
     assert(NULL != Message);
+
+    assert(FINESSE_REQUEST == Message->MessageType);
 
     if (FINESSE_REQUEST != Message->MessageType) {
         return;  // not of interest - shouldn't really be called.
     }
-
-    status = clock_gettime(CLOCK_MONOTONIC_RAW, &message->Stats.RequestStartTime);
-    assert(0 == status);
 
     // Capture the request type here.
     message->Stats.RequestClass = message->MessageClass;
     switch (message->MessageClass) {
         case FINESSE_FUSE_MESSAGE:
             message->Stats.RequestType.Fuse = message->Message.Fuse.Request.Type;
+            assert((message->Stats.RequestType.Fuse >= FINESSE_FUSE_REQ_BASE_TYPE) &&
+                   (message->Stats.RequestType.Fuse < FINESSE_FUSE_REQ_MAX));
             break;
         case FINESSE_NATIVE_MESSAGE:
             message->Stats.RequestType.Native = message->Message.Native.Request.NativeRequestType;
+            assert(0 != message->Stats.RequestType.Native);
+            assert((message->Stats.RequestType.Native >= FINESSE_NATIVE_REQ_BASE_TYPE) &&
+                   (message->Stats.RequestType.Native < FINESSE_NATIVE_REQ_MAX));
             break;
         default:
             assert(0);  // Say what?
             break;
     }
+
+    // Make sure to zero out the stats values
+    message->Stats.RequestQueueTime = message->Stats.RequestDequeueTime = message->Stats.ResponseQueueTime =
+        message->Stats.ResponseReceiptTime = message->Stats.RequestCompletionTime = zero;
+
+    status = clock_gettime(CLOCK_MONOTONIC_RAW, &message->Stats.RequestStartTime);
+    assert(0 == status);
 }
 
 void FincommCallStatQueueRequest(fincomm_message Message)
@@ -271,6 +325,6 @@ void FincommCallStatCompleteRequest(fincomm_message Message)
 
     assert(NULL != Message);
 
-    status = clock_gettime(CLOCK_MONOTONIC_RAW, &message->Stats.RequestCompeltionTime);
+    status = clock_gettime(CLOCK_MONOTONIC_RAW, &message->Stats.RequestCompletionTime);
     assert(0 == status);
 }

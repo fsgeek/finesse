@@ -245,9 +245,9 @@ typedef enum _FINESSE_FUSE_RSP_TYPE {
     FINESSE_FUSE_RSP_MAX
 } FINESSE_FUSE_RSP_TYPE;
 
-#define FINESSE_NATIVE_REQ_BASE (1024)
+#define FINESSE_NATIVE_REQ_BASE_TYPE (1024)
 typedef enum {
-    FINESSE_NATIVE_REQ_TEST = FINESSE_NATIVE_REQ_BASE,
+    FINESSE_NATIVE_REQ_TEST = FINESSE_NATIVE_REQ_BASE_TYPE,
     FINESSE_NATIVE_REQ_SERVER_STAT,
     FINESSE_NATIVE_REQ_MAP,
     FINESSE_NATIVE_REQ_MAP_RELEASE,
@@ -698,6 +698,12 @@ typedef struct {
             uuid_t Parent;
             char   Name[1];
         } Dirmap;
+
+        struct {
+            uint16_t Version;
+            uint16_t Length;
+            char     StatData[1];  // blob of data - could be structured...
+        } ServerStat;
     } Parameters;
 } finesse_native_request;
 
@@ -755,7 +761,7 @@ typedef struct _finesse_message {
         struct timespec RequestDequeueTime;
         struct timespec ResponseQueueTime;
         struct timespec ResponseReceiptTime;
-        struct timespec RequestCompeltionTime;
+        struct timespec RequestCompletionTime;
     } Stats;
     union {
         union {
@@ -781,7 +787,9 @@ extern const size_t fincomm_native_response_size;
 _Static_assert(sizeof(finesse_msg) <= (sizeof(fincomm_message_block) - offsetof(fincomm_message_block, Data)),
                "finesse_msg is too big to fit");
 
-#define FINESSE_MESSAGE_VERSION (0xbeefbeefbeefbeef)
+#define FINESSE_MESSAGE_VERSION (0xbeef0cabbad1dead)
+
+#define FINESSE_SERVERSTATS_VERSION (1)
 
 //
 // This is the shared memory protocol:
@@ -798,7 +806,8 @@ _Static_assert(sizeof(finesse_msg) <= (sizeof(fincomm_message_block) - offsetof(
 // now, I was thinking it might be better to use the IPC channel for sending messages, but
 // I'm not going to address that today.
 //
-fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion);
+fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion, FINESSE_MESSAGE_CLASS MessageClass,
+                                        int MessageType);
 u_int64_t       FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message);
 void            FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, uint32_t Response);
 int             FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_message Message, int wait);
@@ -806,5 +815,13 @@ int             FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegi
 int             FinesseReadyRequestWait(fincomm_shared_memory_region *RequestRegion);
 int             FinesseInitializeMemoryRegion(fincomm_shared_memory_region *Fsmr);
 int             FinesseDestroyMemoryRegion(fincomm_shared_memory_region *Fsmr);
+
+void FincommRecordStats(fincomm_message Response);
+void FincommCallStatRequestStart(fincomm_message Message);
+void FincommCallStatQueueRequest(fincomm_message Message);
+void FincommCallStatDequeueRequest(fincomm_message Message);
+void FincommCallStatQueueResponse(fincomm_message Message);
+void FincommCallStatDequeueResponse(fincomm_message Message);
+void FincommCallStatCompleteRequest(fincomm_message Message);
 
 #endif  // __FINESSE_FINCOMM_H__

@@ -19,16 +19,13 @@ int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, uuid_t
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    message = FinesseGetRequestBuffer(fsmr);
+    message = FinesseGetRequestBuffer(fsmr, FINESSE_FUSE_MESSAGE, FINESSE_FUSE_REQ_UNLINK);
     assert(NULL != message);
-    message->MessageType            = FINESSE_REQUEST;
-    fmsg                            = (finesse_msg *)message->Data;
-    fmsg->Version                   = FINESSE_MESSAGE_VERSION;
-    fmsg->MessageClass              = FINESSE_FUSE_MESSAGE;
-    fmsg->Result                    = ENOSYS;
-    fmsg->Message.Fuse.Request.Type = FINESSE_FUSE_REQ_UNLINK;
+
+    fmsg = (finesse_msg *)message->Data;
     memcpy(&fmsg->Message.Fuse.Request.Parameters.Unlink.Parent, Parent, sizeof(uuid_t));  // at least for now, we only support
     assert(NULL != NameToUnlink);
+
     nameLength = strlen(NameToUnlink);
     bufSize    = SHM_PAGE_SIZE - offsetof(finesse_msg, Message.Fuse.Request.Parameters.Unlink.Name);
     assert(nameLength < bufSize);
@@ -55,10 +52,9 @@ int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, void 
     assert(0 != Message);
     assert(FINESSE_REQUEST == Message->MessageType);
 
-    Message->Result      = Result;
-    Message->MessageType = FINESSE_RESPONSE;
-    ffm                  = (finesse_msg *)Message->Data;
-    memset(ffm, 0, sizeof(finesse_msg));  // not necessary for production
+    Message->Result                 = Result;
+    Message->MessageType            = FINESSE_RESPONSE;
+    ffm                             = (finesse_msg *)Message->Data;
     ffm->Version                    = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass               = FINESSE_FUSE_MESSAGE;
     ffm->Message.Fuse.Response.Type = FINESSE_FUSE_RSP_ERR;

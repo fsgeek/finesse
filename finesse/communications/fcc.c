@@ -175,7 +175,7 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
     return status;
 }
 
-// TODO: should th is be in fincomm.c?
+// TODO: should this be in fincomm.c?
 void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
 {
     unsigned  index = (unsigned)((((uintptr_t)Message - (uintptr_t)RequestRegion) / SHM_PAGE_SIZE) - 1);
@@ -193,6 +193,12 @@ void FinesseReleaseRequestBuffer(fincomm_shared_memory_region *RequestRegion, fi
     assert(bitmap != new_bitmap);  // freeing an unallocated message
 
     assert(&RequestRegion->Messages[index] == Message);
+
+    // Final timestamp
+    FincommCallStatCompleteRequest(Message);
+
+    // Record statistics
+    FincommRecordStats(Message);
 
     while (!__sync_bool_compare_and_swap(&RequestRegion->AllocationBitmap, bitmap, new_bitmap)) {
         bitmap     = RequestRegion->AllocationBitmap;

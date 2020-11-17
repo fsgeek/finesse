@@ -20,14 +20,9 @@ int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    message = FinesseGetRequestBuffer(fsmr);
+    message = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_MAP);
     assert(NULL != message);
-    message->MessageType                           = FINESSE_REQUEST;
-    fmsg                                           = (finesse_msg *)message->Data;
-    fmsg->Version                                  = FINESSE_MESSAGE_VERSION;
-    fmsg->MessageClass                             = FINESSE_NATIVE_MESSAGE;
-    fmsg->Result                                   = ENOSYS;
-    fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_MAP;
+    fmsg = (finesse_msg *)message->Data;
     assert(NULL != NameToMap);
 
     if (NULL == ParentDir) {
@@ -70,8 +65,7 @@ int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void
     Message->Result      = Result;
     Message->MessageType = FINESSE_RESPONSE;
 
-    ffm = (finesse_msg *)Message->Data;
-    memset(ffm, 0, sizeof(finesse_msg));  // not necessary for production
+    ffm                                                = (finesse_msg *)Message->Data;
     ffm->Version                                       = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass                                  = FINESSE_NATIVE_MESSAGE;
     ffm->Message.Native.Response.NativeResponseType    = FINESSE_NATIVE_RSP_MAP;
@@ -133,13 +127,10 @@ int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle
     assert(NULL != ccs);
     fsmr = (fincomm_shared_memory_region *)ccs->server_shm;
     assert(NULL != fsmr);
-    message = FinesseGetRequestBuffer(fsmr);
+    message = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_MAP_RELEASE);
     assert(NULL != message);
-    message->MessageType                           = FINESSE_REQUEST;
-    fmsg                                           = (finesse_msg *)message->Data;
-    fmsg->Version                                  = FINESSE_MESSAGE_VERSION;
-    fmsg->MessageClass                             = FINESSE_NATIVE_MESSAGE;
-    fmsg->Message.Native.Request.NativeRequestType = FINESSE_NATIVE_REQ_MAP_RELEASE;
+
+    fmsg = (finesse_msg *)message->Data;
     assert(NULL != MapKey);
     memcpy(&fmsg->Message.Native.Request.Parameters.MapRelease.Key, MapKey, sizeof(uuid_t));
 
@@ -168,8 +159,7 @@ int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandl
     Message->MessageType = FINESSE_RESPONSE;
     Message->Result      = Result;
 
-    ffm = (finesse_msg *)Message->Data;
-    memset(ffm, 0, sizeof(finesse_msg));  // not necessary for production
+    ffm                                                       = (finesse_msg *)Message->Data;
     ffm->Version                                              = FINESSE_MESSAGE_VERSION;
     ffm->MessageClass                                         = FINESSE_NATIVE_MESSAGE;
     ffm->Message.Native.Response.NativeResponseType           = FINESSE_NATIVE_RSP_MAP_RELEASE;

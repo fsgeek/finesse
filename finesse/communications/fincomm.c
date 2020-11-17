@@ -114,7 +114,8 @@ static u_int64_t get_request_number(u_int64_t *RequestNumber)
     return request_number;
 }
 
-fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion)
+fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestRegion, FINESSE_MESSAGE_CLASS MessageClass,
+                                        int MessageType)
 {
     unsigned  index;
     u_int64_t mask = 1;
@@ -160,7 +161,39 @@ fincomm_message FinesseGetRequestBuffer(fincomm_shared_memory_region *RequestReg
     // TODO: make this blocking?
     // In either case, index indicates the allocated message buffer.  Out of range = alloc failure
     // TODO: should I initialize this region?
-    return (index < SHM_MESSAGE_COUNT) ? (fincomm_message)&RequestRegion->Messages[index] : NULL;
+    if (index < SHM_MESSAGE_COUNT) {
+        // success path
+        fincomm_message message = (fincomm_message)&RequestRegion->Messages[index];
+        finesse_msg *   fmsg    = (finesse_msg *)message->Data;
+
+        message->MessageType = FINESSE_REQUEST;
+        message->Result      = ENOSYS;
+        fmsg->Version        = FINESSE_MESSAGE_VERSION;
+        fmsg->MessageClass   = MessageClass;
+
+        switch (fmsg->MessageClass) {
+            default:
+                // Invalid
+                assert(0);
+                break;
+            case FINESSE_FUSE_MESSAGE:
+                fmsg->Message.Fuse.Request.Type = (FINESSE_FUSE_REQ_TYPE)MessageType;
+                assert((fmsg->Message.Fuse.Request.Type >= FINESSE_FUSE_REQ_BASE_TYPE) &&
+                       (fmsg->Message.Fuse.Request.Type < FINESSE_FUSE_REQ_MAX));
+                break;
+            case FINESSE_NATIVE_MESSAGE:
+                fmsg->Message.Native.Request.NativeRequestType = (FINESSE_NATIVE_REQ_TYPE)MessageType;
+                assert((fmsg->Message.Native.Request.NativeRequestType >= FINESSE_NATIVE_REQ_BASE_TYPE) &&
+                       (fmsg->Message.Native.Request.NativeRequestType < FINESSE_NATIVE_REQ_MAX));
+                break;
+        }
+
+        FincommCallStatRequestStart(message);
+
+        return message;
+    }
+
+    return NULL;
 }
 
 u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, fincomm_message Message)
@@ -180,6 +213,8 @@ u_int64_t FinesseRequestReady(fincomm_shared_memory_region *RequestRegion, finco
     }
 
     request_id = Message->RequestId = get_request_number(&RequestRegion->RequestId);
+
+    FincommCallStatQueueRequest(Message);
 
     pthread_mutex_lock(&RequestRegion->RequestMutex);
     if (0 != (RequestRegion->RequestBitmap & make_mask64(index))) {
@@ -204,6 +239,8 @@ void FinesseResponseReady(fincomm_shared_memory_region *RequestRegion, fincomm_m
     (void)Response;  // not used
 
     CHECK_SHM_SIGNATURE(RequestRegion);
+
+    FincommCallStatQueueResponse(Message);
 
     pthread_mutex_lock(&RequestRegion->ResponseMutex);
     assert(0 == (RequestRegion->ResponseBitmap & make_mask64(index)));  // this should NOT be set
@@ -238,6 +275,7 @@ int FinesseGetResponse(fincomm_shared_memory_region *RequestRegion, fincomm_mess
         RequestRegion->ResponseBitmap &= ~make_mask64(index);  // clear the response pending bit
     }
     pthread_mutex_unlock(&RequestRegion->ResponseMutex);
+    FincommCallStatDequeueResponse(Message);
     return status;
 }
 
@@ -340,6 +378,7 @@ int FinesseGetReadyRequest(fincomm_shared_memory_region *RequestRegion, fincomm_
         assert(index < SHM_MESSAGE_COUNT);
         assert(0 != RequestRegion->Messages[index].RequestId);
         *message = &RequestRegion->Messages[index];
+        FincommCallStatDequeueRequest(*message);
     }
     else {
         assert(SHM_MESSAGE_COUNT == index);
