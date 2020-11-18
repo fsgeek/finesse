@@ -320,6 +320,40 @@ void FincommCallStatCompleteRequest(fincomm_message Message)
     assert(0 == status);
 }
 
+#if 1
+static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *Buffer, size_t *BufferSize, unsigned base)
+{
+    static const char *FormatString = "%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu\n";
+    int                retval;
+    unsigned long long sqdelay = Entry->SuccessTimings.RequestQueueDelay.tv_sec * (unsigned long long)1000000000 +
+                                 Entry->SuccessTimings.RequestQueueDelay.tv_nsec;
+    unsigned long long sproc = Entry->SuccessTimings.ResponseProcessingTime.tv_sec * (unsigned long long)1000000000 +
+                               Entry->SuccessTimings.ResponseProcessingTime.tv_nsec;
+    unsigned long long srspqdelay = Entry->SuccessTimings.ResponseQueueDelay.tv_sec * (unsigned long long)1000000000 +
+                                    Entry->SuccessTimings.ResponseQueueDelay.tv_nsec;
+    unsigned long long stotal = Entry->SuccessTimings.RequestTotalTime.tv_sec * (unsigned long long)1000000000 +
+                                Entry->SuccessTimings.RequestTotalTime.tv_nsec;
+
+    unsigned long long fqdelay = Entry->FailureTimings.RequestQueueDelay.tv_sec * (unsigned long long)1000000000 +
+                                 Entry->FailureTimings.RequestQueueDelay.tv_nsec;
+    unsigned long long fproc = Entry->FailureTimings.ResponseProcessingTime.tv_sec * (unsigned long long)1000000000 +
+                               Entry->FailureTimings.ResponseProcessingTime.tv_nsec;
+    unsigned long long frspqdelay = Entry->FailureTimings.ResponseQueueDelay.tv_sec * (unsigned long long)1000000000 +
+                                    Entry->FailureTimings.ResponseQueueDelay.tv_nsec;
+    unsigned long long ftotal = Entry->FailureTimings.RequestTotalTime.tv_sec * (unsigned long long)1000000000 +
+                                Entry->FailureTimings.RequestTotalTime.tv_nsec;
+
+    retval = snprintf(Buffer, *BufferSize, FormatString, base, Entry->Calls, Entry->Success, sqdelay, sproc, srspqdelay, stotal,
+                      Entry->Failure, fqdelay, fproc, frspqdelay, ftotal);
+
+    if (retval >= 0) {
+        *BufferSize = (size_t)retval;
+    }
+    else {
+        *BufferSize = 250;  // SWAG
+    }
+}
+#else
 static double TimespecToFloat(struct timespec *time)
 {
     double seconds = time->tv_nsec;
@@ -330,9 +364,9 @@ static double TimespecToFloat(struct timespec *time)
     return seconds;
 }
 
-static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *Buffer, size_t *BufferSize)
+static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *Buffer, size_t *BufferSize, unsigned base)
 {
-    static const char *FormatString = "%lu,%lu,%.2f,%.2f,%.2f,%.2f,%lu,%.2f,%.2f,%.2f,%.2f\n";
+    static const char *FormatString = "%u,%lu,%lu,%.9f,%.9f,%.9f,%.9f,%lu,%.9f,%.9f,%.9f,%.9f\n";
     int                retval;
     double             sqdelay    = TimespecToFloat(&Entry->SuccessTimings.RequestQueueDelay);
     double             sproc      = TimespecToFloat(&Entry->SuccessTimings.ResponseProcessingTime);
@@ -343,7 +377,7 @@ static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *B
     double             frspqdelay = TimespecToFloat(&Entry->FailureTimings.ResponseQueueDelay);
     double             ftotal     = TimespecToFloat(&Entry->FailureTimings.RequestTotalTime);
 
-    retval = snprintf(Buffer, *BufferSize, FormatString, Entry->Calls, Entry->Success, sqdelay, sproc, srspqdelay, stotal,
+    retval = snprintf(Buffer, *BufferSize, FormatString, base, Entry->Calls, Entry->Success, sqdelay, sproc, srspqdelay, stotal,
                       Entry->Failure, fqdelay, fproc, frspqdelay, ftotal);
 
     if (retval >= 0) {
@@ -353,19 +387,52 @@ static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *B
         *BufferSize = 250;  // SWAG
     }
 }
+#endif  // 1
 
-void FincommSaveStats(const char *Path)
+static const char *fincomm_stat_log_default       = "default";
+static const char *fincomm_stat_log_dir_default   = "tmp";
+static const char *fincomm_stat_log_env           = "FINESSE_COMM_STAT_LOG";
+static const char *fincomm_stat_log_dir_env       = "FINESSE_COMM_STAT_LOG_DIR";
+static const char *fincomm_stat_log_file_template = "/%s/finesse-commstats-%s-%s-%d.log";
+
+void FincommSaveStats(const char *Timestamp)
 {
     int                fd = -1;
     static const char *CsvHeaderString =
-        "Calls,Success,RequestQueueDelay,Processing,ResponseQueueDelay,TotalTime,Failure,RequestQueueDelay,Processing,"
-        "ResponseQueueDelay,TotalTime";
-    char   buffer[256];
-    size_t buffer_size;
+        "Operation,Calls,Success,RequestQueueDelay,Processing,ResponseQueueDelay,TotalTime,Failure,RequestQueueDelay,Processing,"
+        "ResponseQueueDelay,TotalTime\n";
+    char        buffer[256];
+    size_t      buffer_size;
+    char        local_timestamp[64];
+    const char *timestamp;
+    const char *log_name = getenv(fincomm_stat_log_env);
+    const char *log_dir  = getenv(fincomm_stat_log_dir_env);
+    char        fincomm_stat_log[256];
+    int         retval;
 
-    assert(NULL != Path);
+    if (NULL == Timestamp) {
+        timestamp = local_timestamp;
+        retval    = FinesseGenerateTimestamp(local_timestamp, sizeof(local_timestamp));
+        assert(0 == retval);
+    }
+    else {
+        timestamp = Timestamp;
+    }
 
-    fd = open(Path, O_CREAT | O_EXCL, 0644);
+    if ((NULL == log_name) || strlen(log_name) >= sizeof(fincomm_stat_log)) {
+        log_name = fincomm_stat_log_default;
+    }
+
+    if ((NULL == log_dir) || strlen(log_dir) >= sizeof(fincomm_stat_log)) {
+        log_dir = fincomm_stat_log_dir_default;
+    }
+
+    retval = snprintf(fincomm_stat_log, sizeof(fincomm_stat_log), fincomm_stat_log_file_template, log_dir, log_name, timestamp,
+                      getpid());
+
+    assert((size_t)retval < sizeof(fincomm_stat_log));
+
+    fd = open(fincomm_stat_log, O_CREAT | O_EXCL | O_RDWR, 0644);
 
     assert(fd >= 0);
 
@@ -374,22 +441,25 @@ void FincommSaveStats(const char *Path)
     }
 
     // Write the CSV header
-    write(fd, CsvHeaderString, strlen(CsvHeaderString));
+    retval = write(fd, CsvHeaderString, strlen(CsvHeaderString));
+    assert(retval >= 0);
 
     // First, write the FUSE data
     for (unsigned index = 0; index < FINESSE_FUSE_REQ_MAX - FINESSE_FUSE_REQ_LOOKUP; index++) {
         buffer_size = sizeof(buffer);
-        FincommFormatStatEntry(&fincomm_call_data.Fuse[index], buffer, &buffer_size);
+        FincommFormatStatEntry(&fincomm_call_data.Fuse[index], buffer, &buffer_size, index + FINESSE_FUSE_REQ_BASE_TYPE);
         assert(buffer_size < sizeof(buffer));
-        write(fd, buffer, strlen(buffer));
+        retval = write(fd, buffer, strlen(buffer));
+        assert(retval >= 0);
     }
 
     // Now, write the native data
     for (unsigned index = 0; index < FINESSE_NATIVE_REQ_MAX - FINESSE_NATIVE_REQ_TEST; index++) {
         buffer_size = sizeof(buffer);
-        FincommFormatStatEntry(&fincomm_call_data.Native[index], buffer, &buffer_size);
+        FincommFormatStatEntry(&fincomm_call_data.Native[index], buffer, &buffer_size, index + FINESSE_NATIVE_REQ_BASE_TYPE);
         assert(buffer_size < sizeof(buffer));
-        write(fd, buffer, strlen(buffer));
+        retval = write(fd, buffer, strlen(buffer));
+        assert(retval >= 0);
     }
 
     fsync(fd);

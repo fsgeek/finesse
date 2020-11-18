@@ -6,6 +6,7 @@
 #include <mntent.h>
 #include "api-internal.h"
 #include "callstats.h"
+#include "timestamp.h"
 
 // this is the list of prefixes that we care about
 // TODO: make this configuration or parameterizable
@@ -102,8 +103,6 @@ static void finesse_real_shutdown(void)
         int                            retval;
         char                           call_stat_log[256];
         char                           timestamp[64];
-        time_t                         now;
-        struct tm                      ts;
 
         // If the environment variable isn't set OR the name specified won't fit
         // we just use the default name
@@ -116,9 +115,8 @@ static void finesse_real_shutdown(void)
             log_dir = call_stat_log_dir_default;
         }
 
-        now = time(NULL);
-        localtime_r(&now, &ts);
-        asctime_r(&ts, timestamp);
+        retval = FinesseGenerateTimestamp(timestamp, sizeof(timestamp));
+        assert(0 == retval);  // success
 
         retval =
             snprintf(call_stat_log, sizeof(call_stat_log), call_stat_log_file_template, log_dir, log_name, timestamp, getpid());
@@ -131,7 +129,7 @@ static void finesse_real_shutdown(void)
         strcpy(call_stat_log, log_name);
 
         assert(NULL != log);
-        fprintf(log, "Finesse API Call Statistics: (pid=%d)\n%s\n", getpid(), calldata);
+        fprintf(log, "%s\n", calldata);
         fclose(log);
         FinesseApiFreeFormattedCallData(calldata);
         FinesseApiReleaseCallStatistics(callstats);

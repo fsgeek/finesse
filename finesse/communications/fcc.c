@@ -171,6 +171,7 @@ int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle)
     assert(NULL != ccs);
 
     CleanupClientConnectionState(ccs);
+    FincommSaveStats(NULL);
 
     return status;
 }

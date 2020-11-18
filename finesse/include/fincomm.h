@@ -31,6 +31,7 @@
 #define FUSE_USE_VERSION FUSE_VERSION
 #endif
 #include <fuse_lowlevel.h>
+#include "timestamp.h"
 
 #define FINESSE_SERVICE_PREFIX "/tmp/finesse"
 
@@ -823,6 +824,6 @@ void FincommCallStatDequeueRequest(fincomm_message Message);
 void FincommCallStatQueueResponse(fincomm_message Message);
 void FincommCallStatDequeueResponse(fincomm_message Message);
 void FincommCallStatCompleteRequest(fincomm_message Message);
-void FincommSaveStats(const char *Path);
+void FincommSaveStats(const char *Timestamp);
 
 #endif  // __FINESSE_FINCOMM_H__
