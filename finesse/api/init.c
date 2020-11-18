@@ -36,31 +36,17 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void finesse_setup_server_connections(void);
 
-static char        call_stat_log[256];
-static const char *call_stat_log_default = "/tmp/finesse-callstats.log";
-static const char *call_stat_log_env     = "FINESSE_CALL_STAT_LOG";
+static const char *call_stat_log_default       = "default";
+static const char *call_stat_log_dir_default   = "tmp";
+static const char *call_stat_log_env           = "FINESSE_CALL_STAT_LOG";
+static const char *call_stat_log_dir_env       = "FINESSE_CALL_STAT_LOG_DIR";
+static const char *call_stat_log_file_template = "/%s/finesse-callstats-%s-%s-%d.log";  // dir, name, timestamp, pid
 
 static void finesse_real_init(void)
 {
     pthread_mutex_lock(&lock);
 
     while (finesse_init == finesse_real_init) {
-        const char *log_name = getenv(call_stat_log_env);
-
-        // If the environment variable isn't set OR the name specified won't fit
-        // we just use the default name
-        if ((NULL == log_name) || strlen(log_name) >= sizeof(call_stat_log)) {
-            log_name = call_stat_log_default;
-        }
-
-        assert(strlen(log_name) < sizeof(call_stat_log));
-        strcpy(call_stat_log, log_name);
-
-        // A bit of debug code
-        FILE *log = fopen(call_stat_log, "wt+");
-        fprintf(log, "finesse_real_init called");
-        fclose(log);
-
         // Initialization logic goes here
         (void)finesse_init_file_state_mgr();
 
@@ -108,9 +94,41 @@ static void finesse_real_shutdown(void)
     if (save_call_stats) {
         // Dump the call statistics
 
-        FILE *                         log       = fopen(call_stat_log, "wt+");
+        FILE *                         log       = NULL;
         finesse_api_call_statistics_t *callstats = FinesseApiGetCallStatistics();
         const char *                   calldata  = FinesseApiFormatCallData(callstats, 0);
+        const char *                   log_name  = getenv(call_stat_log_env);
+        const char *                   log_dir   = getenv(call_stat_log_dir_env);
+        int                            retval;
+        char                           call_stat_log[256];
+        char                           timestamp[64];
+        time_t                         now;
+        struct tm                      ts;
+
+        // If the environment variable isn't set OR the name specified won't fit
+        // we just use the default name
+        if ((NULL == log_name) || strlen(log_name) >= sizeof(call_stat_log)) {
+            log_name = call_stat_log_default;
+        }
+
+        // Same thing for the directory
+        if ((NULL == log_dir) || strlen(log_dir) >= sizeof(call_stat_log)) {
+            log_dir = call_stat_log_dir_default;
+        }
+
+        now = time(NULL);
+        localtime_r(&now, &ts);
+        asctime_r(&ts, timestamp);
+
+        retval =
+            snprintf(call_stat_log, sizeof(call_stat_log), call_stat_log_file_template, log_dir, log_name, timestamp, getpid());
+
+        assert(retval < sizeof(call_stat_log));
+
+        log = fopen(call_stat_log, "wt+");
+
+        assert(strlen(log_name) < sizeof(call_stat_log));
+        strcpy(call_stat_log, log_name);
 
         assert(NULL != log);
         fprintf(log, "Finesse API Call Statistics: (pid=%d)\n%s\n", getpid(), calldata);
