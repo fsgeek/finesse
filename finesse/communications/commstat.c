@@ -224,15 +224,6 @@ void FincommRecordStats(fincomm_message Response)
     pthread_mutex_unlock(&callstats->Lock);
 }
 
-#if 0
-struct timespec RequestStartTime;
-struct timespec RequestQueueTime;
-struct timespec RequestDequeueTime;
-struct timespec ResponseQueueTime;
-struct timespec ResponseReceiptTime;
-struct timespec RequestCompletionTime;
-#endif  // 0
-
 void FincommCallStatRequestStart(fincomm_message Message)
 {
     finesse_msg *                message = (finesse_msg *)Message->Data;
@@ -327,4 +318,80 @@ void FincommCallStatCompleteRequest(fincomm_message Message)
 
     status = clock_gettime(CLOCK_MONOTONIC_RAW, &message->Stats.RequestCompletionTime);
     assert(0 == status);
+}
+
+static double TimespecToFloat(struct timespec *time)
+{
+    double seconds = time->tv_nsec;
+
+    seconds /= (double)(1000000000);
+    seconds += (double)time->tv_sec;
+
+    return seconds;
+}
+
+static void FincommFormatStatEntry(fincomm_api_call_statistics_t *Entry, char *Buffer, size_t *BufferSize)
+{
+    static const char *FormatString = "%lu,%lu,%.2f,%.2f,%.2f,%.2f,%lu,%.2f,%.2f,%.2f,%.2f\n";
+    int                retval;
+    double             sqdelay    = TimespecToFloat(&Entry->SuccessTimings.RequestQueueDelay);
+    double             sproc      = TimespecToFloat(&Entry->SuccessTimings.ResponseProcessingTime);
+    double             srspqdelay = TimespecToFloat(&Entry->SuccessTimings.ResponseQueueDelay);
+    double             stotal     = TimespecToFloat(&Entry->SuccessTimings.RequestTotalTime);
+    double             fqdelay    = TimespecToFloat(&Entry->FailureTimings.RequestQueueDelay);
+    double             fproc      = TimespecToFloat(&Entry->FailureTimings.ResponseProcessingTime);
+    double             frspqdelay = TimespecToFloat(&Entry->FailureTimings.ResponseQueueDelay);
+    double             ftotal     = TimespecToFloat(&Entry->FailureTimings.RequestTotalTime);
+
+    retval = snprintf(Buffer, *BufferSize, FormatString, Entry->Calls, Entry->Success, sqdelay, sproc, srspqdelay, stotal,
+                      Entry->Failure, fqdelay, fproc, frspqdelay, ftotal);
+
+    if (retval >= 0) {
+        *BufferSize = (size_t)retval;
+    }
+    else {
+        *BufferSize = 250;  // SWAG
+    }
+}
+
+void FincommSaveStats(const char *Path)
+{
+    int                fd = -1;
+    static const char *CsvHeaderString =
+        "Calls,Success,RequestQueueDelay,Processing,ResponseQueueDelay,TotalTime,Failure,RequestQueueDelay,Processing,"
+        "ResponseQueueDelay,TotalTime";
+    char   buffer[256];
+    size_t buffer_size;
+
+    assert(NULL != Path);
+
+    fd = open(Path, O_CREAT | O_EXCL, 0644);
+
+    assert(fd >= 0);
+
+    if (fd < 0) {
+        return;
+    }
+
+    // Write the CSV header
+    write(fd, CsvHeaderString, strlen(CsvHeaderString));
+
+    // First, write the FUSE data
+    for (unsigned index = 0; index < FINESSE_FUSE_REQ_MAX - FINESSE_FUSE_REQ_LOOKUP; index++) {
+        buffer_size = sizeof(buffer);
+        FincommFormatStatEntry(&fincomm_call_data.Fuse[index], buffer, &buffer_size);
+        assert(buffer_size < sizeof(buffer));
+        write(fd, buffer, strlen(buffer));
+    }
+
+    // Now, write the native data
+    for (unsigned index = 0; index < FINESSE_NATIVE_REQ_MAX - FINESSE_NATIVE_REQ_TEST; index++) {
+        buffer_size = sizeof(buffer);
+        FincommFormatStatEntry(&fincomm_call_data.Native[index], buffer, &buffer_size);
+        assert(buffer_size < sizeof(buffer));
+        write(fd, buffer, strlen(buffer));
+    }
+
+    fsync(fd);
+    close(fd);
 }

@@ -823,5 +823,6 @@ void FincommCallStatDequeueRequest(fincomm_message Message);
 void FincommCallStatQueueResponse(fincomm_message Message);
 void FincommCallStatDequeueResponse(fincomm_message Message);
 void FincommCallStatCompleteRequest(fincomm_message Message);
+void FincommSaveStats(const char *Path);
 
 #endif  // __FINESSE_FINCOMM_H__
