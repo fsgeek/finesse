@@ -4,7 +4,7 @@
 
 #if !defined(_GNU_SOURCE)
 #define _GNU_SOURCE
-#endif // _GNU_SOURCE
+#endif  // _GNU_SOURCE
 
 #define _FCNTL_H 1
 

@@ -664,6 +664,7 @@ typedef struct {
     union {
         struct {
             uuid_t Parent;  // if NULL , Name is absolute
+            int    Flags;
             char   Name[1];
         } Map;
 

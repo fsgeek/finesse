@@ -13,6 +13,7 @@ static int Unlink(struct fuse_session *se, void *Client, fincomm_message Message
     struct finesse_req *     finesse_request = NULL;
     struct fuse_out_header * out             = NULL;
     fuse_ino_t               parent_ino      = FUSE_ROOT_ID;
+    int                      flags           = 0;
 
     assert(NULL != se);
     assert(NULL != Message);
@@ -31,7 +32,7 @@ static int Unlink(struct fuse_session *se, void *Client, fincomm_message Message
         assert(uuid_is_null(fmsg->Message.Fuse.Request.Parameters.Unlink.Parent) || (0 == parent_ino));
 
         status = FinesseServerInternalMapRequest(se, parent_ino, &fmsg->Message.Fuse.Request.Parameters.Unlink.Parent,
-                                                 fmsg->Message.Fuse.Request.Parameters.Unlink.Name, 0, &finobj);
+                                                 fmsg->Message.Fuse.Request.Parameters.Unlink.Name, flags, &finobj);
 
         if (0 != status) {
             // Something went wrong

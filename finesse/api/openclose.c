@@ -3,6 +3,10 @@
  * All Rights Reserved
  */
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #include "api-internal.h"
 #include "callstats.h"
 
@@ -115,6 +119,7 @@ static int internal_open(const char *pathname, int flags, mode_t mode)
 
         // TODO: if the create is successful, we should name map it here and add it to our tracking
         // database.
+        fprintf(stderr, "%s: open(%s) with O_CREAT (skipped)\n", __func__, pathname);
 
         return status;
     }
@@ -143,7 +148,7 @@ static int internal_open(const char *pathname, int flags, mode_t mode)
     // Ask the Finesse server
     //
     memset(&uuid, 0, sizeof(uuid));
-    status = FinesseSendNameMapRequest(client_handle, &uuid, (char *)(uintptr_t)pathname, &message);
+    status = FinesseSendNameMapRequest(client_handle, &uuid, (char *)(uintptr_t)pathname, flags, &message);
 
     if (0 != status) {
         // fallback
@@ -184,7 +189,7 @@ static int internal_open(const char *pathname, int flags, mode_t mode)
     // open succeeded AND lookup succeeded - insert into the lookup table
     // Note that if this failed (file_state is null) we don't care - that
     // just turns this into a fallback case.
-    ffs = finesse_create_file_state(fd, client_handle, &uuid, pathname);
+    ffs = finesse_create_file_state(fd, client_handle, &uuid, pathname, flags);
     assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return finesse_fd_to_nfd(fd);
@@ -199,6 +204,12 @@ int finesse_open(const char *pathname, int flags, ...)
     va_start(args, flags);
     mode = va_arg(args, int);
     va_end(args);
+
+    // During initialization, we have to pass this through - we cannot
+    // handle it.
+    if (finesse_api_init_in_progress) {
+        return fin_open(pathname, flags, mode);
+    }
 
     result = internal_open(pathname, flags, mode);
 
@@ -226,30 +237,38 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
     size_t                cwd_length = PATH_MAX;
     char *                cwdbuf     = NULL;
     DECLARE_TIME(FINESSE_API_CALL_OPENAT);
-    static int handled_flags = O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_TRUNC;
+    static int handled_flags =
+        O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_NOCTTY | O_NONBLOCK | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC;
 
     while (1) {
-        /*
-        flags:
-            O_RDONLY	   open	for reading only
-            O_WRONLY	   open	for writing only
-            O_RDWR	       open	for reading and	writing
-            O_EXEC	       open	for execute only
-            O_NONBLOCK	   do not block	on open
-            O_APPEND	   append on each write
-            O_CREAT	       create file if it does not exist
-            O_TRUNC	       truncate size to 0
-            O_EXCL	       error if create and file exists
-            O_SHLOCK	   atomically obtain a shared lock
-            O_EXLOCK	   atomically obtain an	exclusive lock
-            O_DIRECT	   eliminate or	reduce cache effects
-            O_FSYNC	       synchronous writes
-            O_SYNC	       synchronous writes
-            O_NOFOLLOW	   do not follow symlinks
-            O_DIRECTORY	   error if file is not	a directory
-            O_CLOEXEC	   set FD_CLOEXEC upon open
-            O_VERIFY	   verify the contents of the file
-        */
+        // flags = 2604400
+        //      0400 = O_NOCTTY     - do not make this the controlling TTY
+        //     04000 = O_NONBLOCK   - non-blocking open (and fd)
+        //   0200000 = O_DIRECTORY  - must be a directory (should be used by opendir)
+        //   0400000 = O_NOFOLLOW   - do not follow symbolic links
+        //  02000000 = O_CLOEXEC    - close this handle on an exec (not inherited)
+        //
+        // List of flags:
+        //        01 - O_WRONLY
+        //        02 - O_RDWR  (oddly 00 is O_RDONLY)
+        //      0100 - O_CREAT
+        //      0200 - O_EXCL
+        //      0400 = O_NOCTTY     - do not make this the controlling TTY
+        //     01000 - O_TRUNC
+        //     02000 - O_APPEND
+        //     04000 = O_NONBLOCK   - non-blocking open (and fd)
+        //    010000 - O_DSYNC
+        //    020000 - O_ASYNC
+        //    040000 - O_DIRECT
+        //   0100000 - O_LARGEFILE
+        //   0200000 = O_DIRECTORY  - must be a directory (should be used by opendir)
+        //   0400000 = O_NOFOLLOW   - do not follow symbolic links
+        //  01000000 - O_NOATIME
+        //  02000000 = O_CLOEXEC    - close this handle on an exec (not inherited)
+        //  04010000 - O_SYNC
+        // 010000000 - O_PATH
+        // 020200000 - O_TMPFILE
+        //
 
         // Flags we don't handle at this point can just be shunted to the
         // fallback path.
@@ -259,6 +278,8 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
             fd = fin_openat(dirfd, pathname, flags, mode);
 
             STOP_NATIVE_TIME;
+
+            fprintf(stderr, "%s: openat(%s) skipped due to flags %d\n", __func__, pathname, flags);
 
             break;
         }
@@ -310,6 +331,8 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
         // otherwise, this is a file descriptor, so let's go see if it is one we are tracking.
         ffs = finesse_lookup_file_state(finesse_nfd_to_fd(dirfd));
 
+        fprintf(stderr, "%s: openat(%s in %d) lookup 0x%p\n", __func__, pathname, dirfd, (void *)ffs);
+
         STOP_FINESSE_TIME
 
         if (NULL == ffs) {
@@ -325,7 +348,7 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
         START_TIME
 
         // We DO care about this one
-        status = FinesseSendNameMapRequest(ffs->client, &ffs->key, pathname, &message);
+        status = FinesseSendNameMapRequest(ffs->client, &ffs->key, pathname, flags, &message);
         assert(0 == status);
 
         STOP_FINESSE_TIME
@@ -351,7 +374,7 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
         assert(fd >= 0);  // otherwise, the Finesse call WORKED and the kernel call failed - TODO
 
         // TODO: track full path name, not just the relative one
-        finesse_file_state_t *ffs2 = finesse_create_file_state(fd, ffs->client, &uuid, pathname);
+        finesse_file_state_t *ffs2 = finesse_create_file_state(fd, ffs->client, &uuid, pathname, flags);
         assert(NULL != ffs2);
 
         // Done
@@ -388,6 +411,12 @@ int finesse_close(int fd)
     finesse_file_state_t *file_state = NULL;
     int                   status     = 0;
 
+    // During initialization, we cannot handle this call,
+    // we have to pass it through.
+    if (finesse_api_init_in_progress) {
+        return fin_close(fd);
+    }
+
     status = fin_close(finesse_nfd_to_fd(fd));
 
     if (0 != status) {
@@ -402,6 +431,59 @@ int finesse_close(int fd)
     }
 
     return 0;
+}
+
+static int fopen_mode_to_flags(const char *mode)
+{
+    int flags = -1;
+
+    // first character is the primary mode
+    switch (*mode) {
+        case 'r':
+            flags = O_RDONLY;
+            break;
+        case 'w':
+            flags = O_WRONLY;
+            break;
+        case 'a':
+            flags = O_WRONLY | O_CREAT | O_APPEND;
+            break;
+        default:
+            errno = EINVAL;
+            return flags;
+    }
+
+    for (unsigned index = 0; index < 7; index++) {  // 7 is a magic value from glibc
+        if ('\0' == *(mode + index)) {
+            break;  // NULL terminated
+        }
+        switch (*(mode + index)) {
+            default:  // ignore
+                continue;
+                break;
+            case '+':
+                flags |= O_RDWR;
+                break;
+            case 'x':
+                flags |= O_EXCL;
+                break;
+            case 'b':
+            case 't':
+                // no-op on UNIX/Linux
+                break;
+            case 'm':
+                // memory mapped - doesn't matter
+                break;
+            case 'c':
+                // internal to libc
+                break;
+            case 'e':
+                flags |= O_CLOEXEC;
+                break;
+        }
+    }
+
+    return flags;
 }
 
 static FILE *fin_fopen(const char *pathname, const char *mode)
@@ -484,6 +566,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
     fincomm_message         message               = NULL;
     finesse_client_handle_t finesse_client_handle = NULL;
     finesse_file_state_t *  ffs                   = NULL;
+    int                     flags;
 
     finesse_client_handle = finesse_check_prefix(pathname);
 
@@ -492,11 +575,14 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
         return fin_fopen(pathname, mode);
     }
 
+    flags = fopen_mode_to_flags(mode);
+    assert(-1 != flags);  // otherwise, it's an error
+
     //
     // Ask the other side
     //
     memset(&uuid, 0, sizeof(uuid));
-    status = FinesseSendNameMapRequest(finesse_client_handle, &uuid, (char *)(uintptr_t)pathname, &message);
+    status = FinesseSendNameMapRequest(finesse_client_handle, &uuid, (char *)(uintptr_t)pathname, flags, &message);
 
     if (0 != status) {
         // fallback
@@ -536,7 +622,7 @@ FILE *finesse_fopen(const char *pathname, const char *mode)
 
     // Open + lookup both worked, so we need to track the file descriptor
     // to uuid mapping.
-    ffs = finesse_create_file_state(fileno(file), finesse_client_handle, &uuid, pathname);
+    ffs = finesse_create_file_state(fileno(file), finesse_client_handle, &uuid, pathname, flags);
     assert(NULL != ffs);  // if it failed, we'd need to release the name map
 
     return fin_fopen(pathname, mode);
@@ -558,6 +644,7 @@ static FILE *internal_freopen(const char *pathname, const char *mode, FILE *stre
     uuid_t                  uuid;
     finesse_client_handle_t client_handle = NULL;
     int                     fd            = -1;
+    int                     flags         = 0;
 
     tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
     assert(0 == tstatus);
@@ -604,6 +691,9 @@ static FILE *internal_freopen(const char *pathname, const char *mode, FILE *stre
     tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &start);
     assert(0 == tstatus);
 
+    // save the original flags
+    flags = ffs->flags;
+
     // we have to tear this down
     finesse_delete_file_state(ffs);
     ffs = NULL;
@@ -615,7 +705,7 @@ static FILE *internal_freopen(const char *pathname, const char *mode, FILE *stre
     if (NULL != client_handle) {
         // Now start the name map
         memset(&uuid, 0, sizeof(uuid));
-        status = FinesseSendNameMapRequest(client_handle, &uuid, pathname, &message);
+        status = FinesseSendNameMapRequest(client_handle, &uuid, pathname, flags, &message);
     }
 
     tstatus = clock_gettime(CLOCK_MONOTONIC_RAW, &stop);
@@ -664,7 +754,7 @@ static FILE *internal_freopen(const char *pathname, const char *mode, FILE *stre
 
     if (0 == status) {
         // create state for this file
-        ffs = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname);
+        ffs = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname, flags);
         assert(NULL != ffs);  // if it failed, we'd need to release the name map
     }
 
@@ -675,78 +765,6 @@ static FILE *internal_freopen(const char *pathname, const char *mode, FILE *stre
 
     return file;
 }
-
-#if 0
-    // TODO: this is going to change the file descriptor; I'm not sure we are going to see the
-    // close call here, or if it will bypass us.  So, that needs to be determined.
-    // (1) keep track of the existing fd;
-    // (2) send the new name request (if appropriate)
-    // (3) Match up the results with the tracking table.
-    //
-    // Keep in mind that we have four cases here:
-    //   old finesse name  -> new finesse name
-    //   old finesse name  -> new non-finesse name
-    //   old non-finesse name -> new finesse name
-    //   old non-finesse name -> new non-finesse name
-    //
-    // We care about all but the last of those cases
-    FILE *                  file   = NULL;
-    int                     status = 0;
-    uuid_t                  uuid;
-    fincomm_message         message       = NULL;
-    finesse_file_state_t *  ffs           = NULL;
-    finesse_client_handle_t client_handle = NULL;
-    int                     fd            = -1;
-
-    // Need the fd, since this is an implicit close of the underlying file.
-    fd = fileno(stream);
-
-    // Get the existing state
-    ffs = finesse_lookup_file_state(finesse_nfd_to_fd(fd));
-
-    if (NULL == ffs) {
-        // pass-through
-        return fin_freopen(pathname, mode, stream);
-    }
-
-    // we have to tear this down
-    finesse_delete_file_state(ffs);
-    ffs = NULL;
-
-    // Let's get the client handle for the new name
-    client_handle = finesse_check_prefix(pathname);
-
-    if (NULL != client_handle) {
-        // Now start the name map
-        memset(&uuid, 0, sizeof(uuid));
-        status = FinesseSendNameMapRequest(client_handle, &uuid, pathname, &message);
-    }
-
-    // invoke the underlying library implementation
-    file = fin_freopen(pathname, mode, stream);
-
-    if ((NULL == client_handle) || (0 != status)) {
-        return file;  // not of interest to us
-    }
-
-    // Name map request returned, so get the response.
-    status = FinesseGetNameMapResponse(client_handle, message, &uuid);
-    (void)FinesseFreeNameMapResponse(client_handle, message);
-
-    if (0 != status) {
-        // Name map failed
-        return file;
-    }
-
-    assert(NULL != file);  // in this case we need to do the name map release
-
-    // create state for this file
-    ffs = finesse_create_file_state(fileno(file), client_handle, &uuid, pathname);
-    assert(NULL != ffs);  // if it failed, we'd need to release the name map
-
-    return fin_freopen(pathname, mode, stream);
-}
-#endif  // 0
 
 FILE *finesse_freopen(const char *pathname, const char *mode, FILE *stream)
 {

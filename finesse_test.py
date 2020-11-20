@@ -83,12 +83,17 @@ class Filebench:
         self.find_scripts()
         self.debug = False
         self.callstat_log = None
+        self.data_dir = "tmp"
+        self.run_label = "nolabel"
         # Log creation is deferred
 
     def set_debug(self, debug=False):
         oldval = self.debug
         self.debug = debug
         return oldval
+
+    def set_label(self, label):
+        self.run_label = label
 
     def find_scripts(self):
         # only scripts with the 'run' keyword in them are top level; others are
@@ -150,6 +155,14 @@ class Filebench:
 
     def set_test_dir(self, test_dir):
         self.test_dir = test_dir
+
+    def set_data_dir(self, data_dir):
+        if '~' in data_dir:
+            data_dir = os.path.expanduser(data_dir)
+        if data_dir[0] == '/':
+            self.data_dir = data_dir[1:]
+        else:
+            self.data_dir = data_dir
 
     def set_savetemp(self, save=False):
         self.savetemp = save
@@ -273,6 +286,11 @@ class Filebench:
         if self.callstat_log != None:
             preload['FINESSE_CALL_STAT_LOG'] = self.callstat_log
             print('Setting FINESSE_CALL_STAT_LOG to {}'.format(self.callstat_log))
+        if self.run_label != None:
+            preload['FINESSE_COMM_STAT_LOG'] = self.run_label
+        if self.data_dir != None:
+            preload['FINESSE_COMM_STAT_LOG_DIR'] = self.data_dir
+            preload['FINESSE_CALL_STAT_LOG_DIR'] = self.data_dir
         return preload
 
     def generate_script(self, timestamp, label):
@@ -379,6 +397,8 @@ class Bitbucket:
             self.timestamp, self.bblog_level)
         self.bb_log_dir = '.'
         self.log = sys.stdout
+        self.run_label = 'nolabel'
+        self.data_dir = 'tmp'
         self.cache_file = self.__default_cache_file__
         if '~' in self.cache_file:
             self.cache_file = os.path.expanduser(
@@ -388,12 +408,15 @@ class Bitbucket:
         '''Set the location of the bitbucket file system binary to use'''
         self.bbfs = bbfs
 
+    def set_label(self, label):
+        self.run_label = label
+
     def get_program_args(self):
         assert hasattr(
             self, 'bbfs'), 'Must set the correct binary before invoking'
         args = [self.bbfs, self.mountpoint_name] + self.mount_options
         if self.bb_log != None:
-            args.append('--logfile={}/{}'.format(self.bb_log_dir, self.bb_log))
+            args.append('--logfile={}'.format(self.bb_log))
             args.append('--loglevel={}'.format(self.bblog_level))
         return args
 
@@ -404,6 +427,14 @@ class Bitbucket:
     def set_log(self, log):
         '''This sets the current log file to use for this script'''
         self.log = log
+
+    def set_data_dir(self, data_dir):
+        if '~' in data_dir:
+            data_dir = os.path.expanduser(data_dir)
+        if data_dir[0] == '/':
+            self.data_dir = data_dir[1:]
+        else:
+            self.data_dir = data_dir
 
     def get_bblog(self):
         '''This returns the name of the current log file being used by bitbucket'''
@@ -549,6 +580,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
         print('Starting test {}'.format(test))
         logfile = '{}/finesse_test#{}#results#{}.log'.format(
             data_dir, test, timestamp)
+        run_label = '{}__{}__{}'.format(test, os.getpid(), timestamp)
         with open(logfile, 'wt+') as fd:
             # (0) Write preamble information
             fd.write('Finesse Test Data Collection Run: {}\n'.format(timestamp))
@@ -559,6 +591,8 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
             fd.write('\nRun: Test {} on native file system\n'.format(test))
             fd.flush()
             fb.set_log(fd)
+            fb.set_data_dir(data_dir)
+            fb.set_label(run_label)
             if run_local:
                 # (1) Run on native file system
                 if trial:
@@ -572,6 +606,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
                     bitbucket.get_program()))
                 fd.flush()
                 bitbucket.set_log(fd)
+                bitbucket.set_label(run_label)
                 bitbucket.set_bblog(
                     '{}/bblog#{}#data#{}.log'.format(data_dir, test, timestamp))
                 bitbucket.mount()
@@ -589,8 +624,10 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
             elif run_bb_preload:
                 # (3) Run on Bitbucket with LD_PRELOAD (finesse) library
                 preload_fb.set_log(fd)
-                preload_fb.set_callstat_log(
-                    '{}/bblog-preload#{}#call-stat#{}.log'.format(data_dir, test, timestamp))
+                preload_fb.set_label(run_label)
+                preload_fb.set_callstat_log(run_label)
+                preload_fb.set_data_dir(data_dir)
+                bitbucket.set_label(run_label)
                 bitbucket.set_bblog(
                     '{}/bblog-preload#{}#data#{}.log'.format(data_dir, test, timestamp))
                 bitbucket.mount()
@@ -611,7 +648,7 @@ def run(build_dir, data_dir, tests, bitbucket, fb, trial, run_local=True, run_bb
 
             # Postamble
             fd.write('Completed run {} at time {}'.format(
-                timestamp, time.strftime('%Y%m%d-%H%M%S')))
+                run_label, time.strftime('%Y%m%d-%H%M%S')))
 
             # Cleanup
             while bitbucket.is_mounted():
@@ -637,7 +674,7 @@ def main():
     parser.add_argument('--build_dir', dest='build_dir',
                         default=default_build_dir, choices=build_dirs, help='Which build to use')
     parser.add_argument('--datadir', dest='data_dir',
-                        default='data', help='Where to store the results')
+                        default='~/projects/finesse/data', help='Where to store the results')
     parser.add_argument('--mountpoint', dest='mountpoint',
                         default='/mnt/bitbucket', help='name of mount point to use')
     parser.add_argument('--runs', dest='runs', default=1,
@@ -667,6 +704,10 @@ def main():
         type(args.test))
     if len(args.test) == 1 and 'all' == args.test[0]:
         args.test = fb.find_scripts()
+
+    # rationalize the data_dir
+    if '~' in args.data_dir:
+        args.data_dir = os.path.expanduser(args.data_dir)
 
     # Invoke the run logic, potentially repeating it multiple times.
     count = 0

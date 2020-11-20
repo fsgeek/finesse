@@ -401,7 +401,7 @@ void FincommSaveStats(const char *Timestamp)
     static const char *CsvHeaderString =
         "Operation,Calls,Success,RequestQueueDelay,Processing,ResponseQueueDelay,TotalTime,Failure,RequestQueueDelay,Processing,"
         "ResponseQueueDelay,TotalTime\n";
-    char        buffer[256];
+    char        buffer[1024];
     size_t      buffer_size;
     char        local_timestamp[64];
     const char *timestamp;

@@ -5,9 +5,17 @@
 //
 //
 
-#include "callstats.h"
+#include <fcntl.h>
 #include <malloc.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "callstats.h"
+#include "timestamp.h"
 
 static finesse_api_call_statistics_t FinesseApiCallStatistics[FINESSE_API_CALLS_COUNT];
 

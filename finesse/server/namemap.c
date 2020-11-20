@@ -100,7 +100,41 @@ static int FinsesseServerInternalPathMapRequest(struct fuse_session *se, ino_t P
     // don't call this with the mount point!
     assert(mp_length < strlen(Name) || 0 != memcmp(Name, se->mountpoint, mp_length));
 
-    assert(0 == Flags);  // none supported at the moment
+    // TODO: support flags
+    // which flags matter?
+    //
+    // Docs divide flags into "file creation flags" and "file status flags".  We don't
+    // seem to care about status flags, though ultimately, it is the file system that
+    // has to enforce these things.  For now, at least, we're implementing an augmentation
+    // bypass - the file handle still goes through the main kernel path, so things like
+    // verifying access are done server side anyway.  If we moved to a full bypass
+    // model, we'd need to deconstruct and enforce these on the server.  For example, O_RDWR
+    // wouldn't be granted for a file where the file doesn't grant read
+    //
+    // The creation flags:
+    //
+    // O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_NOCTTY, O_NOFOLLOW, O_TMPFILE, and O_TRUNC
+    //
+    // O_CREAT and O_TMPFILE are related; the latter seems to impart a "hint" about the
+    // purpose of the create operation.  In this case, the file MAY be created (O_EXCL) if
+    // it does not exist.
+    //
+    // O_DIRECTORY means that what we are trying to open must be a directory; so we can handle
+    // that case on the end, when we look at its attributes.
+    //
+    // O_EXCL is about the file handle; we don't care about that one.
+    //
+    // O_NOCTTY really does seem to be something we care about on the client, not the server.
+    //
+    // O_NOFOLLOw IS something we want to handle, since it affects the way we process symlinks; do we want to do that
+    // server side, or client side?
+    //
+    // O_TRUNC relates to existing files; we could handle that server side.
+    //
+    // Some of the challenge here will be in communicating the nuances of the server side actions.
+    //
+
+    // assert(0 == Flags);  // none supported at the moment
 
     if (0 == ParentInode) {
         ParentInode = FUSE_ROOT_ID;
@@ -199,7 +233,8 @@ static int FinesseServerInternalNameMapRequest(struct fuse_session *se, ino_t Pa
     struct statx     statxbuf;
     int              created_finobj = 0;
 
-    assert(0 == Flags);  // don't handle these yet
+    // assert(0 == Flags);  // don't handle these yet
+    (void)Flags;  // TODO: decide if we need to process the flags.
 
     if ((0 != ParentInode) && !uuid_is_null(*ParentUuid)) {
         finesse_object_t *parent_fin_obj = NULL;
@@ -332,7 +367,8 @@ int FinesseServerNativeMapRequest(struct fuse_session *se, void *Client, fincomm
 
     // We need to do a lookup here
     status = FinesseServerInternalMapRequest(se, 0, &fmsg->Message.Native.Request.Parameters.Map.Parent,
-                                             fmsg->Message.Native.Request.Parameters.Map.Name, 0, &finobj);
+                                             fmsg->Message.Native.Request.Parameters.Map.Name,
+                                             fmsg->Message.Native.Request.Parameters.Map.Flags, &finobj);
 
     if (0 == status) {
         assert(NULL != finobj);  // that wouldn't make sense

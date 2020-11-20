@@ -22,6 +22,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
     char                     uuid_buffer[40];
     const char *             Name        = uuid_buffer;
     size_t                   name_length = 0;
+    int                      flags       = 0;  // TODO: may need to augment this
 
     assert(NULL != se);
     assert(NULL != Message);
@@ -77,7 +78,7 @@ static int Stat(struct fuse_session *se, void *Client, fincomm_message Message)
 
             // Resolve the various naming combinations, including a potential path walk.
             status = FinesseServerInternalMapRequest(se, parentino, &fmsg->Message.Fuse.Request.Parameters.Stat.ParentInode,
-                                                     fmsg->Message.Fuse.Request.Parameters.Stat.Name, 0, &finobj);
+                                                     fmsg->Message.Fuse.Request.Parameters.Stat.Name, flags, &finobj);
 
             if (0 != status) {
                 // probably not found... move on.

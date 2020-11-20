@@ -24,6 +24,7 @@ static void finesse_real_shutdown(void);
 
 void (*finesse_init)(void)     = finesse_real_init;
 void (*finesse_shutdown)(void) = finesse_dummy_shutdown;
+int finesse_api_init_in_progress;
 
 // TODO: this should be more flexible to supporting multiple mountpoints
 // static finesse_client_handle_t finesse_client_handle;
@@ -45,9 +46,14 @@ static const char *call_stat_log_file_template = "/%s/finesse-callstats-%s-%s-%d
 
 static void finesse_real_init(void)
 {
-    pthread_mutex_lock(&lock);
+    static int count = 0;
 
+    pthread_mutex_lock(&lock);
     while (finesse_init == finesse_real_init) {
+        count++;
+
+        finesse_api_init_in_progress = 1;
+
         // Initialization logic goes here
         (void)finesse_init_file_state_mgr();
 
@@ -60,6 +66,30 @@ static void finesse_real_init(void)
         // initialize connection to the finesse server
         // FinesseStartClientConnection(&finesse_client_handle);
         FinesseApiInitializeCallStatistics();
+
+#if 0
+        // This is some debug logic to see if I'm getting triggered.
+        char debug_log[256];
+        int  fd = -1;
+        int  result;
+        char timestamp[64];
+
+        result = FinesseGenerateTimestamp(timestamp, sizeof(timestamp));
+        assert(result < sizeof(timestamp));
+
+        result = snprintf(debug_log, sizeof(debug_log), "/tmp/finesse-%s-%s-%d.log", __func__, timestamp, getpid());
+
+        fd = open(debug_log, O_CREAT | O_EXCL | O_RDWR, 0600);
+
+        if (fd > 0) {
+            close(fd);
+        }
+        else {
+            assert(EEXIST == errno);  // no idea why, but it seems to end up being there sometimes.
+        }
+#endif  // 0
+
+        finesse_api_init_in_progress = 0;
     }
     pthread_mutex_unlock(&lock);
 }
@@ -89,6 +119,26 @@ static void finesse_real_shutdown(void)
         (void)finesse_terminate_file_state_mgr();
 
         save_call_stats = 1;
+
+#if 0
+        // This is some debug logic to see if I'm getting triggered.
+        char debug_log[256];
+        int  fd = -1;
+        int  result;
+        char timestamp[64];
+
+        result = FinesseGenerateTimestamp(timestamp, sizeof(timestamp));
+        assert(result < sizeof(timestamp));
+
+        result = snprintf(debug_log, sizeof(debug_log), "/tmp/finesse-%s-%s-%d.log", __func__, timestamp, getpid());
+
+        (void)unlink(debug_log);
+
+        fprintf(stderr, "create file %s\n", debug_log);
+        fd = open(debug_log, O_CREAT | O_EXCL | O_RDWR, 0600);
+        assert(fd >= 0);
+        close(fd);
+#endif  // 0
     }
     pthread_mutex_unlock(&lock);
 

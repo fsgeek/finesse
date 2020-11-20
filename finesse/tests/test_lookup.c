@@ -2,19 +2,17 @@
  * Copyright (c) 2017-2020, Tony Mason. All rights reserved.
  */
 
-#include "test_utils.h"
-#include "../api/api-internal.h"
 #include <signal.h>
+#include "../api/api-internal.h"
+#include "test_utils.h"
 
 #define __packed __attribute__((packed))
 #define __notused __attribute__((unused))
 
-
 static MunitResult test_lookup_table_create(const MunitParameter params[], void *arg)
 {
-
-    (void) params;
-    (void) arg;
+    (void)params;
+    (void)arg;
 
     munit_assert(0 == finesse_init_file_state_mgr());
 
@@ -24,21 +22,20 @@ static MunitResult test_lookup_table_create(const MunitParameter params[], void 
 }
 
 typedef struct {
-    int min_fd;
-    int max_fd;
-    unsigned lookup_iterations;
+    int                     min_fd;
+    int                     max_fd;
+    unsigned                lookup_iterations;
     finesse_client_handle_t client_handle;
 } lt_test_params_t;
 
-static void * ltworker(void *arg)
+static void *ltworker(void *arg)
 {
-    finesse_file_state_t *fs = NULL;
-    lt_test_params_t *params = (lt_test_params_t *)arg;
-    char buf[128];
-    char buf2[128];
+    finesse_file_state_t *fs     = NULL;
+    lt_test_params_t *    params = (lt_test_params_t *)arg;
+    char                  buf[128];
+    char                  buf2[128];
 
     while (NULL != params) {
-
         // First - let's create them
         for (int index = params->min_fd; index <= params->max_fd; index++) {
             uuid_t uuid;
@@ -46,28 +43,27 @@ static void * ltworker(void *arg)
             memset(buf, 0, sizeof(buf));
             snprintf(buf, sizeof(buf), "/test/%016u", index);
             uuid_generate(uuid);
-            fs = finesse_create_file_state(index, params->client_handle, (void *)&uuid, buf);
+            fs = finesse_create_file_state(index, params->client_handle, (void *)&uuid, buf, O_RDWR);
 
-            assert (NULL != fs);
+            assert(NULL != fs);
         }
 
         // now let's read them back
         for (unsigned count = 0; count < params->lookup_iterations; count++) {
             for (int index = params->min_fd; index <= params->max_fd; index++) {
-
                 memset(buf2, 0, sizeof(buf2));
                 snprintf(buf2, sizeof(buf2), "/test/%016u", index);
                 fs = finesse_lookup_file_state(index);
                 assert(NULL != fs);
                 assert(fs->fd == index);
-                assert(0 == strcmp(buf2, fs->pathname));        
+                assert(0 == strcmp(buf2, fs->pathname));
             }
         }
 
         // mow let's delete them
         for (int index = params->min_fd; index <= params->max_fd; index++) {
             if (0 == (index & 0x1)) {
-                continue; // skip evens
+                continue;  // skip evens
             }
 
             fs = finesse_lookup_file_state(index);
@@ -90,35 +86,33 @@ static void * ltworker(void *arg)
         }
 
         break;
-        
     }
 
     // pthread_exit(NULL);
     return NULL;
 }
 
-
 static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
 {
-    static const int fd_max_test = 65536;
-    unsigned thread_count = 12;
-    pthread_t threads[thread_count];
-    pthread_attr_t thread_attr;
-    int status;
+    static const int fd_max_test  = 65536;
+    unsigned         thread_count = 12;
+    pthread_t        threads[thread_count];
+    pthread_attr_t   thread_attr;
+    int              status;
     lt_test_params_t test_params[thread_count];
 
-    (void) params;
-    (void) arg;
+    (void)params;
+    (void)arg;
 
     pthread_attr_init(&thread_attr);
 
     memset(&threads, 0, sizeof(threads));
-    
+
     munit_assert(0 == finesse_init_file_state_mgr());
 
     for (unsigned index = 0; index < thread_count; index++) {
         if (index > 0) {
-            test_params[index].min_fd = test_params[index-1].max_fd + 1;
+            test_params[index].min_fd = test_params[index - 1].max_fd + 1;
         }
         else {
             test_params[index].min_fd = 0;
@@ -131,8 +125,8 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
             test_params[index].max_fd = fd_max_test;
         }
         test_params[index].lookup_iterations = 100;
-        test_params[index].client_handle = (void *)(uintptr_t)(1 + index); // just can't be zero
-        status = pthread_create(&threads[index], &thread_attr, ltworker, &test_params[index]);
+        test_params[index].client_handle     = (void *)(uintptr_t)(1 + index);  // just can't be zero
+        status                               = pthread_create(&threads[index], &thread_attr, ltworker, &test_params[index]);
         munit_assert(0 == status);
     }
 
@@ -144,7 +138,7 @@ static MunitResult test_lookup_table(const MunitParameter params[], void *arg)
         munit_assert(0 == status);
         munit_assert(NULL == result);
     }
-    
+
     finesse_terminate_file_state_mgr();
 
     return MUNIT_OK;
@@ -158,14 +152,12 @@ static MunitTest tests[] = {
 };
 
 const MunitSuite lookup_suite = {
-    .prefix = (char *)(uintptr_t)"/lookup",
-    .tests = tests,
-    .suites = NULL,
+    .prefix     = (char *)(uintptr_t) "/lookup",
+    .tests      = tests,
+    .suites     = NULL,
     .iterations = 1,
-    .options = MUNIT_SUITE_OPTION_NONE,
+    .options    = MUNIT_SUITE_OPTION_NONE,
 };
-
-
 
 /*
  * Local variables:

@@ -6,10 +6,9 @@
 #include "api-internal.h"
 #include "list.h"
 
-
 #if !defined(offsetof)
-#define offsetof(type, member)  __builtin_offsetof (type, member)
-#endif // offsetof
+#define offsetof(type, member) __builtin_offsetof(type, member)
+#endif  // offsetof
 
 /*
  * The purpose of the file descriptor manager is to provide a mechanism for mapping file descriptors to paths, since
@@ -18,8 +17,8 @@
  * We do this via a table (of course!)
  */
 #if !defined(container_of)
-#define container_of(ptr, type, member) (type *)((char *)(ptr) - offsetof(type, member))
-#endif // container_of
+#define container_of(ptr, type, member) (type *)((char *)(ptr)-offsetof(type, member))
+#endif  // container_of
 
 typedef uint32_t (*lookup_table_hash_t)(void *key, size_t length);
 
@@ -39,13 +38,13 @@ typedef struct lookup_table {
 
 typedef struct lookup_table_entry {
     struct list   ListEntry;
-    void         *Object;
+    void *        Object;
     unsigned char Key[1];
 } lookup_table_entry_t, *plookup_table_entry_t;
 
 static lookup_table_entry_t *lookup_table_entry_create(void *key, size_t key_size, void *object)
 {
-    size_t size = (offsetof(lookup_table_entry_t, Key) + key_size + 0x7) & ~0x7;
+    size_t                size      = (offsetof(lookup_table_entry_t, Key) + key_size + 0x7) & ~0x7;
     lookup_table_entry_t *new_entry = malloc(size);
 
     while (NULL != new_entry) {
@@ -65,7 +64,7 @@ static void lookup_table_entry_destroy(lookup_table_entry_t *DeadEntry)
 /* simple generic hash */
 static uint32_t default_hash(void *key, size_t length)
 {
-    uint32_t hash = ~0;
+    uint32_t    hash = ~0;
     const char *blob = (const char *)key;
 
     for (unsigned char index = 0; index < length; index += sizeof(uint32_t)) {
@@ -77,22 +76,20 @@ static uint32_t default_hash(void *key, size_t length)
 
 static uint32_t lookup_table_hash(lookup_table_t *Table, void *Key)
 {
-    return (Table->Hash(Key, Table->KeySize) & ((1<<Table->EntryCountShift)-1));
+    return (Table->Hash(Key, Table->KeySize) & ((1 << Table->EntryCountShift) - 1));
 }
 
-static
-lookup_table_t *
-lookup_table_create(unsigned int SizeHint, const char *Name, lookup_table_hash_t Hash, size_t KeySize)
+static lookup_table_t *lookup_table_create(unsigned int SizeHint, const char *Name, lookup_table_hash_t Hash, size_t KeySize)
 {
-    lookup_table_t *table = NULL;
-    unsigned char entry_count_shift = 0;
-    unsigned entrycount;
+    lookup_table_t *table             = NULL;
+    unsigned char   entry_count_shift = 0;
+    unsigned        entrycount;
 
     if (SizeHint > 65536) {
         SizeHint = 65536;
     }
 
-    while (((unsigned int)(1<<entry_count_shift)) < SizeHint) {
+    while (((unsigned int)(1 << entry_count_shift)) < SizeHint) {
         entry_count_shift++;
     }
 
@@ -103,7 +100,7 @@ lookup_table_create(unsigned int SizeHint, const char *Name, lookup_table_hash_t
     while (NULL != table) {
         table->EntryCountShift = entry_count_shift;
         memcpy(table->Name, Name, 7);
-        table->Hash = Hash ? Hash : default_hash;
+        table->Hash    = Hash ? Hash : default_hash;
         table->KeySize = KeySize;
         pthread_rwlock_init(&table->TableLock, NULL);
 
@@ -116,15 +113,14 @@ lookup_table_create(unsigned int SizeHint, const char *Name, lookup_table_hash_t
     return table;
 }
 
-static
-void lookup_table_destroy(lookup_table_t *Table)
+static void lookup_table_destroy(lookup_table_t *Table)
 {
-    unsigned bucket_index = 0;
+    unsigned              bucket_index = 0;
     lookup_table_entry_t *table_entry;
 
     pthread_rwlock_wrlock(&Table->TableLock);
 
-    for (bucket_index = 0; bucket_index < (unsigned) (1<<Table->EntryCountShift); bucket_index++) {
+    for (bucket_index = 0; bucket_index < (unsigned)(1 << Table->EntryCountShift); bucket_index++) {
         while (!list_is_empty(&Table->TableBuckets[bucket_index])) {
             table_entry = container_of(list_head(&Table->TableBuckets[bucket_index]), struct lookup_table_entry, ListEntry);
             list_remove(&table_entry->ListEntry);
@@ -141,11 +137,12 @@ void lookup_table_destroy(lookup_table_t *Table)
 
 static struct lookup_table_entry *lookup_table_locked(lookup_table_t *Table, void *Key)
 {
-    uint32_t bucket_index = lookup_table_hash(Table, Key);
-    struct lookup_table_entry *table_entry = NULL;
-    struct list *le;
+    uint32_t                   bucket_index = lookup_table_hash(Table, Key);
+    struct lookup_table_entry *table_entry  = NULL;
+    struct list *              le;
 
-    list_for_each(&Table->TableBuckets[bucket_index], le) {
+    list_for_each(&Table->TableBuckets[bucket_index], le)
+    {
         table_entry = container_of(le, struct lookup_table_entry, ListEntry);
         if (0 == memcmp(Key, table_entry->Key, Table->KeySize)) {
             return table_entry;
@@ -153,20 +150,16 @@ static struct lookup_table_entry *lookup_table_locked(lookup_table_t *Table, voi
     }
 
     return NULL;
-
 }
 
-static
-int
-lookup_table_insert(lookup_table_t *Table, void *Key, void *Object)
+static int lookup_table_insert(lookup_table_t *Table, void *Key, void *Object)
 {
-    lookup_table_entry_t *entry = lookup_table_entry_create(Key, Table->KeySize, Object);
-    int status = ENOMEM;
-    uint32_t bucket_index = lookup_table_hash(Table, Key);
-    struct lookup_table_entry *table_entry = NULL;
+    lookup_table_entry_t *     entry        = lookup_table_entry_create(Key, Table->KeySize, Object);
+    int                        status       = ENOMEM;
+    uint32_t                   bucket_index = lookup_table_hash(Table, Key);
+    struct lookup_table_entry *table_entry  = NULL;
 
     while (NULL != entry) {
-
         pthread_rwlock_wrlock(&Table->TableLock);
         table_entry = lookup_table_locked(Table, Key);
 
@@ -192,9 +185,7 @@ lookup_table_insert(lookup_table_t *Table, void *Key, void *Object)
     return status;
 }
 
-static
-int
-lookup_table_lookup(lookup_table_t *Table, void *Key, void **Object)
+static int lookup_table_lookup(lookup_table_t *Table, void *Key, void **Object)
 {
     struct lookup_table_entry *entry;
 
@@ -215,7 +206,7 @@ lookup_table_lookup(lookup_table_t *Table, void *Key, void **Object)
 static int lookup_table_remove(lookup_table_t *Table, void *Key)
 {
     struct lookup_table_entry *entry;
-    int status = ENODATA;
+    int                        status = ENODATA;
 
     pthread_rwlock_wrlock(&Table->TableLock);
     entry = lookup_table_locked(Table, Key);
@@ -231,9 +222,7 @@ static int lookup_table_remove(lookup_table_t *Table, void *Key)
     }
 
     return status;
-
 }
-
 
 /* local lookup table based on file descriptors */
 /* static */ lookup_table_t *fd_lookup_table;
@@ -244,12 +233,12 @@ static int lookup_table_remove(lookup_table_t *Table, void *Key)
  *       to delete the state.
  */
 
-finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *key, const char *pathname)
+finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *key, const char *pathname, int flags)
 {
-    size_t pathlen = strlen(pathname) + sizeof('\0');
-    size_t size = (sizeof(finesse_file_state_t) + pathlen + 0x7) & ~0x7;
+    size_t                pathlen    = strlen(pathname) + sizeof('\0');
+    size_t                size       = (sizeof(finesse_file_state_t) + pathlen + 0x7) & ~0x7;
     finesse_file_state_t *file_state = NULL;
-    int status;
+    int                   status;
 
     assert(fd_lookup_table);
 
@@ -257,10 +246,11 @@ finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *ke
     while (NULL != file_state) {
         file_state->fd = fd;
         memcpy(&file_state->key, key, sizeof(uuid_t));
-        file_state->pathname = (char *)(file_state+1);
+        file_state->pathname = (char *)(file_state + 1);
         strcpy(file_state->pathname, pathname);
         file_state->current_offset = 0;
-        file_state->client = client;
+        file_state->client         = client;
+        file_state->flags          = flags;
 
         // Try to insert it
         status = lookup_table_insert(fd_lookup_table, &fd, file_state);
@@ -282,7 +272,7 @@ finesse_file_state_t *finesse_create_file_state(int fd, void *client, uuid_t *ke
 finesse_file_state_t *finesse_lookup_file_state(int fd)
 {
     finesse_file_state_t *file_state;
-    int status;
+    int                   status;
 
     if (NULL == fd_lookup_table) {
         // This can happen during shutdown.
@@ -310,7 +300,7 @@ void finesse_delete_file_state(finesse_file_state_t *file_state)
     int status;
 
     assert(fd_lookup_table);
-    fd = file_state->fd;
+    fd     = file_state->fd;
     status = lookup_table_remove(fd_lookup_table, &fd);
     assert(0 == status);
     if (0 != status) {
@@ -319,13 +309,12 @@ void finesse_delete_file_state(finesse_file_state_t *file_state)
 
     // cleanup the file state
     free(file_state);
-
 }
 
 int finesse_init_file_state_mgr(void)
 {
     lookup_table_t *new_table = NULL;
-    int status = 0;
+    int             status    = 0;
 
     while (NULL == fd_lookup_table) {
         /*
@@ -357,7 +346,7 @@ int finesse_init_file_state_mgr(void)
             // presumably a race that we've lost
             lookup_table_destroy(new_table);
             new_table = NULL;
-            status = EINVAL;
+            status    = EINVAL;
             break;
         }
 
@@ -377,7 +366,6 @@ void finesse_terminate_file_state_mgr(void)
         }
         /* else: don't do anything because it changed and someone else must be doing something */
     }
-
 }
 
 //
@@ -385,22 +373,21 @@ void finesse_terminate_file_state_mgr(void)
 // Testing: find calls that are bypassing the library.
 //
 #if defined(NIC_FD_SHIFT)
-const unsigned int nic_fd_shift = (unsigned int) (1 << ((sizeof(int)) * 8 - 1));
+const unsigned int nic_fd_shift = (unsigned int)(1 << ((sizeof(int)) * 8 - 1));
 #else
 const unsigned int nic_fd_shift = 0;
-#endif // NIC_FD_SHIFT
+#endif  // NIC_FD_SHIFT
 
 int finesse_fd_to_nfd(int fd)
 {
-    unsigned int nfd = ((unsigned int) fd) | nic_fd_shift;
+    unsigned int nfd = ((unsigned int)fd) | nic_fd_shift;
 
     return nfd;
 }
 
 int finesse_nfd_to_fd(int nfd)
 {
-    unsigned fd = ((unsigned int ) nfd) & (~nic_fd_shift);
+    unsigned fd = ((unsigned int)nfd) & (~nic_fd_shift);
 
     return fd;
 }
-

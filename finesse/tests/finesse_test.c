@@ -38,6 +38,8 @@ static MunitResult test_server_connect(const MunitParameter params[] __notused, 
     int                     status;
     finesse_server_handle_t fsh;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
 
@@ -55,6 +57,8 @@ static MunitResult test_client_connect(const MunitParameter params[] __notused, 
     int                     status;
     finesse_server_handle_t fsh;
     finesse_client_handle_t fch;
+
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
@@ -81,6 +85,8 @@ static MunitResult test_client_connect_without_server(const MunitParameter param
     int                     status;
     finesse_client_handle_t fch;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartClientConnection(&fch, test_name);
     munit_assert(0 != status);
 
@@ -97,6 +103,8 @@ static MunitResult test_msg_test(const MunitParameter params[] __notused, void *
     fincomm_message         fm_server    = NULL;
     void *                  client;
     fincomm_message         request;
+
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
@@ -161,6 +169,8 @@ static MunitResult test_msg_namemap(const MunitParameter params[] __notused, voi
     uuid_t                  key1, key2;
     uuid_t                  out_key1, out_key2;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -171,10 +181,10 @@ static MunitResult test_msg_namemap(const MunitParameter params[] __notused, voi
 
     // client sends requests
     memset(&key1, 0, sizeof(key1));
-    status = FinesseSendNameMapRequest(fch, &key1, name1, &message1);
+    status = FinesseSendNameMapRequest(fch, &key1, name1, O_RDWR, &message1);
     munit_assert(0 == status);
     memset(&key2, 0, sizeof(key2));
-    status = FinesseSendNameMapRequest(fch, &key2, name2, &message2);
+    status = FinesseSendNameMapRequest(fch, &key2, name2, O_RDWR, &message2);
     munit_assert(0 == status);
 
     // server gets requests
@@ -244,6 +254,8 @@ static MunitResult test_msg_namemaprelease(const MunitParameter params[] __notus
     fincomm_message         request;
     uuid_t                  key;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -302,6 +314,8 @@ static MunitResult test_msg_statfs(const MunitParameter params[] __notused, void
     fincomm_message         request;
     uuid_t                  key;
     struct statvfs          vfs, vfs2;
+
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
@@ -405,6 +419,8 @@ static MunitResult test_msg_unlink(const MunitParameter params[] __notused, void
     fincomm_message         request;
     uuid_t                  key;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -470,6 +486,8 @@ static MunitResult test_msg_stat(const MunitParameter params[] __notused, void *
     double                  timeout;
     int                     result;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -482,6 +500,8 @@ static MunitResult test_msg_stat(const MunitParameter params[] __notused, void *
     memset(&parent, 0, sizeof(uuid_t));
     status = FinesseSendStatRequest(fch, "/foo", &message);
     munit_assert(0 == status);
+
+    usleep(100);
 
     // server gets a request
     status = FinesseGetRequest(fsh, &client, &request);
@@ -500,15 +520,20 @@ static MunitResult test_msg_stat(const MunitParameter params[] __notused, void *
     munit_assert(0 == strcmp("/foo", test_message->Message.Fuse.Request.Parameters.Stat.Name));
 
     // server responds
+    usleep(200);
     status = stat(".", &statbuf1);
     munit_assert(0 == status);
     status = FinesseSendStatResponse(fsh, client, fm_server, &statbuf1, 1.0, 0);
     munit_assert(0 == status);
 
+    usleep(400);
+
     // client gets the response
     status = FinesseGetStatResponse(fch, message, &statbuf2, &timeout, &result);
     munit_assert(0 == status);
     munit_assert(0 == memcmp(&statbuf1, &statbuf2, sizeof(statbuf1)));
+
+    usleep(800);
 
     // Release the message
     FinesseFreeStatfsResponse(fch, message);
@@ -659,6 +684,8 @@ static MunitResult test_msg_create(const MunitParameter params[] __notused, void
     uint64_t                generation;
     int                     result;
 
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
+
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);
     munit_assert(NULL != fsh);
@@ -732,6 +759,8 @@ static MunitResult test_msg_server_stat(const MunitParameter params[] __notused,
         .Length  = FINESSE_SERVER_STAT_LENGTH,
     };
     FinesseServerStat *server_stat_response;
+
+    munit_assert(0 == setenv("FINESSE_COMM_STAT_LOG", __func__, 1));  // this sets the log file name
 
     status = FinesseStartServerConnection(test_name, &fsh);
     munit_assert(0 == status);

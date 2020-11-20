@@ -117,6 +117,7 @@ static int finesse_statfs_handler(struct fuse_session *se, void *Client, fincomm
     finesse_object_t *finobj = NULL;
     int               status;
     finesse_msg *     fmsg;
+    int               flags = 0;  // TODO: may need to augment this
 
     assert(NULL != se);
     assert(NULL != Message);
@@ -125,7 +126,8 @@ static int finesse_statfs_handler(struct fuse_session *se, void *Client, fincomm
     fmsg = (finesse_msg *)Message->Data;
 
     // We need to do a lookup here
-    status = FinesseServerInternalMapRequest(se, 0, NULL, fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Name, 0, &finobj);
+    status =
+        FinesseServerInternalMapRequest(se, 0, NULL, fmsg->Message.Fuse.Request.Parameters.Statfs.Options.Name, flags, &finobj);
 
     if (0 == status) {
         // Now it's just an fstat...

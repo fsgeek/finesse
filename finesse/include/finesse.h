@@ -44,7 +44,7 @@ int  FinesseGetServerStatResponse(finesse_client_handle_t FinesseClientHandle, f
                                   FinesseServerStat **ServerStat);
 void FinesseFreeServerStatResponse(finesse_client_handle_t FinesseClientHandle, fincomm_message Response);
 
-int  FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *ParentDir, const char *NameToMap,
+int  FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *ParentDir, const char *NameToMap, int Flags,
                                fincomm_message *Message);
 int  FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, void *Client, fincomm_message Message, uuid_t *MapKey,
                                 int Result);
