@@ -279,7 +279,9 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
 
             STOP_NATIVE_TIME;
 
-            fprintf(stderr, "%s: openat(%s) skipped due to flags %d\n", __func__, pathname, flags);
+            fprintf(stderr, "%s: openat(%s) skipped due to flags %o\n", __func__, pathname, flags);
+
+            // TODO: we should add it here
 
             break;
         }
@@ -324,6 +326,11 @@ static int internal_openat(int dirfd, const char *pathname, int flags, mode_t mo
 
             fd = internal_open(cwdbuf, flags, mode);
 
+            break;
+        }
+
+        if (fd >= 0) {
+            // This means we've already opened (and added) it.
             break;
         }
 
