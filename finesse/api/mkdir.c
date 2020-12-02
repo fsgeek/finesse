@@ -4,6 +4,7 @@
  */
 
 #include "api-internal.h"
+#include "callstats.h"
 
 static int fin_mkdir(const char *path, mode_t mode)
 {
@@ -45,33 +46,34 @@ static int fin_mkdirat(int fd, const char *path, mode_t mode)
     return orig_mkdirat(fd, path, mode);
 }
 
+static int internal_mkdir(const char *path, mode_t mode)
+{
+    // TODO: implement this as a Finesse call
+    return fin_mkdir(path, mode);
+}
+
 int finesse_mkdir(const char *path, mode_t mode)
 {
-    int status;
-#if 0
-    struct stat sb;
+    int status = -1;
 
-    if (stat(path, &sb) == 0 && S_ISDIR(sb.st_mode)) {
-        // Directory already exists
-        return -1;
-    }
-#endif  // 0
+    status = internal_mkdir(path, mode);
+    FinesseApiCountCall(FINESSE_API_CALL_MKDIR, (status >= 0));
 
-    status = fin_mkdir(path, mode);
-
-    if (0 != status) {
-        fprintf(stderr, "%s:%d mkdir for %s, status = %d, errno = %d\n", __FILE__, __LINE__, path, status, errno);
-    }
     return status;
+}
+
+static int internal_mkdirat(int fd, const char *path, mode_t mode)
+{
+    // TODO: implement this as a Finesse call
+    return fin_mkdirat(fd, path, mode);
 }
 
 int finesse_mkdirat(int fd, const char *path, mode_t mode)
 {
-    int status;
+    int status = -1;
 
-    fd = fin_mkdirat(fd, path, mode);
-
-    status = fin_mkdirat(fd, path, mode);
+    status = internal_mkdirat(fd, path, mode);
+    FinesseApiCountCall(FINESSE_API_CALL_MKDIRAT, (status >= 0));
 
     return status;
 }

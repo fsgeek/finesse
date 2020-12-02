@@ -19,10 +19,10 @@
 
 static finesse_api_call_statistics_t FinesseApiCallStatistics[FINESSE_API_CALLS_COUNT];
 
-static const char *FinesseCallDataNames[] = {"Access", "Faccessat", "Chdir",  "Chmod",   "Chown",    "Close",   "Creat",   "Dir",
-                                             "Dup",    "Fopen",     "Fdopen", "Freopen", "Fstat",    "Fstatat", "Fstatfs", "Lstat",
-                                             "Link",   "Lseek",     "Mkdir",  "Open",    "Openat",   "Read",    "Rename",  "Rmdir",
-                                             "Stat",   "Statx",     "Statfs", "Unlink",  "Unlinkat", "Utime",   "Write"};
+static const char *FinesseCallDataNames[] = {"Access", "Faccessat", "Chdir",  "Chmod",   "Chown",  "Close",    "Creat",   "Dir",
+                                             "Dup",    "Fopen",     "Fdopen", "Freopen", "Fstat",  "Fstatat",  "Fstatfs", "Lstat",
+                                             "Link",   "Lseek",     "Mkdir",  "Mkdirat", "Open",   "Openat",   "Read",    "Rename",
+                                             "Rmdir",  "Stat",      "Statx",  "Statfs",  "Unlink", "Unlinkat", "Utime",   "Write"};
 
 static const char *FinesseCallDataNames[FINESSE_API_CALLS_COUNT];
 
