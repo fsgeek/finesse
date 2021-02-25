@@ -136,8 +136,8 @@ fincomm_arena_handle_t FincommCreateArena(char *Name, size_t BufferSize, size_t 
     assert(0 == strcmp(Signature, arena_info->Signature));  // eventually, we probably only need to use this field
     assert(0 == strcmp(Name, arena_info->Name));
     assert(arena_info->Size == BufferSize);
-    assert(arena_info->Count = Count);
-    assert(arena_info->Offset = ARENA_CONTROL_AREA_SIZE);
+    assert(arena_info->Count == Count);
+    assert(arena_info->Offset == ARENA_CONTROL_AREA_SIZE);
 
     arena_handle->Arena = arena_info;
 
