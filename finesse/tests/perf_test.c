@@ -62,6 +62,7 @@ static MunitParameterEnum lk_memcpy_params[] = {
 static unsigned char        tb[TESTBUF_SIZE];
 static const unsigned char *test_buffer = tb;
 static unsigned char        scratch_buffer[TESTBUF_SIZE];
+static const unsigned       basic_test_iterations = 100;
 
 static size_t fill_testbuffer(void)
 {
@@ -196,7 +197,7 @@ static MunitResult test_lk_memcpy(const MunitParameter params[], void *arg)
     munit_assert(size >= 4096);
     munit_assert(size <= sizeof(tb));
 
-    fill_testbuffer();
+    // fill_testbuffer();
 
     for (off_t offset = 0; (offset + size) <= sizeof(tb); offset += size) {
         // So we're going to copy in the specified block sizes
@@ -322,14 +323,14 @@ static MunitResult test_memcpy(const MunitParameter params[], void *arg)
 
 static MunitResult test_basic(const MunitParameter params[], void *arg)
 {
-    const int    iterations = 1;
+    const int    iterations = basic_test_iterations;
     const size_t size       = sizeof(tb);
 
     (void)params;
     (void)arg;
 
     for (unsigned index = 0; index < iterations; index++) {
-        munit_assert(sizeof(tb) == fill_testbuffer());
+        // munit_assert(sizeof(tb) == fill_testbuffer());
         munit_assert(scratch_buffer == memcpy(scratch_buffer, test_buffer, size));
     }
 
@@ -338,14 +339,14 @@ static MunitResult test_basic(const MunitParameter params[], void *arg)
 
 static MunitResult test_basic2(const MunitParameter params[], void *arg)
 {
-    const int    iterations = 1;
+    const int    iterations = basic_test_iterations;
     const size_t size       = sizeof(tb);
 
     (void)params;
     (void)arg;
 
     for (unsigned index = 0; index < iterations; index++) {
-        munit_assert(sizeof(tb) == fill_testbuffer());
+        // munit_assert(sizeof(tb) == fill_testbuffer());
         munit_assert(scratch_buffer == memmove(scratch_buffer, test_buffer, size));
     }
 
@@ -354,14 +355,14 @@ static MunitResult test_basic2(const MunitParameter params[], void *arg)
 
 static MunitResult test_basic3(const MunitParameter params[], void *arg)
 {
-    const int    iterations = 1;
+    const int    iterations = basic_test_iterations;
     const size_t size       = sizeof(tb);
 
     (void)params;
     (void)arg;
 
     for (unsigned index = 0; index < iterations; index++) {
-        munit_assert(sizeof(tb) == fill_testbuffer());
+        // munit_assert(sizeof(tb) == fill_testbuffer());
         rep_movsb(scratch_buffer, test_buffer, size);
     }
 
@@ -370,9 +371,9 @@ static MunitResult test_basic3(const MunitParameter params[], void *arg)
 
 static const MunitTest perf_tests[] = {
     TEST("/null", test_null, NULL),
-    TEST("/basic", test_basic, NULL),
-    TEST("/basic2", test_basic2, NULL),
-    TEST("/basic3", test_basic3, NULL),
+    TEST("/basic/memcpy", test_basic, NULL),
+    TEST("/basic2/memmove", test_basic2, NULL),
+    TEST("/basic3/rep_movsb", test_basic3, NULL),
     TEST("/memset", test_memset, memset_params),
     TEST("/memset_verify", test_memset_verify, memset_params),
     TEST("/memcpy", test_memcpy, memcpy_params),
