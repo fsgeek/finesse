@@ -32,7 +32,8 @@ if libdl.found()
    deps += [ libdl ]
 endif
 
-libfinessepl = library('finesse_preload', finesse_preload_sources,
+libfinessepl = library('finesse_preload',
+                        finesse_preload_sources,
                         version: meson.project_version(),
                         soversion: '1',
                         include_directories: include_dirs,
