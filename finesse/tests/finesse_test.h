@@ -6,32 +6,30 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
+#include <fcntl.h>
+#include <finesse.h>
+#include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <uuid/uuid.h>
-#include <pthread.h>
 #include "munit.h"
-#include <errno.h>
-#include <finesse.h>
 
 #if !defined(__notused)
 #define __notused __attribute__((unused))
-#endif // 
+#endif  //
 
-#define TEST(_name, _func, _params)             \
-    {                                           \
-        .name = (char *)(uintptr_t)(_name),     \
-        .test = (_func),                        \
-        .setup = NULL,                          \
-        .tear_down = NULL,                      \
-        .options = MUNIT_TEST_OPTION_NONE,      \
-        .parameters = (_params),                     \
+#define TESTEX(_name, _func, _setup, _tear_down, _options, _params)                                                         \
+    {                                                                                                                       \
+        .name = (char *)(uintptr_t)(_name), .test = (_func), .setup = _setup, .tear_down = _tear_down, .options = _options, \
+        .parameters = (_params),                                                                                            \
     }
+
+#define TEST(_name, _func, _params) TESTEX(_name, _func, NULL, NULL, MUNIT_TEST_OPTION_NONE, _params)
 
 extern const MunitSuite fincomm_suite;
 extern const MunitSuite finesse_suite;

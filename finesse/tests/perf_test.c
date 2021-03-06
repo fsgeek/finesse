@@ -58,7 +58,7 @@ static MunitParameterEnum lk_memcpy_params[] = {
     {.name = (char *)(uintptr_t)TEST_MEMCPY_SIZE, .values = (char **)(uintptr_t)TEST_MEMCPY_SIZE_OPTIONS},
 };
 
-#define TESTBUF_SIZE (1024 * 1024 * 1024)
+#define TESTBUF_SIZE (100 * 1024 * 1024)
 static unsigned char        tb[TESTBUF_SIZE];
 static const unsigned char *test_buffer = tb;
 static unsigned char        scratch_buffer[TESTBUF_SIZE];

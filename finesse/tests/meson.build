@@ -44,6 +44,16 @@ testbbfin_sources = [
     'testbbfin_mkdir_data.c',
 ]
 
+testfcperf_sources = [
+    'fcperf.c',
+]
+
+executable('testfcperf',
+           [common_sources, testfcperf_sources],
+           dependencies: [deps, munit],
+           include_directories: [include_dirs, finesse_inc_dirs],
+           link_with: [finesscommunications, finesse_utils, libfinesse_api]
+          )
 
 executable('testutils',
            [testutils_sources],
