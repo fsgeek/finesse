@@ -51,7 +51,7 @@ class BuildConfigData:
         'c89': '-Dc_std=c89',
         'c99': '-Dc_std=c99',
         'c11': '-Dc_std=c11',
-        'c18': '-Dc_std=c18',
+        'c17': '-Dc_std=c17',
     }
 
     c_args = [
@@ -87,7 +87,7 @@ class BuildConfig:
         self.log = open(os.devnull, 'w')
         sanitizers = [x for x in BuildConfigData.sanitizers]
         self.sanitizer = sanitizers[-1]  # default
-        self.c_std = BuildConfigData.c_std['c18']  # default
+        self.c_std = BuildConfigData.c_std['c17']  # default
         self.c_args = BuildConfigData.c_args  # TODO: allow more selectivity here
         assert os.path.isdir(
             self.base), 'The base {} must be a valid directory'.format(base)
