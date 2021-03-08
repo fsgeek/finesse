@@ -196,12 +196,13 @@ static MunitResult test_fc(const MunitParameter params[], void *arg)
 
     (void)params;
     (void)arg;
+    (void)milestone;
 
     munit_assert(fcperf_test_message_count > 0);
 
     for (unsigned index = 0; index < fcperf_test_message_count; index++) {
         //   (1) client allocates a request region (FinesseGetRequestBuffer)
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         fm = FinesseGetRequestBuffer(fsmr, FINESSE_NATIVE_MESSAGE, FINESSE_NATIVE_REQ_TEST);
         munit_assert_not_null(fm);
         fin_cmsg = (finesse_msg *)fm->Data;
@@ -211,19 +212,19 @@ static MunitResult test_fc(const MunitParameter params[], void *arg)
         memcpy(fin_cmsg->Message.Native.Request.Parameters.Test.Request, in_buf, sizeof(in_buf));
 
         //   (3) client asks for server notification (FinesseRequestReady)
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         request_id = FinesseRequestReady(fsmr, fm);
         munit_assert(0 != request_id);
         munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
         //   (4) server waits until there's a response to process
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         status = FinesseReadyRequestWait(fsmr);
         munit_assert(0 == status);
         munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
         //   (5) server retrieves message (FinesseGetReadyRequest) - note this is non-blocking!
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         status = FinesseGetReadyRequest(fsmr, &fm_server);
         munit_assert(0 == status);
         munit_assert_not_null(fm_server);
@@ -240,11 +241,11 @@ static MunitResult test_fc(const MunitParameter params[], void *arg)
         munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
         //   (7) server notifies client (FinesseResponseReady)
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         FinesseResponseReady(fsmr, fm_server, 0);
 
         //   (8) client can poll or block for response (FinesseGetResponse)
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         status = FinesseGetResponse(fsmr, fm, 1);
         munit_assert(0 != status);  // boolean response
         fin_cmsg = (finesse_msg *)fm->Data;
@@ -252,7 +253,7 @@ static MunitResult test_fc(const MunitParameter params[], void *arg)
         munit_assert(fin_cmsg->Stats.RequestType.Native != 0);
 
         //   (9) client frees the request region (FinesseReleaseRequestBuffer)
-        fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
+        // fprintf(stderr, "milestone %u (line = %d)\n", milestone++, __LINE__);
         FinesseReleaseRequestBuffer(
             fsmr, fm);  // this is ugly, but we don't have a client control structure (ccs) we have the shared memory pointer
     }

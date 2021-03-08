@@ -13,7 +13,18 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <unistd.h>
+#include <dlfcn.h>
+#include <sys/syscall.h>
+
 #include "fcinternal.h"
+
+
+// gcc 7.5 on Ubuntu 18.04 does not define this
+// for some reason.
+static pid_t FinesseGetTid(void);
+
+
 
 #if !defined(make_mask64)
 #define make_mask64(index) (((u_int64_t)1) << index)
@@ -237,7 +248,7 @@ static void *listener_worker(void *context)
     assert(NULL != context);
     assert(scs->server_connection >= 0);
     assert(0 == scs->listener_tid);
-    scs->listener_tid = gettid();
+    scs->listener_tid = FinesseGetTid();
 
     while (scs->server_connection >= 0) {
         server_connection_state_t *new_client = NULL;
@@ -815,61 +826,32 @@ uint64_t FinesseGetActiveClientCount(finesse_server_handle_t FinesseServerHandle
     return count;
 }
 
-#if 0
-//
-// These are the functions that I previously defined.  Look at implementing them in the new communications
-// model - possibly in separate files?
-//
+// older glibc versions do not include this linux system call
+static pid_t finesse_gettid(void)
+{
+    return syscall(__NR_gettid);
+}
 
-int FinesseStartClientConnection(finesse_client_handle_t *FinesseClientHandle);
-int FinesseStopClientConnection(finesse_client_handle_t FinesseClientHandle);
-int FinesseSendRequest(finesse_client_handle_t FinesseClientHandle, void *Request, size_t RequestLen);
-int FinesseGetClientResponse(finesse_client_handle_t FinesseClientHandle, void **Response, size_t *ResponseLen);
-void FinesseFreeClientResponse(finesse_client_handle_t FinesseClientHandle, void *Response);
+static pid_t FinesseGetTid(void)
+{
+    typedef pid_t (*finesse_gettid_t)(void);
+    finesse_gettid_t gettid_to_call = NULL;
 
-int FinesseSendTestRequest(finesse_client_handle_t FinesseClientHandle, uint64_t *RequestId);
-int FinesseSendTestResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result);
-int FinesseGetTestResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
+    if (NULL == gettid_to_call) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+        gettid_to_call = (finesse_gettid_t)dlsym(RTLD_NEXT, "gettid");
+#pragma GCC diagnostic pop
 
-int FinesseSendNameMapRequest(finesse_client_handle_t FinesseClientHandle, char *NameToMap, uint64_t *RequestId);
-int FinesseSendNameMapResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, uuid_t *MapKey, int64_t Result);
-int FinesseGetNameMapResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, uuid_t *MapKey);
+        if (NULL == gettid_to_call) {
+            gettid_to_call = finesse_gettid;
+        }
 
-int FinesseSendNameMapReleaseRequest(finesse_client_handle_t FinesseClientHandle, uuid_t *MapKey, uint64_t *RequestId);
-int FinesseSendNameMapReleaseResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result);
-int FinesseGetNameMapReleaseResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
+    }
 
-int FinesseSendPathSearchRequest(finesse_client_handle_t FinesseClientHandle, char **Files, char **Paths, uint64_t *RequestId);
-int FinesseSendPathSearchResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, char *Path, int64_t Result);
-int FinesseGetPathSearchResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, char **Path);
-void FinesseFreePathSearchResponse(finesse_client_handle_t FinesseClientHandle, char *PathToFree);
+    assert(NULL != gettid_to_call);
 
-int FinesseSendDirMapRequest(finesse_client_handle_t FinesseClientHandle, uint64_t *RequestId, uuid_t *Key, char *Path);
-int FinesseSendDirMapResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, char *Path, int64_t Result);
-int FinesseGetDirMapResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
+    return gettid_to_call();
 
-int FinesseSendUnlinkRequest(finesse_client_handle_t FinesseClientHandle, const char *NameToUnlink, uint64_t *RequestId);
-int FinesseSendUnlinkResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, int64_t Result);
-int FinesseGetUnlinkResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId);
+}
 
-int FinesseSendStatfsRequest(finesse_client_handle_t FinesseClientHandle, const char *path, uint64_t *RequestId);
-int FinesseSendStatfsResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, struct statvfs *buf, int64_t Result);
-int FinesseGetStatfsResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, struct statvfs *buf);
-
-int FinesseSendFstatfsRequest(finesse_client_handle_t FinesseClientHandle, fuse_ino_t nodeid, uint64_t *RequestId);
-int FinesseSendFstatfsResponse(finesse_server_handle_t FinesseServerHandle, uuid_t *ClientUuid, uint64_t RequestId, struct statvfs *buf, int64_t Result);
-int FinesseGetFstatfsResponse(finesse_client_handle_t FinesseClientHandle, uint64_t RequestId, struct statvfs *buf);
-
-void (*finesse_init)(void);
-int finesse_check_prefix(const char *pathname);
-int finesse_open(const char *pathname, int flags, ...);
-int finesse_creat(const char *pathname, mode_t mode);
-int finesse_openat(int dirfd, const char *pathname, int flags, ...);
-int finesse_close(int fd);
-int finesse_unlink(const char *pathname);
-int finesse_unlinkat(int dirfd, const char *pathname, int flags);
-int finesse_statfs(const char *path, struct statvfs *buf);
-int finesse_fstatfs(fuse_ino_t nodeid, struct statvfs *buf);
-//int finesse_mkdir(const char *path, mode_t mode);
-//int finesse_mkdirat(int fd, const char *path, mode_t mode);
-#endif  // 0

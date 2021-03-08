@@ -26,6 +26,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if !defined(STATX_TYPE)
+// required on Ubuntu 18.04
+#include <linux/stat.h>
+#endif // STATX_TYPE
+
+
 #if !defined(VARIABLE_IS_NOT_USED)
 #ifdef __GNUC__
 #define VARIABLE_IS_NOT_USED __attribute__((unused))
