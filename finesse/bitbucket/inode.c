@@ -584,10 +584,12 @@ const char *BitbucketFormattedInodeTableStatistics(void *Table, int CsvFormat)
         // Add useful header
         if (CsvFormat) {
             space_used = strlen(csvHeader);
-            memcpy(formatted_data, csvHeader, space_used);
+            assert(space_used  < required_space); // This suppresses the error gcc 10 throws on the memcpy otherwise
+            memcpy(formatted_data, csvHeader, strlen(csvHeader));
         }
         else {
             space_used = strlen(header);
+            assert(space_used  < required_space); // suppress gcc 10 error on memcpy (next line)
             memcpy(formatted_data, header, space_used);
         }
 

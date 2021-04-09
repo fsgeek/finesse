@@ -41,6 +41,6 @@ int FinesseServerNativeMapReleaseRequest(finesse_server_handle_t Fsh, void *Clie
 
 int FinesseServerNativeServerStatRequest(finesse_server_handle_t Fsh, void *Client, fincomm_message Message);
 
-FinesseServerFunctionHandler FinesseServerFuseStat;
-FinesseServerFunctionHandler FinesseServerFuseAccess;
-FinesseServerFunctionHandler FinesseServerFuseUnlink;
+extern FinesseServerFunctionHandler FinesseServerFuseStat;
+extern FinesseServerFunctionHandler FinesseServerFuseAccess;
+extern FinesseServerFunctionHandler FinesseServerFuseUnlink;
